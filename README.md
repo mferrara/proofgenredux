@@ -1,66 +1,82 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Proofgen
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## PHP Extensions required
 
-## About Laravel
+fileinfo
+exif
+gd
+pcntl
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Getting new images into the system:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+FULLSIZE_HOME_DIR="~/Desktop/ShowPhotos"
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+In order to get proofgen to process images it needs to know where to look for them. The way we do
+this is by the FULLSIZE_HOME_DIR configuration variable in the .env file. Enter the full path
+to the images PARENT folder here. So, if you have a directory "~/Desktop/ShowPhotos" where you have
+"20Buckeye" - your FULLSIZE_HOME_DIR would be "~/Desktop/ShowPhotos". Proofgen will then detect
+the "20Buckeye" folder as the "Show" folder (and this will be used as the proof number prefix).
 
-## Learning Laravel
+Within this "20Buckeye" folder you'll want "class folders" which contains the full size images.
+Example of this structure would be "~/Desktop/ShowPhotos/20Buckeye/0001" where the full size images
+are inside the "0001" folder.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+ARCHIVE_HOME_DIR="~/Desktop/fullsize_archive"
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+While proofgen processes full size images into proofs it will also copy the full size image to an
+alternate file location - for backup purposes. This _should_ be an external drive, this is the back
+up in case the main drive crashes/fails/laptop is stolen. It will copy the full size images to this
+location with the same folder format as where they came from, the only difference being these fullsize
+images will be renamed with the proof number.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Process new images found:
 
-## Laravel Sponsors
+Processes all new images found in the base show/class directories. The images will be renamed, thumbnailed, watermarked and uploaded.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+php artisan proofgen:process
 
-### Premium Partners
+## Rebuild thumbnails/upload to website
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+This will remove all existing thumbnails, re-producing and uploading them
 
-## Contributing
+php artisan proofgen:regenerate
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Process all errors, attempting to complete the failed jobs
 
-## Code of Conduct
+php artisan proofgen:errors
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Setup on Mac OS/OSX
 
-## Security Vulnerabilities
+First, we need to get a version of PHP with GD image manipulation support installed.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+This process comes from https://php-osx.liip.ch/ - refer here for additional information or changes
 
-## License
+First, run this (This installs PHP 7.1)
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+`curl -s https://php-osx.liip.ch/install.sh | bash -s 7.1`
+
+Then, edit ~/.bash_profile to add the following (This makes sure we're using that version of PHP on the command line)
+
+`export PATH=/usr/local/php5/bin:$PATH`
+
+Then, run this
+
+`source ~/.bash_profile`
+
+Then, run this to determine which version of PHP we're running (preferably not 5.5)
+
+`php -v`
+
+You should see something like this...
+
+```
+proofgen git:(master) ✗ php -v
+PHP 7.1.9 (cli) (built: Sep 14 2017 10:05:35) ( NTS )
+Copyright (c) 1997-2017 The PHP Group
+Zend Engine v3.1.0, Copyright (c) 1998-2017 Zend Technologies
+    with Zend OPcache v7.1.9, Copyright (c) 1999-2017, by Zend Technologies
+    with Xdebug v2.5.3, Copyright (c) 2002-2017, by Derick Rethans
+
+```
+
+Now we should have a modern version of PHP with the required extensions to process and upload images.

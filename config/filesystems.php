@@ -36,6 +36,24 @@ return [
             'throw' => false,
         ],
 
+        'fullsize' => [
+            'driver' => 'local',
+            'root' => getenv('FULLSIZE_HOME_DIR'),
+            'throw' => true,
+        ],
+
+        'archive' => [
+            'driver' => 'local',
+            'root' => getenv('ARCHIVE_HOME_DIR'),
+            'throw' => true,
+        ],
+
+        'testing_images' => [
+            'driver' => 'local',
+            'root' => getenv('TEST_SOURCE_DIR'),
+            'throw' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
