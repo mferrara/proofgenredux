@@ -17,13 +17,13 @@ class ShowClass
         $this->archive_base_path = config('proofgen.archive_home_dir');
     }
 
-    public function getImagesPendingProofing(): ?array
+    public function getImagesPendingProofing(): array
     {
         // Get contents of the originals directory and compare to contents of the proofs directory
         $originals = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder.'/originals', false);
         $proofs = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder.'/proofs', false);
 
-        $images = null;
+        $images = [];
         $original_images = [];
         $proofs_images = [];
         if(isset($originals['images'])) {
@@ -54,11 +54,11 @@ class ShowClass
         return $images;
     }
 
-    public function getImagesPendingProcessing(): ?array
+    public function getImagesPendingProcessing(): array
     {
         $contents = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder, false);
 
-        $images = null;
+        $images = [];
         if(isset($contents['images']))
             $images = $contents['images'];
 
@@ -82,5 +82,12 @@ class ShowClass
         }
 
         return $processed;
+    }
+
+    public function processImage(string $image_path): void
+    {
+        $image_obj = new Image($image_path);
+        $proof_numbers = Utility::generateProofNumbers($this->show_folder, 1);
+        $image_obj->processImage(array_shift($proof_numbers), true);
     }
 }

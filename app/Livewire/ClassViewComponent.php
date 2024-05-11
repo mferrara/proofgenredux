@@ -47,6 +47,13 @@ class ClassViewComponent extends Component
         $this->flash_message = $count.' Images processed.';
     }
 
+    public function processImage($image_path)
+    {
+        $show_class = new ShowClass($this->show, $this->class);
+        $show_class->processImage($image_path);
+        $this->flash_message = $image_path.' Processed.';
+    }
+
     public function getImagesOfPath($path): array
     {
         $files = Utility::getFiles($path);

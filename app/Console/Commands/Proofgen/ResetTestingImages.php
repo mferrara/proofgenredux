@@ -34,6 +34,9 @@ class ResetTestingImages extends Command
         // Get all files and directories in the testing_images filesystem
         $testing_images = Utility::getContentsOfPath('/', true, 'testing_images');
 
+        $count = count($testing_images['images']);
+        $this->info('Found '.$count.' images to copy');
+
         // Copy each file from the testing_images filesystem to the fullsize filesystem maintaining their original filenames and directories
         foreach ($testing_images['images'] as $file) {
             $contents = Storage::disk('testing_images')->get($file->path());

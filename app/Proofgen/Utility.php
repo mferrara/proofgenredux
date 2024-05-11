@@ -20,7 +20,7 @@ class Utility
 
     public static function getContentsOfPath($path, $recursive = false, $storage_disk = 'fullsize')
     {
-        $contents = Storage::disk('fullsize')->listContents($path, $recursive);
+        $contents = Storage::disk($storage_disk)->listContents($path, $recursive);
 
         $directories = [];
         $images = [];
@@ -84,7 +84,7 @@ class Utility
             // Cycle through the class folders
             foreach ($contents['directories'] as $dir) {
                 // Get the images from the 'originals' path, which will have renamed images.
-                $class_contents = Utility::getContentsOfPath($show_path.'/'.$dir['path'].'/originals');
+                $class_contents = Utility::getContentsOfPath($dir->path().'/originals');
                 $class_images = $class_contents['images'];
 
                 // If there's images in here, drop them in the main images array
@@ -107,7 +107,12 @@ class Utility
         if (count($images) > 0) {
             // Now we've got an array of images, we need to find the highest proof number of them all
             foreach ($images as $img) {
-                $num = $img['filename'];
+                $num = $img->path();
+                // remove extension and path and show prefix
+                $ext = pathinfo($num, PATHINFO_EXTENSION);
+                $num = str_replace('.'.$ext, '', $num);
+                $num = explode('/', $num);
+                $num = array_pop($num);
                 $num = str_replace(strtoupper($show).'_', '', $num);
                 $image_numbers[] = $num;
             }
