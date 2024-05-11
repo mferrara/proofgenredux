@@ -14,6 +14,7 @@ class ClassViewComponent extends Component
     public string $fullsize_base_path = '';
     public string $archive_base_path = '';
     public string $working_full_path = '';
+    public string $flash_message = '';
 
     public function mount()
     {
@@ -30,11 +31,20 @@ class ClassViewComponent extends Component
 
         $show_class = new ShowClass($this->show, $this->class);
         $images_pending_processing = $show_class->getImagesPendingProcessing();
+        $images_pending_proofing = $show_class->getImagesPendingProofing();
 
         return view('livewire.class-view-component')
             ->with('current_path_contents', $current_path_contents)
             ->with('current_path_directories', $current_path_directories)
-            ->with('images_pending_processing', $images_pending_processing);
+            ->with('images_pending_processing', $images_pending_processing)
+            ->with('images_pending_proofing', $images_pending_proofing);
+    }
+
+    public function processPendingImages()
+    {
+        $show_class = new ShowClass($this->show, $this->class);
+        $count = $show_class->processPendingImages();
+        $this->flash_message = $count.' Images processed.';
     }
 
     public function getImagesOfPath($path): array
