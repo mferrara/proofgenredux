@@ -13,10 +13,12 @@ Route::middleware([
     'verified',
 ])->group(function () {
 
-    Route::get('/', HomeComponent::class);
+    Route::get('/', HomeComponent::class)->name('home');
 
     Route::get('/show/{show}', \App\Livewire\ShowViewComponent::class);
     Route::get('/show/{show}/class/{class}', \App\Livewire\ClassViewComponent::class);
+
+    Route::get('/config/server', \App\Livewire\ServerConnectionComponent::class)->name('server-connection');
 
     Route::get('/dashboard', function () {
         return view('dashboard');

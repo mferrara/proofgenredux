@@ -5,6 +5,10 @@ namespace App\Proofgen;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use League\Flysystem\FileAttributes;
+use League\Flysystem\Filesystem;
+use League\Flysystem\PhpseclibV2\SftpAdapter;
+use League\Flysystem\PhpseclibV2\SftpConnectionProvider;
+use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 
 class Utility
 {
@@ -145,4 +149,36 @@ class Utility
 
         return $proof_numbers;
     }
+
+    public static function remoteFilesystem(string $root_path): Filesystem
+    {
+        return new Filesystem(new SftpAdapter(
+            new SftpConnectionProvider(
+                config('proofgen.sftp.host'), // host (required)
+                config('proofgen.sftp.username'), // username (required)
+                null, // password (optional, default: null) set to null if privateKey is used
+                config('proofgen.sftp.private_key'), // private key (optional, default: null) can be used instead of password, set to null if password is set
+                null, // passphrase (optional, default: null), set to null if privateKey is not used or has no passphrase
+                config('proofgen.sftp.port'), // port (optional, default: 22)
+                true, // use agent (optional, default: false)
+                10, // timeout (optional, default: 10)
+                4, // max tries (optional, default: 4)
+                null, // host fingerprint (optional, default: null),
+                null, // connectivity checker (must be an implementation of 'League\Flysystem\PhpseclibV2\ConnectivityChecker' to check if a connection can be established (optional, omit if you don't need some special handling for setting reliable connections)
+            ),
+            $root_path, // root path (required)
+            PortableVisibilityConverter::fromArray([
+                'file' => [
+                    'public' => 0640,
+                    'private' => 0604,
+                ],
+                'dir' => [
+                    'public' => 0700,
+                    'private' => 0700,
+                ],
+            ])
+        ));
+    }
+
+
 }

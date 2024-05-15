@@ -32,6 +32,25 @@
                 </header>
             @endif
 
+            <div class="-mt-2 w-full bg-indigo-50 border border-b-indigo-100 px-2 py-1 text-indigo-700 flex flex-row justify-end items-center gap-x-2">
+                <div class="text-sm font-semibold">
+                    Uploads:
+                    @if(config('proofgen.upload_proofs'))
+                        <span class="text-green-700 px-1 py-0.5 font-semibold">Enabled</span>
+                    @else
+                        <span class="text-yellow-700 px-1 py-0.5 font-semibold">Disabled</span>
+                    @endif
+                </div>
+                <div class="text-sm font-semibold">
+                    Rename:
+                    @if(config('proofgen.rename_files'))
+                        <span class="text-green-700 px-1 py-0.5 font-semibold">Enabled</span>
+                    @else
+                        <span class="text-yellow-700 px-1 py-0.5 font-semibold">Disabled</span>
+                    @endif
+                </div>
+            </div>
+
             <!-- Page Content -->
             <main>
                 {{ $slot }}

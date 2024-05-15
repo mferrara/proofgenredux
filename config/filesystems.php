@@ -36,6 +36,26 @@ return [
             'throw' => false,
         ],
 
+        'remote_proofs' => [
+            'driver' => 'sftp',
+            'host' => getenv('SFTP_HOSTNAME'),
+            'port' => getenv('SFTP_PORT') ?: 22,
+            'username' => getenv('SFTP_USERNAME'),
+            'privateKey' => getenv('SFTP_PATHTOPRIVATEKEY'),
+            'root' => getenv('SFTP_PROOFSPATH'),
+            'throw' => true,
+        ],
+
+        'remote_web_images' => [
+            'driver' => 'sftp',
+            'host' => getenv('SFTP_HOSTNAME'),
+            'port' => getenv('SFTP_PORT') ?: 22,
+            'username' => getenv('SFTP_USERNAME'),
+            'privateKey' => getenv('SFTP_PATHTOPRIVATEKEY'),
+            'root' => getenv('SFTP_WEB_IMAGES_PATH'),
+            'throw' => true,
+        ],
+
         'fullsize' => [
             'driver' => 'local',
             'root' => getenv('FULLSIZE_HOME_DIR'),

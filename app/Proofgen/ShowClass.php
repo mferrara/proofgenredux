@@ -2,12 +2,19 @@
 
 namespace App\Proofgen;
 
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+
 class ShowClass
 {
     protected string $show_folder = '';
     protected string $class_folder = '';
     protected string $fullsize_base_path = '';
     protected string $archive_base_path = '';
+    protected string $proofs_path = '';
+    protected string $remote_proofs_path = '';
+    protected string $web_images_path = '';
+    protected string $remote_web_images_path = '';
 
     public function __construct(string $show_folder, string $class_folder)
     {
@@ -15,13 +22,170 @@ class ShowClass
         $this->class_folder = $class_folder;
         $this->fullsize_base_path = config('proofgen.fullsize_home_dir');
         $this->archive_base_path = config('proofgen.archive_home_dir');
+        $this->proofs_path = '/proofs/'.$this->show_folder . '/' . $this->class_folder;
+        $this->remote_proofs_path = '/'.$this->show_folder.'/'.$this->class_folder;
+        $this->web_images_path = '/web_images/'.$this->show_folder . '/' . $this->class_folder;
+        $this->remote_web_images_path = '/'.$this->show_folder.'/'.$this->class_folder;
+    }
+
+    public function rsyncProofsCommand($dry_run = false): string
+    {
+        $local_full_path = $this->fullsize_base_path.$this->proofs_path.'/';
+        $dry_run = $dry_run === true ? '--dry-run' : '';
+
+        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.$local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.path').$this->remote_proofs_path;
+    }
+
+    public function rsyncWebImagesCommand($dry_run = false): string
+    {
+        $local_full_path = $this->fullsize_base_path.$this->web_images_path.'/';
+        $dry_run = $dry_run === true ? '--dry-run' : '';
+
+        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.$local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.web_images_path').$this->remote_web_images_path;
+    }
+
+    public function uploadPendingProofs(): array
+    {
+        $command = $this->rsyncProofsCommand();
+        exec($command, $output, $returnCode);
+
+        $uploaded_proofs = [];
+
+        foreach ($output as $line) {
+            $line = trim($line);
+
+            if(str_starts_with(strtolower($line), '.')
+                || str_ends_with(strtolower($line), '/')
+                || str_starts_with(strtolower($line), 'deleting')
+            )
+                continue;
+
+            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+                $parts = explode('/', $line);
+                $fileName = end($parts);
+
+                if (!empty($fileName) && strpos($fileName, '.') !== false) {
+                    $uploaded_proofs[] = $this->proofs_path.'/'.$fileName;
+                }
+            }
+        }
+
+        return $uploaded_proofs;
+    }
+
+    public function pendingProofUploads(): array
+    {
+        $remote_filesystem = Utility::remoteFilesystem(config('proofgen.sftp.path'));
+        if( ! $remote_filesystem->has($this->remote_proofs_path)) {
+            $remote_filesystem->createDirectory($this->remote_proofs_path);
+        }
+
+        $command = $this->rsyncProofsCommand(true);
+        exec($command, $output, $returnCode);
+
+        $pending_proofs = [];
+
+        foreach ($output as $line) {
+            $line = trim($line);
+
+            if(str_starts_with(strtolower($line), '.')
+                || str_ends_with(strtolower($line), '/')
+                || str_starts_with(strtolower($line), 'deleting')
+            )
+                continue;
+
+            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+                $parts = explode('/', $line);
+                $fileName = end($parts);
+
+                if (!empty($fileName) && strpos($fileName, '.') !== false) {
+                    $pending_proofs[] = $this->proofs_path.'/'.$fileName;
+                }
+            }
+        }
+
+        return $pending_proofs;
+    }
+
+    public function pendingWebImageUploads(): array
+    {
+        $remote_filesystem = Utility::remoteFilesystem(config('proofgen.sftp.web_images_path'));
+        if( ! $remote_filesystem->has($this->remote_web_images_path)) {
+            $remote_filesystem->createDirectory($this->remote_web_images_path);
+        }
+
+        $command = $this->rsyncWebImagesCommand(true);
+        exec($command, $output, $returnCode);
+
+        $pending_web_images = [];
+
+        foreach ($output as $line) {
+            $line = trim($line);
+
+            if(str_starts_with(strtolower($line), '.')
+                || str_ends_with(strtolower($line), '/')
+                || str_starts_with(strtolower($line), 'deleting')
+            )
+                continue;
+
+            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+                $parts = explode('/', $line);
+                $fileName = end($parts);
+
+                if (!empty($fileName) && strpos($fileName, '.') !== false) {
+                    $pending_web_images[] = $this->web_images_path.'/'.$fileName;
+                }
+            }
+        }
+
+        return $pending_web_images;
+    }
+
+    public function uploadPendingWebImages(): array
+    {
+        $command = $this->rsyncWebImagesCommand();
+        exec($command, $output, $returnCode);
+
+        $uploaded_web_images = [];
+
+        foreach ($output as $line) {
+            $line = trim($line);
+
+            if(str_starts_with(strtolower($line), '.')
+                || str_ends_with(strtolower($line), '/')
+                || str_starts_with(strtolower($line), 'deleting')
+            )
+                continue;
+
+            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+                $parts = explode('/', $line);
+                $fileName = end($parts);
+
+                if (!empty($fileName) && strpos($fileName, '.') !== false) {
+                    $uploaded_web_images[] = $this->web_images_path.'/'.$fileName;
+                }
+            }
+        }
+
+        return $uploaded_web_images;
+    }
+
+    public function getImportedImages(): array
+    {
+        $contents = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder.'/originals', false);
+
+        $images = [];
+        if(isset($contents['images']))
+            $images = $contents['images'];
+
+        return $images;
     }
 
     public function getImagesPendingProofing(): array
     {
         // Get contents of the originals directory and compare to contents of the proofs directory
         $originals = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder.'/originals', false);
-        $proofs = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder.'/proofs', false);
+        $proofs = Utility::getContentsOfPath($this->proofs_path, false);
 
         $images = [];
         $original_images = [];
@@ -63,6 +227,25 @@ class ShowClass
             $images = $contents['images'];
 
         return $images;
+    }
+
+    public function proofPendingImages(): int
+    {
+        $images = $this->getImagesPendingProofing();
+
+        $proofed = 0;
+        if($images) {
+            foreach($images as $image) {
+                $image_path = $image->path();
+                $proofs_path = '/proofs/'.$this->show_folder.'/'.$this->class_folder;
+                $web_images_path = '/web_images/'.$this->show_folder.'/'.$this->class_folder;
+                Image::createThumbnails($image_path, $proofs_path);
+                Image::createWebImage($image_path, $web_images_path);
+                $proofed++;
+            }
+        }
+
+        return $proofed;
     }
 
     public function processPendingImages(): int

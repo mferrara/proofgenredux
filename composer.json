@@ -6,10 +6,13 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "ext-gd": "*",
+        "intervention/image-laravel": "^1.2",
         "laravel/framework": "^11.0",
         "laravel/jetstream": "^5.1",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
+        "league/flysystem-sftp": "^3.0",
         "livewire/livewire": "^3.0"
     },
     "require-dev": {

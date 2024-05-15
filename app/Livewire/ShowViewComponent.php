@@ -2,8 +2,10 @@
 
 namespace App\Livewire;
 
+use App\Proofgen\Show;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
+use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 
 class ShowViewComponent extends Component
@@ -13,6 +15,8 @@ class ShowViewComponent extends Component
     public string $fullsize_base_path = '';
     public string $archive_base_path = '';
     public string $working_full_path = '';
+    public string $flash_message = '';
+    public bool $check_proofs_uploaded = false;
 
     public function mount()
     {
@@ -34,15 +38,23 @@ class ShowViewComponent extends Component
             $class = end($class);
             $show_class = new ShowClass($this->show, $class);
             $images_to_process = $show_class->getImagesPendingProcessing();
-            dump('Images to process for '.$directory.': ', $images_to_process);
             $images_to_proof = $show_class->getImagesPendingProofing();
             $folder_name = explode('/', $directory);
             $folder_name = end($folder_name);
             $class_folders[] = [
                 'path' => $folder_name,
                 'images_pending_processing_count' => count($images_to_process),
-                'images_pending_proofing_count' => count($images_to_proof)
+                'images_pending_proofing_count' => count($images_to_proof),
             ];
+        }
+
+        $images_pending_upload = [];
+        $web_images_pending_upload = [];
+        if($this->check_proofs_uploaded)
+        {
+            $show = new Show($this->show);
+            $images_pending_upload = $show->pendingProofUploads();
+            $web_images_pending_upload = $show->pendingWebImageUploads();
         }
 
         // Reorder the class folders by the path, alphabetically
@@ -53,7 +65,22 @@ class ShowViewComponent extends Component
         return view('livewire.show-view-component')
             ->with('current_path_contents', $current_path_contents)
             ->with('current_path_directories', $current_path_directories)
-            ->with('class_folders', $class_folders);
+            ->with('class_folders', $class_folders)
+            ->with('images_pending_upload', $images_pending_upload)
+            ->with('web_images_pending_upload', $web_images_pending_upload);
+    }
+
+    public function checkProofsUploaded(): void
+    {
+        $this->check_proofs_uploaded = true;
+    }
+
+    public function uploadPendingProofs()
+    {
+        $show = new Show($this->show);
+        $uploaded = $show->uploadPendingProofs();
+        $this->flash_message = count($uploaded).' Images uploaded.';
+        $this->check_proofs_uploaded = false;
     }
 
     public function getImagesOfPath($path): array
