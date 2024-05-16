@@ -1,5 +1,12 @@
 # Proofgen
 
+### 2024
+
+`brew install rsync` for modern version of rsync
+laravel herd
++ redis (on herd)
++ raise memory limit on herd/php
+
 ## PHP Extensions required
 
 fileinfo

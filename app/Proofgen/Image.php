@@ -219,6 +219,7 @@ class Image
 
     public static function createThumbnails($full_size_image_path, $proofs_dest_path): array|string
     {
+        ini_set('memory_limit', '4096M');
         // Confirm the $proofs_dest_path exists, if not, create it
         if( ! Storage::disk('fullsize')->exists($proofs_dest_path)) {
             Storage::disk('fullsize')->makeDirectory($proofs_dest_path);
@@ -230,11 +231,15 @@ class Image
 
         $manager = ImageManager::gd();
 
+        Log::debug('Creating thumbnails for '.$full_size_image_path);
+        Log::debug('with memory limit: '.ini_get('memory_limit'));
+
         // TODO: The previous version of proofgen used an Intervention/Image method "orientate" to auto-rotate images
         // TODO: based on their exif data. That method is gone, not sure if it's automatically done or just not supported
         // TODO: anymore. We'll see if it causes problems.
         // $image = $manager->read($full_size_image_path)->orientate();
         $image = $manager->read($full_size_image_path);
+        Log::debug('Image read');
         $lrg_suf = config('proofgen.thumbnails.large.suffix');
         $sml_suf = config('proofgen.thumbnails.small.suffix');
         $image_filename = pathinfo($full_size_image_path, PATHINFO_FILENAME);
@@ -249,6 +254,8 @@ class Image
             ->save($small_thumb_path, config('proofgen.thumbnails.small.quality'));
         unset($image);
 
+        Log::debug('Small thumbnail saved');
+
         // If WATERMARK_PROOFS is true..
         if ($do_we_watermark) {
             // Add watermark
@@ -259,6 +266,8 @@ class Image
             imagedestroy($watermark);
             unset($image);
         }
+
+        Log::debug('Small thumbnail watermarked');
 
         // Save large thumbnail
         $image = $manager->read($full_size_image_path);

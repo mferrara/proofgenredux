@@ -40,6 +40,14 @@ class Utility
                         break;
                     }
 
+                    // If it's a hidden file we'll skip it
+                    $filename = $object->path();
+                    $filename = explode('/', $filename);
+                    $filename = array_pop($filename);
+                    if (str_starts_with($filename, '.')) {
+                        break;
+                    }
+
                     $contains = ['jpg', 'jpeg'];
                     // If the $object->path contains any of the strings in $contains, add it to the images array
                     foreach($contains as $ext)

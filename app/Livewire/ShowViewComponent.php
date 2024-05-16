@@ -6,6 +6,7 @@ use App\Proofgen\Show;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 
 class ShowViewComponent extends Component
@@ -39,12 +40,14 @@ class ShowViewComponent extends Component
             $show_class = new ShowClass($this->show, $class);
             $images_to_process = $show_class->getImagesPendingProcessing();
             $images_to_proof = $show_class->getImagesPendingProofing();
+            $images_imported = $show_class->getImportedImages();
             $folder_name = explode('/', $directory);
             $folder_name = end($folder_name);
             $class_folders[] = [
                 'path' => $folder_name,
                 'images_pending_processing_count' => count($images_to_process),
                 'images_pending_proofing_count' => count($images_to_proof),
+                'images_imported' => count($images_imported),
             ];
         }
 

@@ -2,8 +2,10 @@
 
 namespace App\Proofgen;
 
+use App\Jobs\Photo\GenerateThumbnails;
+use App\Jobs\Photo\GenerateWebImage;
+use App\Jobs\Photo\ImportPhoto;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class ShowClass
 {
@@ -143,6 +145,12 @@ class ShowClass
 
     public function uploadPendingWebImages(): array
     {
+        // Confirm show directory exists in web_images
+        $remote_filesystem = Utility::remoteFilesystem(config('proofgen.sftp.web_images_path'));
+        if( ! $remote_filesystem->has($this->remote_web_images_path)) {
+            Log::debug('Creating web_images directory: '.$this->remote_web_images_path);
+            $remote_filesystem->createDirectory($this->remote_web_images_path);
+        }
         $command = $this->rsyncWebImagesCommand();
         exec($command, $output, $returnCode);
 
@@ -239,8 +247,8 @@ class ShowClass
                 $image_path = $image->path();
                 $proofs_path = '/proofs/'.$this->show_folder.'/'.$this->class_folder;
                 $web_images_path = '/web_images/'.$this->show_folder.'/'.$this->class_folder;
-                Image::createThumbnails($image_path, $proofs_path);
-                Image::createWebImage($image_path, $web_images_path);
+                GenerateThumbnails::dispatch($image_path, $proofs_path)->onQueue('thumbnails');
+                GenerateWebImage::dispatch($image_path, $web_images_path)->onQueue('thumbnails');
                 $proofed++;
             }
         }
@@ -257,9 +265,7 @@ class ShowClass
             $proof_number_count = count($images);
             $proof_numbers = Utility::generateProofNumbers($this->show_folder, $proof_number_count);
             foreach ($images as $image) {
-                $image_path = $image->path();
-                $image_obj = new Image($image_path);
-                $image_obj->processImage(array_shift($proof_numbers), true);
+                ImportPhoto::dispatch($image->path(), array_shift($proof_numbers));
                 $processed++;
             }
         }
@@ -271,6 +277,6 @@ class ShowClass
     {
         $image_obj = new Image($image_path);
         $proof_numbers = Utility::generateProofNumbers($this->show_folder, 1);
-        $image_obj->processImage(array_shift($proof_numbers), true);
+        $image_obj->processImage(array_shift($proof_numbers), false);
     }
 }

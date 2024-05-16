@@ -130,6 +130,9 @@
                             <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All proofs uploaded</div>
                         </div>
                     @endif
+                    <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                            wire:click="uploadPendingProofsAndWebImages"
+                    >Upload</button>
                 </div>
                 @if($images_pending_upload && count($images_pending_upload))
                     <div class="mt-6">

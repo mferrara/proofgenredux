@@ -2,6 +2,8 @@
 
 namespace App\Proofgen;
 
+use Illuminate\Support\Facades\Log;
+
 class Show
 {
     protected string $show_folder = '';
@@ -39,16 +41,17 @@ class Show
 
     public function pendingProofUploads(): array
     {
+        Log::debug('pendingProofUploads');
+        /*
         $remote_filesystem = Utility::remoteFilesystem(config('proofgen.sftp.path'));
         if( ! $remote_filesystem->has($this->remote_proofs_path)) {
             $remote_filesystem->createDirectory($this->remote_proofs_path);
         }
-
+        */
         $command = $this->rsyncProofsCommand(true);
         exec($command, $output, $returnCode);
 
         $pending_proofs = [];
-
         foreach ($output as $line) {
             $line = trim($line);
 
@@ -103,18 +106,16 @@ class Show
 
     public function pendingWebImageUploads(): array
     {
+        Log::debug('pendingWebImageUploads');
+        /*
         $remote_filesystem = Utility::remoteFilesystem(config('proofgen.sftp.web_images_path'));
         if( ! $remote_filesystem->has($this->remote_web_images_path)) {
             $remote_filesystem->createDirectory($this->remote_web_images_path);
         }
+        */
 
         $command = $this->rsyncWebImagesCommand(true);
         exec($command, $output, $returnCode);
-
-        /*
-        Log::debug('Command: '.$command);
-        Log::debug('Output: '.print_r($output, true));
-        */
 
         $pending_web_images = [];
 

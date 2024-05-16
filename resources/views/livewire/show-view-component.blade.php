@@ -26,7 +26,7 @@
                     @if( ! $check_proofs_uploaded)
                         <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
                                 wire:click="checkProofsUploaded"
-                        >Check</button>
+                        >Check Proofs</button>
                     @else
                         @if(count($images_pending_upload) || count($web_images_pending_upload))
                             <div class="flex flex-row justify-end items-center gap-x-2">
@@ -47,16 +47,17 @@
 
             <table class="w-2/3">
                 <thead>
-                <tr>
+                <tr class="border-b border-b-indigo-300">
                     <th></th>
+                    <th class="text-right">Photos</th>
                     <th class="text-right">To Import</th>
                     <th class="text-right">To Proof</th>
                     <th class="text-right">Actions</th>
                 </tr>
                 </thead>
                 <tbody>
-                @foreach($class_folders as $class_folder_data)
-                    <tr>
+                @foreach($class_folders as $key => $class_folder_data)
+                    <tr class="@if($key % 2 === 0) bg-indigo-100 @endif">
                         <td class="flex flex-row justify-start gap-x-1 items-center">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-600">
                                 <path d="M3.75 3A1.75 1.75 0 0 0 2 4.75v3.26a3.235 3.235 0 0 1 1.75-.51h12.5c.644 0 1.245.188 1.75.51V6.75A1.75 1.75 0 0 0 16.25 5h-4.836a.25.25 0 0 1-.177-.073L9.823 3.513A1.75 1.75 0 0 0 8.586 3H3.75ZM3.75 9A1.75 1.75 0 0 0 2 10.75v4.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0 0 18 15.25v-4.5A1.75 1.75 0 0 0 16.25 9H3.75Z" />
@@ -65,6 +66,7 @@
                                class="underline text-indigo-600 hover:cursor-pointer"
                             >{{ $class_folder_data['path'] }}</a>
                         </td>
+                        <td class="text-right">@if($class_folder_data['images_imported']){{ $class_folder_data['images_imported'] }}@endif</td>
                         <td class="text-right">@if($class_folder_data['images_pending_processing_count']){{ $class_folder_data['images_pending_processing_count'] }}@endif</td>
                         <td class="text-right">@if($class_folder_data['images_pending_proofing_count']){{ $class_folder_data['images_pending_proofing_count'] }}@endif</td>
                         <td class="text-right"></td>

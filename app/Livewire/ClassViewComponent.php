@@ -2,6 +2,9 @@
 
 namespace App\Livewire;
 
+use App\Jobs\Photo\GenerateThumbnails;
+use App\Jobs\Photo\GenerateWebImage;
+use App\Jobs\ShowClass\UploadProofs;
 use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
@@ -37,7 +40,6 @@ class ClassViewComponent extends Component
         $current_path_directories = Utility::getDirectoriesOfPath($this->working_path);
 
         $show_class = new ShowClass($this->show, $this->class);
-        Log::debug('Show: '.$this->show.' Class: '.$this->class);
         $images_pending_processing = $show_class->getImagesPendingProcessing();
         $images_pending_proofing = $show_class->getImagesPendingProofing();
         $images_pending_upload = [];
@@ -67,7 +69,7 @@ class ClassViewComponent extends Component
     {
         $show_class = new ShowClass($this->show, $this->class);
         $count = $show_class->processPendingImages();
-        $this->flash_message = $count.' Images processed.';
+        $this->flash_message = $count.' Images queued for import.';
         $this->check_proofs_uploaded = false;
     }
 
@@ -89,24 +91,18 @@ class ClassViewComponent extends Component
 
     public function proofImage($image_path): void
     {
-        Image::createThumbnails($image_path, $this->proofs_path);
-        Image::createWebImage($image_path, $this->web_images_path);
-        $this->flash_message = $image_path.' Proofed.';
+        ini_set('memory_limit', '4096M');
+        GenerateThumbnails::dispatch($image_path, $this->proofs_path)->onQueue('thumbnails');
+        GenerateWebImage::dispatch($image_path, $this->web_images_path)->onQueue('thumbnails');
+        $this->flash_message = $image_path.' Proofs queued.';
         $this->check_proofs_uploaded = false;
     }
 
     public function uploadPendingProofsAndWebImages(): void
     {
-        $show_class = new ShowClass($this->show, $this->class);
-        $count = count($show_class->uploadPendingProofs());
-        $this->flash_message = $count.' Proofs';
+        UploadProofs::dispatch($this->show, $this->class);
 
-        $count = count($show_class->uploadPendingWebImages());
-        if($count > 0) {
-            $this->flash_message .= ' & ' . $count . ' Web Images';
-        }
-
-        $this->flash_message .= ' uploaded.';
+        $this->flash_message = 'Queued';
 
         $this->check_proofs_uploaded = false;
     }
