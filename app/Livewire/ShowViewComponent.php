@@ -73,6 +73,14 @@ class ShowViewComponent extends Component
             ->with('web_images_pending_upload', $web_images_pending_upload);
     }
 
+    public function processPendingImages(string $class_folder): void
+    {
+        $show_class = new ShowClass($this->show, $class_folder);
+        $count = $show_class->processPendingImages();
+        $this->flash_message = $count.' Images queued for import.';
+        $this->check_proofs_uploaded = false;
+    }
+
     public function checkProofsUploaded(): void
     {
         $this->check_proofs_uploaded = true;

@@ -84,7 +84,7 @@ class Image
         return true;
     }
 
-    public function processImage(string $proof_number, bool $debug = false): void
+    public function processImage(string $proof_number, bool $debug = false): string
     {
         // First we'll get the image from the directory
         $image = Storage::disk('fullsize')->get($this->image_path);
@@ -171,6 +171,11 @@ class Image
         if($exists) {
             throw new \Exception('File not deleted; '.$this->image_path);
         }
+
+        if(isset($new_original_path))
+            return $new_original_path;
+
+        return $path_to_original_copy;
     }
 
     public static function createWebImage($full_size_image_path, $web_dest_path): array|string
@@ -190,7 +195,6 @@ class Image
         // TODO: based on their exif data. That method is gone, not sure if it's automatically done or just not supported
         // TODO: anymore. We'll see if it causes problems.
         // $image = $manager->read($full_size_image_path)->orientate();
-        Log::debug('Creating web image for '.$full_size_image_path);
         $image = $manager->read($full_size_image_path);
         $web_suf = config('proofgen.web_images.suffix');
         $image_filename = pathinfo($full_size_image_path, PATHINFO_FILENAME);
@@ -231,15 +235,11 @@ class Image
 
         $manager = ImageManager::gd();
 
-        Log::debug('Creating thumbnails for '.$full_size_image_path);
-        Log::debug('with memory limit: '.ini_get('memory_limit'));
-
         // TODO: The previous version of proofgen used an Intervention/Image method "orientate" to auto-rotate images
         // TODO: based on their exif data. That method is gone, not sure if it's automatically done or just not supported
         // TODO: anymore. We'll see if it causes problems.
         // $image = $manager->read($full_size_image_path)->orientate();
         $image = $manager->read($full_size_image_path);
-        Log::debug('Image read');
         $lrg_suf = config('proofgen.thumbnails.large.suffix');
         $sml_suf = config('proofgen.thumbnails.small.suffix');
         $image_filename = pathinfo($full_size_image_path, PATHINFO_FILENAME);
@@ -254,8 +254,6 @@ class Image
             ->save($small_thumb_path, config('proofgen.thumbnails.small.quality'));
         unset($image);
 
-        Log::debug('Small thumbnail saved');
-
         // If WATERMARK_PROOFS is true..
         if ($do_we_watermark) {
             // Add watermark
@@ -266,8 +264,6 @@ class Image
             imagedestroy($watermark);
             unset($image);
         }
-
-        Log::debug('Small thumbnail watermarked');
 
         // Save large thumbnail
         $image = $manager->read($full_size_image_path);

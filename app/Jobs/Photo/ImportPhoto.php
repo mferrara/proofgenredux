@@ -8,6 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class ImportPhoto implements ShouldQueue
 {
@@ -31,6 +32,10 @@ class ImportPhoto implements ShouldQueue
     public function handle(): void
     {
         $image_obj = new Image($this->image_path);
-        $image_obj->processImage($this->proof_number, false);
+        $fullsize_image_path = $image_obj->processImage($this->proof_number, false);
+        $proof_dest_path = '/proofs/'.$image_obj->show.'/'.$image_obj->class;
+        $web_images_path = '/web_images/'.$image_obj->show.'/'.$image_obj->class;
+        GenerateThumbnails::dispatch($fullsize_image_path, $proof_dest_path)->onQueue('thumbnails');
+        GenerateWebImage::dispatch($fullsize_image_path, $web_images_path)->onQueue('thumbnails');
     }
 }

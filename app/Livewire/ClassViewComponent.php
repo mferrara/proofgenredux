@@ -98,6 +98,14 @@ class ClassViewComponent extends Component
         $this->check_proofs_uploaded = false;
     }
 
+    public function regenerateProofs(): void
+    {
+        $show_class = new ShowClass($this->show, $this->class);
+        $show_class->regenerateProofs();
+        $this->flash_message = 'Queued';
+        $this->check_proofs_uploaded = false;
+    }
+
     public function uploadPendingProofsAndWebImages(): void
     {
         UploadProofs::dispatch($this->show, $this->class);

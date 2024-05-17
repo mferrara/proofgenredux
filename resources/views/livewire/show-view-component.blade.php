@@ -69,7 +69,16 @@
                         <td class="text-right">@if($class_folder_data['images_imported']){{ $class_folder_data['images_imported'] }}@endif</td>
                         <td class="text-right">@if($class_folder_data['images_pending_processing_count']){{ $class_folder_data['images_pending_processing_count'] }}@endif</td>
                         <td class="text-right">@if($class_folder_data['images_pending_proofing_count']){{ $class_folder_data['images_pending_proofing_count'] }}@endif</td>
-                        <td class="text-right"></td>
+                        <td class="text-right">
+                            @if($class_folder_data['images_pending_processing_count'])
+                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                                        wire:click="processPendingImages('{{ $class_folder_data['path'] }}')">Import</button>
+                            @endif
+                            @if($class_folder_data['images_pending_proofing_count'])
+                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                                        wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Upload Proofs</button>
+                            @endif
+                        </td>
                     </tr>
                 @endforeach
                 </tbody>

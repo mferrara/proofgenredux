@@ -21,7 +21,7 @@ class ServerConnectionComponent extends Component
     public string $proofs_path = '';
     public string $debug_output = '';
 
-    public function mount()
+    public function mount(): void
     {
         $this->host = config('proofgen.sftp.host');
         $this->port = config('proofgen.sftp.port', 22);
@@ -30,13 +30,11 @@ class ServerConnectionComponent extends Component
         $this->proofs_path = config('proofgen.sftp.path');
     }
 
-    public function testConnection()
+    public function testConnection(): void
     {
         $this->debug_output = '';
         // Try to get a directory listing from the base path
-        $filesystem = Utility::remoteFilesystem(config('proofgen.sftp.path'));
-
-        $listing = $filesystem->listContents('', false);
+        $listing = Storage::disk('remote_proofs')->allDirectories();
 
         $paths = [];
         // Get and store the paths of only the directories

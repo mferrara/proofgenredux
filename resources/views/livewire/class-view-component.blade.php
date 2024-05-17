@@ -80,7 +80,7 @@
                         >Import</button>
                     @else
                         <div>
-                            <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All images imported</div>
+                            <div class="px-2 py-1 text-sm font-semibold text-green-800 rounded-sm">All images imported</div>
                         </div>
                     @endif
                 </div>
@@ -99,8 +99,11 @@
                                 wire:click="proofPendingImages"
                         >Start</button>
                     @else
-                        <div>
-                            <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All images proofed</div>
+                        <div class="flex flex-row justify-end gap-x-2">
+                            <div class="px-2 py-1 text-sm font-semibold text-green-800 rounded-sm">All images proofed</div>
+                            <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                                    wire:click="regenerateProofs"
+                            >Regenerate</button>
                         </div>
                     @endif
                 </div>
@@ -153,7 +156,7 @@
                         >Upload</button>
                     @else
                         <div>
-                            <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All proofs uploaded</div>
+                            <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All web images uploaded</div>
                         </div>
                     @endif
                 </div>
