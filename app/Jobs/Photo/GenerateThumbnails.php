@@ -2,7 +2,9 @@
 
 namespace App\Jobs\Photo;
 
+use App\Jobs\ShowClass\UploadProofs;
 use App\Proofgen\Image;
+use App\Proofgen\ShowClass;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -31,5 +33,12 @@ class GenerateThumbnails implements ShouldQueue
     public function handle(): void
     {
         Image::createThumbnails($this->photo_path, $this->proofs_destination_path);
+        // Check class, if no more images pending proofs we'll queue up the upload job
+        $image = new Image($this->photo_path);
+        $show_class = new ShowClass($image->show, $image->class);
+        $pending_proofs = $show_class->getImagesPendingProofing();
+        if (count($pending_proofs) === 0) {
+            UploadProofs::dispatch($image->show, $image->class);
+        }
     }
 }
