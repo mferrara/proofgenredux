@@ -70,7 +70,8 @@ class ShowViewComponent extends Component
             ->with('current_path_directories', $current_path_directories)
             ->with('class_folders', $class_folders)
             ->with('images_pending_upload', $images_pending_upload)
-            ->with('web_images_pending_upload', $web_images_pending_upload);
+            ->with('web_images_pending_upload', $web_images_pending_upload)
+            ->title($this->show.' - Proofgen');
     }
 
     public function processPendingImages(string $class_folder): void
@@ -86,11 +87,19 @@ class ShowViewComponent extends Component
         $this->check_proofs_uploaded = true;
     }
 
-    public function uploadPendingProofs()
+    public function uploadPendingProofs(): void
     {
         $show = new Show($this->show);
         $uploaded = $show->uploadPendingProofs();
         $this->flash_message = count($uploaded).' Images uploaded.';
+        $this->check_proofs_uploaded = false;
+    }
+
+    public function regenerateProofs(string $class_folder): void
+    {
+        $show_class = new ShowClass($this->show, $class_folder);
+        $show_class->regenerateProofs();
+        $this->flash_message = 'Queued';
         $this->check_proofs_uploaded = false;
     }
 

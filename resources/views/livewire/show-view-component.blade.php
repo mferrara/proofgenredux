@@ -78,6 +78,10 @@
                                 <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
                                         wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Upload Proofs</button>
                             @endif
+                            @if($class_folder_data['images_imported'])
+                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                                        wire:click="regenerateProofs('{{ $class_folder_data['path'] }}')">Regenerate Proofs</button>
+                            @endif
                         </td>
                     </tr>
                 @endforeach

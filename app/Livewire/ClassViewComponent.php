@@ -57,7 +57,8 @@ class ClassViewComponent extends Component
             ->with('images_pending_proofing', $images_pending_proofing)
             ->with('images_pending_upload', $images_pending_upload)
             ->with('web_images_pending_upload', $web_images_pending_upload)
-            ->with('images_imported', $images_imported);
+            ->with('images_imported', $images_imported)
+            ->title($this->show.' '.$this->class.' - Proofgen');
     }
 
     public function checkProofsUploaded(): void
@@ -120,6 +121,12 @@ class ClassViewComponent extends Component
         $files = Utility::getFiles($path);
         $images = [];
         foreach ($files as $file) {
+            // If it's a hidden file we'll ignore it
+            $filename = explode('/', $file);
+            $filename = array_pop($filename);
+            if (str_starts_with($filename, '.')) {
+                continue;
+            }
 
             foreach(['jpg', 'jpeg'] as $ext) {
                 if (str_contains(strtolower($file), $ext)) {
