@@ -77,15 +77,9 @@
                 <div class="flex flex-row justify-between items-center">
                     <div class="text-xl font-semibold">Images to import @if($images_pending_processing && count($images_pending_processing)) ({{ count($images_pending_processing) }}) @endif</div>
                     @if($images_pending_processing && count($images_pending_processing))
-                        <button class="px-2 py-1 text-sm font-semibold rounded-sm border"
-                                :class="{ 'bg-gray-200 text-gray-800 border-gray-300 hover:bg-gray-300 hover:text-gray-800 hover:border-gray-400': !isImporting, 'bg-blue-500 text-white border-blue-600': isImporting }"
+                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300 hover:bg-gray-300 hover:text-gray-800 hover:border-gray-400"
                                 wire:click="processPendingImages"
-                                x-data="{ isImporting: false }"
-                                x-on:click="isImporting = true"
-                        >
-                            <span x-show="!isImporting">Import</span>
-                            <span x-show="isImporting">You clicked it...</span>
-                        </button>
+                        >Import</button>
                     @else
                         <div>
                             <div class="px-2 py-1 text-sm font-semibold text-green-800 rounded-sm">All images imported</div>
