@@ -1,4 +1,6 @@
-<div class="bg-gray-100 px-8 py-4">
+<div class="bg-gray-100 px-8 py-4"
+     wire:poll.5s
+>
     <div class="mt-4 flex flex-row justify-start items-center">
         <a href="/"
            class="mt-2 underline text-indigo-400 hover:cursor-pointer mb-2 ml-2"
