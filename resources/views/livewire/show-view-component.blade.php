@@ -28,15 +28,25 @@
                     @if( ! $check_proofs_uploaded)
                         <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
                                 wire:click="checkProofsUploaded"
-                        >Check Proofs</button>
+                        >Check Proofs & Web Images</button>
                     @else
                         @if(count($images_pending_upload) || count($web_images_pending_upload))
                             <div class="flex flex-row justify-end items-center gap-x-2">
                                 <div class="px-2 py-1 text-sm font-semibold bg-yellow-200 text-yellow-800 rounded-sm border border-yellow-300">Proofs to upload: {{ count($images_pending_upload) }}</div>
                                 <div class="px-2 py-1 text-sm font-semibold bg-yellow-200 text-yellow-800 rounded-sm border border-yellow-300">Web Images to upload: {{ count($web_images_pending_upload) }}</div>
                                 <button class="px-2 py-1 text-sm font-semibold bg-red-200 text-green-800 rounded-sm border border-green-300"
-                                        wire:click="uploadPendingProofs"
-                                >Upload</button>
+                                        wire:click="uploadPendingProofsAndWebImages"
+                                >Upload
+                                    @if(count($images_pending_upload))
+                                        {{ number_format(count($images_pending_upload)) }} proofs
+                                    @endif
+                                    @if(count($web_images_pending_upload))
+                                        @if(count($images_pending_upload))
+                                            and
+                                        @endif
+                                        {{ number_format(count($web_images_pending_upload)) }} web images
+                                    @endif
+                                </button>
                             </div>
                         @else
                             <div>

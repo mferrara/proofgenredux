@@ -140,4 +140,34 @@ class Show
 
         return $pending_web_images;
     }
+
+    public function uploadPendingWebImages(): array
+    {
+        $command = $this->rsyncWebImagesCommand();
+        exec($command, $output, $returnCode);
+
+        $uploaded_web_images = [];
+
+        foreach ($output as $line) {
+            $line = trim($line);
+
+            if(str_starts_with(strtolower($line), '.')
+                || str_ends_with(strtolower($line), '/')
+                || str_starts_with(strtolower($line), 'deleting')
+            ) {
+                continue;
+            }
+
+            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+                $parts = explode('/', $line);
+                $fileName = end($parts);
+
+                if (!empty($fileName) && strpos($fileName, '.') !== false) {
+                    $uploaded_web_images[] = $this->web_images_path.'/'.$fileName;
+                }
+            }
+        }
+
+        return $uploaded_web_images;
+    }
 }

@@ -87,11 +87,28 @@ class ShowViewComponent extends Component
         $this->check_proofs_uploaded = true;
     }
 
-    public function uploadPendingProofs(): void
+    public function uploadPendingProofsAndWebImages(): void
     {
         $show = new Show($this->show);
         $uploaded = $show->uploadPendingProofs();
-        $this->flash_message = count($uploaded).' Images uploaded.';
+        $web_images = $show->uploadPendingWebImages();
+        if(count($uploaded) === 0 && count($web_images) === 0)
+        {
+            $this->flash_message = 'No images to upload.';
+            $this->check_proofs_uploaded = false;
+            return;
+        } else {
+            if(count($uploaded) > 0)
+                $this->flash_message = count($uploaded).' Images uploaded';
+            if(count($web_images) > 0) {
+                if(count($uploaded) > 0)
+                    $this->flash_message .= ' and ';
+                $this->flash_message .= count($web_images).' Web Images uploaded';
+            }
+
+            if(strlen($this->flash_message) > 0)
+                $this->flash_message .= '.';
+        }
         $this->check_proofs_uploaded = false;
     }
 
