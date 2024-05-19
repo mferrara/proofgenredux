@@ -40,6 +40,7 @@ class ShowViewComponent extends Component
             $show_class = new ShowClass($this->show, $class);
             $images_to_process = $show_class->getImagesPendingProcessing();
             $images_to_proof = $show_class->getImagesPendingProofing();
+            $images_to_web = $show_class->getImagesPendingWeb();
             $images_imported = $show_class->getImportedImages();
             $folder_name = explode('/', $directory);
             $folder_name = end($folder_name);
@@ -47,6 +48,7 @@ class ShowViewComponent extends Component
                 'path' => $folder_name,
                 'images_pending_processing_count' => count($images_to_process),
                 'images_pending_proofing_count' => count($images_to_proof),
+                'images_pending_web_count' => count($images_to_web),
                 'images_imported' => count($images_imported),
             ];
         }

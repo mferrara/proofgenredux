@@ -224,6 +224,43 @@ class ShowClass
         return $images;
     }
 
+    public function getImagesPendingWeb(): array
+    {
+        // Get contents of the originals directory and compare to contents of the proofs directory
+        $originals = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder.'/originals', false);
+        $web_images_array = Utility::getContentsOfPath($this->web_images_path, false);
+
+        $images = [];
+        $original_images = [];
+        $web_images = [];
+        if(isset($originals['images'])) {
+            $original_images = $originals['images'];
+        }
+        if(isset($web_images_array['images'])) {
+            $web_images_temp = $web_images_array['images'];
+            foreach($web_images_temp as $temp_web_image) {
+                if(str_contains($temp_web_image->path(), '_web')) {
+                    $temp_web_filename = explode('/', $temp_web_image->path());
+                    $temp_web_filename = array_pop($temp_web_filename);
+                    $web_images[] = $temp_web_filename;
+                }
+            }
+        }
+
+        foreach($original_images as $original_image) {
+            $original_image_filename = explode('/', $original_image->path());
+            $original_image_filename = array_pop($original_image_filename);
+            // Fix for issues where the original has a capitalised extension
+            $original_image_filename = str_replace('.JPG', '.jpg', $original_image_filename);
+            $web_name_to_check = str_replace('.jpg', '_web.jpg', $original_image_filename);
+            if(!in_array($web_name_to_check, $web_images)) {
+                $images[] = $original_image;
+            }
+        }
+
+        return $images;
+    }
+
     public function getImagesPendingProcessing(): array
     {
         $contents = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder, false);

@@ -64,6 +64,7 @@
                     <th class="text-right">Photos</th>
                     <th class="text-right">To Import</th>
                     <th class="text-right">To Proof</th>
+                    <th class="text-right">To Web</th>
                     <th class="text-right">Actions</th>
                 </tr>
                 </thead>
@@ -81,6 +82,7 @@
                         <td class="text-right">@if($class_folder_data['images_imported']){{ $class_folder_data['images_imported'] }}@endif</td>
                         <td class="text-right">@if($class_folder_data['images_pending_processing_count']){{ $class_folder_data['images_pending_processing_count'] }}@endif</td>
                         <td class="text-right">@if($class_folder_data['images_pending_proofing_count']){{ $class_folder_data['images_pending_proofing_count'] }}@endif</td>
+                        <td class="text-right">@if($class_folder_data['images_pending_web_count']){{ $class_folder_data['images_pending_web_count'] }}@endif</td>
                         <td class="text-right">
                             @if($class_folder_data['images_pending_processing_count'])
                                 <button class="px-2 py-1 text-sm font-semibold rounded-sm border hover:bg-gray-300"
