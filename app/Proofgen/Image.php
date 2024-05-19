@@ -210,6 +210,13 @@ class Image
         // Add watermark
         $image = $manager->read($web_thumb_path);
         $watermark = imagecreatefrompng(storage_path().'/watermarks/web-image-watermark-2.png');
+
+        $average_color = self::determineAverageColor($web_thumb_path);
+        $darkness = self::determineWatermarkDarknessFromAverageColor($average_color[0], $average_color[1], $average_color[2]);
+        if($darkness === 'light') {
+            imagefilter($watermark, IMG_FILTER_NEGATE);
+        }
+
         $image->place($watermark, 'bottom', 0, 60)->save();
 
         imagedestroy($watermark);
@@ -219,6 +226,53 @@ class Image
         unset($manager);
 
         return $image_filename;
+    }
+
+    public static function determineAverageColor(string $image_path): array
+    {
+        $image = imagecreatefromjpeg($image_path);
+        $width = imagesx($image);
+        $height = imagesy($image);
+        // Calculate the height of the bottom 20% portion
+        $bottom_height = (int)($height * 0.2);
+        $r = $g = $b = 0;
+        $total = 0;
+        for ($y = $height - $bottom_height; $y < $height; $y++) {
+            for ($x = 0; $x < $width; $x++) {
+                // Get the color index of the pixel
+                $colorIndex = imagecolorat($image, $x, $y);
+
+                // Extract the red, green, and blue values
+                $red = ($colorIndex >> 16) & 0xFF;
+                $green = ($colorIndex >> 8) & 0xFF;
+                $blue = $colorIndex & 0xFF;
+
+                // Add the color values to the sums
+                $r += $red;
+                $g += $green;
+                $b += $blue;
+
+                // Increment the total pixel count
+                $total++;
+            }
+        }
+        $r = (int) round($r / $total);
+        $g = (int) round($g / $total);
+        $b = (int) round($b / $total);
+
+        return [$r, $g, $b];
+    }
+
+    public static function determineWatermarkDarknessFromAverageColor($r, $g, $b): string
+    {
+        $average = (int) ($r + $g + $b) / 3;
+        $darkness = 255 - $average;
+
+        if($darkness > 135) {
+            return 'light';
+        }
+
+        return 'dark';
     }
 
     public static function createThumbnails($full_size_image_path, $proofs_dest_path): array|string
