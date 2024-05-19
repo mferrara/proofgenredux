@@ -244,8 +244,23 @@ class ShowClass
             foreach($images as $image) {
                 $image_path = $image->path();
                 $proofs_path = '/proofs/'.$this->show_folder.'/'.$this->class_folder;
-                $web_images_path = '/web_images/'.$this->show_folder.'/'.$this->class_folder;
                 GenerateThumbnails::dispatch($image_path, $proofs_path)->onQueue('thumbnails');
+                $proofed++;
+            }
+        }
+
+        return $proofed;
+    }
+
+    public function regenerateWebImages(): int
+    {
+        $images = $this->getImportedImages();
+
+        $proofed = 0;
+        if($images) {
+            foreach($images as $image) {
+                $image_path = $image->path();
+                $web_images_path = '/web_images/'.$this->show_folder.'/'.$this->class_folder;
                 GenerateWebImage::dispatch($image_path, $web_images_path)->onQueue('thumbnails');
                 $proofed++;
             }

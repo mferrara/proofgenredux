@@ -20,7 +20,7 @@
                 <p class="mb-2 font-semibold">Classes</p>
                 <div class="flex flex-row justify-end items-center gap-x-2">
                     <div wire:loading
-                         class="px-2 py-1 text-sm bg-yellow-200 text-yellow-800 rounded-sm border border-yellow-300 animate-pulse"
+                         class="px-2 py-1 text-sm bg-blue-200 text-blue-800 rounded-sm border border-blue-300 animate-pulse"
                     >Working...</div>
                     @if(isset($flash_message) && strlen($flash_message))
                         <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">{{ $flash_message }}</div>
@@ -50,7 +50,7 @@
                             </div>
                         @else
                             <div>
-                                <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All proofs uploaded</div>
+                                <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All proofs & web images uploaded</div>
                             </div>
                         @endif
                     @endif
@@ -83,16 +83,25 @@
                         <td class="text-right">@if($class_folder_data['images_pending_proofing_count']){{ $class_folder_data['images_pending_proofing_count'] }}@endif</td>
                         <td class="text-right">
                             @if($class_folder_data['images_pending_processing_count'])
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
-                                        wire:click="processPendingImages('{{ $class_folder_data['path'] }}')">Import</button>
+                                <button class="px-2 py-1 text-sm font-semibold rounded-sm border hover:bg-gray-300"
+                                        :class="{ 'bg-gray-200 text-gray-800 border-gray-300': !isQueued, 'bg-green-500 text-white border-green-600': isQueued }"
+                                        wire:click="processPendingImages('{{ $class_folder_data['path'] }}')"
+                                        x-data="{ isQueued: false }"
+                                        x-on:click="isQueued = true"
+                                >
+                                    <span x-show="!isQueued">Import</span>
+                                    <span x-show="isQueued">Queued</span>
+                                </button>
                             @endif
                             @if($class_folder_data['images_pending_proofing_count'])
                                 <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
-                                        wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Upload Proofs</button>
+                                        wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Upload ({{ $class_folder_data['images_pending_proofing_count'] }}) Proofs</button>
                             @endif
                             @if($class_folder_data['images_imported'])
                                 <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
-                                        wire:click="regenerateProofs('{{ $class_folder_data['path'] }}')">Regenerate Proofs</button>
+                                        wire:click="regenerateProofs('{{ $class_folder_data['path'] }}')">Regen Proofs</button>
+                                    <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                                            wire:click="regenerateWebImages('{{ $class_folder_data['path'] }}')">Regen Web</button>
                             @endif
                         </td>
                     </tr>

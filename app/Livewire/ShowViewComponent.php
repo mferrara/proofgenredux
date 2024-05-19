@@ -120,6 +120,12 @@ class ShowViewComponent extends Component
         $this->check_proofs_uploaded = false;
     }
 
+    public function regenerateWebImages(string $class_folder): void
+    {
+        $show_class = new ShowClass($this->show, $class_folder);
+        $show_class->regenerateWebImages();
+    }
+
     public function getImagesOfPath($path): array
     {
         $files = Utility::getFiles($path);

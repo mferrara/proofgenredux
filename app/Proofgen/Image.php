@@ -209,8 +209,8 @@ class Image
         // Add the watermark/border/whatever it is
         // Add watermark
         $image = $manager->read($web_thumb_path);
-        $watermark = self::watermarkWebImage();
-        $image->place($watermark, 'bottom-left', 10, 10)->save();
+        $watermark = imagecreatefrompng(storage_path().'/watermarks/web-image-watermark-2.png');
+        $image->place($watermark, 'bottom', 0, 60)->save();
 
         imagedestroy($watermark);
         unset($image);
