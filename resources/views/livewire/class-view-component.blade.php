@@ -72,7 +72,7 @@
             </div>
         </div>
 
-        <div class="mt-8 flex flex-row w-full justify-between items-start gap-x-8">
+        <div class="mt-8 flex flex-row w-full justify-between items-start gap-x-8 border border-gray-200 p-3">
             <div class="w-1/2">
                 <div class="flex flex-row justify-between items-center">
                     <div class="text-xl font-semibold">Images to import @if($images_pending_processing && count($images_pending_processing)) ({{ count($images_pending_processing) }}) @endif</div>
@@ -118,7 +118,7 @@
             </div>
         </div>
 
-        <div class="mt-8 flex flex-row w-full justify-between items-start gap-x-8">
+        <div class="mt-8 flex flex-row w-full justify-between items-start gap-x-8 border border-gray-200 p-3">
             <div class="w-1/2">
                 <div class="flex flex-row justify-between items-center">
                     <div class="text-xl font-semibold">Proofs to upload @if($images_pending_upload && count($images_pending_upload))({{ count($images_pending_upload)}})@endif </div>
