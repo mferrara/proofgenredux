@@ -124,7 +124,7 @@ class Image
             Storage::disk('fullsize')->move($this->image_path, $new_path);
 
             // Update $this->image_path to reflect the new filename
-            $this->image_path = $new_path;
+            // $this->image_path = $new_path;
 
             if($debug) {
                 Log::debug('Renamed file in processing directory from '.$original_filename.' to '.$new_filename);
@@ -166,14 +166,31 @@ class Image
         }
 
         // Finally, we'll delete the original file
-        Storage::disk('fullsize')->delete($this->image_path);
+        if(isset($new_path)) {
+            Storage::disk('fullsize')->delete($new_path);
+        } else {
+            Storage::disk('fullsize')->delete($this->image_path);
+        }
         if($debug) {
-            Log::debug('Deleted original file; '.$this->image_path);
+            if(isset($new_path)) {
+                Log::debug('Deleted original file; '.$new_path);
+            } else {
+                Log::debug('Deleted original file; '.$this->image_path);
+            }
         }
         // Confirm the file is deleted
-        $exists = Storage::disk('fullsize')->exists($this->image_path);
+        if(isset($new_path)) {
+            $exists = Storage::disk('fullsize')->exists($new_path);
+        } else {
+            $exists = Storage::disk('fullsize')->exists($this->image_path);
+        }
+
         if($exists) {
-            throw new \Exception('File not deleted; '.$this->image_path);
+            if(isset($new_path)) {
+                throw new \Exception('File not deleted; '.$new_path);
+            } else {
+                throw new \Exception('File not deleted; '.$this->image_path);
+            }
         }
 
         if(isset($new_original_path))
