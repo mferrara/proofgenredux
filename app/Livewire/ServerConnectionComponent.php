@@ -34,14 +34,12 @@ class ServerConnectionComponent extends Component
     {
         $this->debug_output = '';
         // Try to get a directory listing from the base path
-        $listing = Storage::disk('remote_proofs')->allDirectories();
+        $listing = Storage::disk('remote_proofs')->directories();
 
         $paths = [];
         // Get and store the paths of only the directories
         foreach ($listing as $item) {
-            if (isset($item['type']) && $item['type'] == 'dir') {
-                $paths[] = $item['path'];
-            }
+            $paths[] = $item;
         }
         if(count($paths)) {
             $this->debug_output = 'Connection successful, found '.count($paths).' items in the remote directory.';
