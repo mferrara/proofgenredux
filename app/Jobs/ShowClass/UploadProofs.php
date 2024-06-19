@@ -17,6 +17,7 @@ class UploadProofs implements ShouldQueue
 
     public string $show;
     public string $class;
+    public int $tries = 5;
 
     /**
      * Create a new job instance.
@@ -45,6 +46,7 @@ class UploadProofs implements ShouldQueue
 
     public function failed(?Throwable $exception): void
     {
+        Log::debug('UploadProofs failed for '.$this->show.' -> '.$this->class);
         Log::debug('UploadProofs failed: '.$exception->getMessage().' in '.$exception->getFile().':'.$exception->getLine());
     }
 }
