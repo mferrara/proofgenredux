@@ -39,7 +39,7 @@ class ServerConnectionComponent extends Component
         $paths = [];
         // Get and store the paths of only the directories
         foreach ($listing as $item) {
-            if ($item['type'] == 'dir') {
+            if (isset($item['type']) && $item['type'] == 'dir') {
                 $paths[] = $item['path'];
             }
         }

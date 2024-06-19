@@ -20,5 +20,11 @@
                 </div>
             @endif
         </div>
+        <div class="flex flex-col gap-y-4">
+            <div wire:loading wire:target="testConnection"
+                class="p-4 bg-blue-50 text-blue-900 rounded-md animate-pulse">
+                Running...
+            </div>
+        </div>
     </div>
 </div>
