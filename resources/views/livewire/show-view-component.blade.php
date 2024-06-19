@@ -16,8 +16,8 @@
         @if(count($current_path_directories) === 0)
             <div class="font-semibold">No directories in this path</div>
         @else
-            <div class="flex flex-row justify-between items-center">
-                <p class="mb-2 font-semibold">Classes</p>
+            <div class="flex flex-row justify-between items-center mt-2 mb-4">
+                <p class="mb-2 font-semibold"></p>
                 <div class="flex flex-row justify-end items-center gap-x-2">
                     <div wire:loading
                          class="px-2 py-1 text-sm bg-blue-200 text-blue-800 rounded-sm border border-blue-300 animate-pulse"
@@ -57,14 +57,14 @@
                 </div>
             </div>
 
-            <table class="w-2/3">
+            <table class="w-full">
                 <thead>
                 <tr class="border-b border-b-indigo-300">
-                    <th></th>
-                    <th class="text-right">Photos</th>
-                    <th class="text-right">To Import</th>
-                    <th class="text-right">To Proof</th>
-                    <th class="text-right">To Web</th>
+                    <th class="text-left">Class <br> Folder</th>
+                    <th class="text-right">Photos <br> Imported</th>
+                    <th class="text-right">Photos <br> to Import</th>
+                    <th class="text-right">Photos <br> to Proof</th>
+                    <th class="text-right">Photos <br> to Web</th>
                     <th class="text-right">Actions</th>
                 </tr>
                 </thead>
