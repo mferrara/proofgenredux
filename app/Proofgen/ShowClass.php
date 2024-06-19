@@ -334,6 +334,7 @@ class ShowClass
             $proof_number_count = count($images);
             $proof_numbers = Utility::generateProofNumbers($this->show_folder, $proof_number_count);
             foreach ($images as $image) {
+                Log::debug('ImportPhoto called with path: '.$image->path());
                 ImportPhoto::dispatch($image->path(), array_shift($proof_numbers))->onQueue('processing');
                 $processed++;
             }
