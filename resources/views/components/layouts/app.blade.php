@@ -32,7 +32,7 @@
                 </header>
             @endif
 
-            <div class="-mt-2 w-full bg-indigo-50 border border-b-indigo-100 px-2 py-1 text-indigo-700 flex flex-row justify-end items-center gap-x-2">
+            <div class="w-full bg-indigo-50 border border-b-indigo-100 px-2 py-1 text-indigo-700 flex flex-row justify-end items-center gap-x-2">
                 <div class="text-sm font-semibold">
                     Backup:
                     @if(config('proofgen.archive_enabled'))
