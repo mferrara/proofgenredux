@@ -37,7 +37,7 @@
                     Backup:
                     @if(config('proofgen.archive_enabled'))
                         <span class="text-green-700 px-1 py-0.5 font-semibold">Enabled</span>
-                        <?php
+                        @php
                         // Ensure the archive path is reachable
                         $archive_reachable = true;
                         try {
@@ -45,7 +45,7 @@
                         }catch(\Exception $e){
                             $archive_reachable = false;
                         }
-                        ?>
+                        @endphp
                         @if( ! $archive_reachable)
                             <span class="text-red-700 px-1 py-0.5 font-semibold">Archive path unreachable</span>
                         @endif
