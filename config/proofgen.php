@@ -3,6 +3,7 @@
 return [
     'fullsize_home_dir' => getenv('FULLSIZE_HOME_DIR'),
     'archive_home_dir' => getenv('ARCHIVE_HOME_DIR'),
+    'archive_enabled' => getenv('ARCHIVE_ENABLED') === 'TRUE',
     'test_source_dir' => getenv('TEST_SOURCE_DIR'),
 
     'rename_files' => getenv('RENAME_FILES') === 'TRUE',

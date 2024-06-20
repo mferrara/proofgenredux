@@ -34,6 +34,26 @@
 
             <div class="-mt-2 w-full bg-indigo-50 border border-b-indigo-100 px-2 py-1 text-indigo-700 flex flex-row justify-end items-center gap-x-2">
                 <div class="text-sm font-semibold">
+                    Backup:
+                    @if(config('proofgen.archive_enabled'))
+                        <span class="text-green-700 px-1 py-0.5 font-semibold">Enabled</span>
+                        <?php
+                        // Ensure the archive path is reachable
+                        $archive_reachable = true;
+                        try {
+                            $listing = \Illuminate\Support\Facades\Storage::disk('archive')->directories();
+                        }catch(\Exception $e){
+                            $archive_reachable = false;
+                        }
+                        ?>
+                        @if( ! $archive_reachable)
+                            <span class="text-red-700 px-1 py-0.5 font-semibold">Archive path unreachable</span>
+                        @endif
+                    @else
+                        <span class="text-yellow-700 px-1 py-0.5 font-semibold">Disabled</span>
+                    @endif
+                </div>
+                <div class="text-sm font-semibold">
                     Uploads:
                     @if(config('proofgen.upload_proofs'))
                         <span class="text-green-700 px-1 py-0.5 font-semibold">Enabled</span>
