@@ -50,7 +50,7 @@
                             <span class="text-red-700 px-1 py-0.5 font-semibold">Archive path unreachable</span>
                         @endif
                     @else
-                        <span class="text-yellow-700 px-1 py-0.5 font-semibold">Disabled</span>
+                        <span class="text-red-700 px-1 py-0.5 font-semibold">Disabled</span>
                     @endif
                 </div>
                 <div class="text-sm font-semibold">
