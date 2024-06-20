@@ -89,12 +89,7 @@ class Image
     {
         // First we'll get the image from the directory
         Log::debug('Processing image with path: '.$this->image_path);
-        try{
-            $image = Storage::disk('fullsize')->get($this->image_path);
-        } catch (UnableToReadFile $e) {
-            Log::error('Unable to read file: '.$this->image_path);
-            throw new \Exception('Unable to read file: '.$this->image_path);
-        }
+        $image = Storage::disk('fullsize')->get($this->image_path);
 
         $original_filename = $this->filename;
         $path_to_original_copy = $this->show.'/'.$this->class.'/originals/'.$this->filename;
