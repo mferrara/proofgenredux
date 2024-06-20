@@ -121,8 +121,8 @@ class Image
                 Log::debug('Renamed file in originals directory from '.$original_filename.' to '.$new_filename);
             }
             // Now, rename the file in $this->image_path
-            Log::debug('Renaming file in processing directory from '.$original_filename.' to '.$new_filename.', from '.$this->image_path.' to '.$new_path);
             $new_path = $this->show.'/'.$this->class.'/'.$new_filename;
+            Log::debug('Renaming file in processing directory from '.$original_filename.' to '.$new_filename.', from '.$this->image_path.' to '.$new_path);
             Storage::disk('fullsize')->move($this->image_path, $new_path);
 
             // Update $this->image_path to reflect the new filename
