@@ -7,6 +7,7 @@ use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Redis;
 
 class ShowClass
 {
@@ -325,17 +326,33 @@ class ShowClass
         return $proofed;
     }
 
+    public function getNextProofNumber(): string
+    {
+        $redis_key = 'available_proof_numbers_' . $this->show_folder;
+
+        $redis_client = \Illuminate\Support\Facades\Redis::client();
+        // Do we have a redis list with the $redis_key or, if we have one, but it's empty...
+        if (!$redis_client->exists($redis_key) || $redis_client->llen($redis_key) === 0) {
+            // Generate the proof numbers
+            $proof_numbers = Utility::generateProofNumbers($this->show_folder, 10000);
+            // Add the proof numbers to the redis list
+            foreach($proof_numbers as $available_proof_number) {
+                $redis_client->rpush($redis_key, $available_proof_number);
+            }
+        }
+        $proof_number = $redis_client->lpop($redis_key);
+
+        return $proof_number;
+    }
+
     public function processPendingImages(): int
     {
         $images = $this->getImagesPendingProcessing();
 
         $processed = 0;
         if ($images) {
-            $proof_number_count = count($images);
-            $proof_numbers = Utility::generateProofNumbers($this->show_folder, $proof_number_count);
             foreach ($images as $image) {
-                Log::debug('ImportPhoto called with path: '.$image->path());
-                ImportPhoto::dispatch($image->path(), array_shift($proof_numbers))->onQueue('processing');
+                ImportPhoto::dispatch($image->path(), $this->getNextProofNumber())->onQueue('processing');
                 $processed++;
             }
         }

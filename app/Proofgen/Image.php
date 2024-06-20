@@ -88,7 +88,6 @@ class Image
     public function processImage(string $proof_number, bool $debug = false): string
     {
         // First we'll get the image from the directory
-        Log::debug('Processing image with path: '.$this->image_path);
         $image = Storage::disk('fullsize')->get($this->image_path);
 
         $original_filename = $this->filename;

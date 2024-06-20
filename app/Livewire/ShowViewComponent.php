@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Jobs\ShowClass\ImportPhotos;
 use App\Proofgen\Show;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
@@ -79,8 +80,8 @@ class ShowViewComponent extends Component
     public function processPendingImages(string $class_folder): void
     {
         $show_class = new ShowClass($this->show, $class_folder);
-        $count = $show_class->processPendingImages();
-        $this->flash_message = $count.' Images queued for import.';
+        ImportPhotos::dispatch($this->show, $class_folder)->onQueue('imports');
+        $this->flash_message = $class_folder.' queued for import.';
         $this->check_proofs_uploaded = false;
     }
 

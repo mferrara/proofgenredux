@@ -59,8 +59,8 @@
 
             <table class="w-full">
                 <thead>
-                <tr class="border-b border-b-indigo-300">
-                    <th class="text-left">Class <br> Folder</th>
+                <tr class="border-b border-b-indigo-300 text-lg text-gray-600">
+                    <th class="text-left">Class</th>
                     <th class="text-right">Photos <br> Imported</th>
                     <th class="text-right">Photos <br> to Import</th>
                     <th class="text-right">Photos <br> to Proof</th>
@@ -86,7 +86,7 @@
                         <td class="text-right">
                             @if($class_folder_data['images_pending_processing_count'])
                                 <button class="px-2 py-1 text-sm font-semibold rounded-sm border hover:bg-gray-300"
-                                        :class="{ 'bg-gray-200 text-gray-800 border-gray-300': !isQueued, 'bg-green-500 text-white border-green-600': isQueued }"
+                                        :class="{ 'bg-cyan-200 text-gray-800 border-gray-300': !isQueued, 'bg-green-500 text-white border-green-600': isQueued }"
                                         wire:click="processPendingImages('{{ $class_folder_data['path'] }}')"
                                         x-data="{ isQueued: false }"
                                         x-on:click="isQueued = true"
@@ -95,9 +95,9 @@
                                     <span x-show="isQueued">Queued</span>
                                 </button>
                             @endif
-                            @if($class_folder_data['images_pending_proofing_count'])
+                            @if($class_folder_data['images_imported'])
                                 <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
-                                        wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Upload ({{ $class_folder_data['images_pending_proofing_count'] }}) Proofs</button>
+                                        wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Force Upload ({{ $class_folder_data['images_imported'] }})</button>
                             @endif
                             @if($class_folder_data['images_imported'])
                                 <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"

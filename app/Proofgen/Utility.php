@@ -2,6 +2,7 @@
 
 namespace App\Proofgen;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use League\Flysystem\FileAttributes;
