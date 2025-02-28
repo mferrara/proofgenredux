@@ -64,10 +64,10 @@
             </div>
             <div class="w-1/2">
                 <div wire:loading
-                    class="w-1/3 px-2 py-1 text-lg font-semibold bg-yellow-200 text-yellow-800 rounded-sm border border-yellow-300 animate-pulse"
+                    class="w-1/3 px-2 py-1 text-lg font-semibold bg-yellow-200 text-yellow-800 rounded-xs border border-yellow-300 animate-pulse"
                 >Working...</div>
                 @if(isset($flash_message) && strlen($flash_message))
-                    <div class="px-2 py-1 text-lg font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">{{ $flash_message }}</div>
+                    <div class="px-2 py-1 text-lg font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">{{ $flash_message }}</div>
                 @endif
             </div>
         </div>
@@ -77,12 +77,12 @@
                 <div class="flex flex-row justify-between items-center">
                     <div class="text-xl font-semibold">Images to import @if($images_pending_processing && count($images_pending_processing)) ({{ count($images_pending_processing) }}) @endif</div>
                     @if($images_pending_processing && count($images_pending_processing))
-                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300 hover:bg-gray-300 hover:text-gray-800 hover:border-gray-400"
+                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300 hover:bg-gray-300 hover:text-gray-800 hover:border-gray-400"
                                 wire:click="processPendingImages"
                         >Import</button>
                     @else
                         <div>
-                            <div class="px-2 py-1 text-sm font-semibold text-green-800 rounded-sm">All images imported</div>
+                            <div class="px-2 py-1 text-sm font-semibold text-green-800 rounded-xs">All images imported</div>
                         </div>
                     @endif
                 </div>
@@ -97,13 +97,13 @@
                 <div class="flex flex-row justify-between items-center">
                     <div class="text-xl font-semibold">Images to proof @if($images_pending_proofing && count($images_pending_proofing))({{ count($images_pending_proofing)}})@endif </div>
                     @if($images_pending_proofing && count($images_pending_proofing))
-                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                 wire:click="proofPendingImages"
                         >Start</button>
                     @else
                         <div class="flex flex-row justify-end gap-x-2">
-                            <div class="px-2 py-1 text-sm font-semibold text-green-800 rounded-sm">All images proofed</div>
-                            <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                            <div class="px-2 py-1 text-sm font-semibold text-green-800 rounded-xs">All images proofed</div>
+                            <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                     wire:click="regenerateProofs"
                             >Regenerate</button>
                         </div>
@@ -124,19 +124,19 @@
                     <div class="text-xl font-semibold">Proofs to upload @if($images_pending_upload && count($images_pending_upload))({{ count($images_pending_upload)}})@endif </div>
                     <div class="flex flex-row justify-end items-center gap-x-2">
                         @if($check_proofs_uploaded === false)
-                            <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                            <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                     wire:click="checkProofsUploaded"
                             >Check Status</button>
                         @elseif($images_pending_upload && count($images_pending_upload))
-                            <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                            <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                     wire:click="uploadPendingProofsAndWebImages"
                             >Upload</button>
                         @else
                             <div>
-                                <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All proofs uploaded</div>
+                                <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">All proofs uploaded</div>
                             </div>
                         @endif
-                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                 wire:click="uploadPendingProofsAndWebImages"
                         >Force Upload</button>
                     </div>
@@ -151,16 +151,16 @@
                 <div class="flex flex-row justify-between items-center">
                     <div class="text-xl font-semibold">Web Images to upload @if($web_images_pending_upload && count($web_images_pending_upload))({{ count($web_images_pending_upload)}})@endif </div>
                     @if($check_proofs_uploaded === false)
-                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                 wire:click="checkProofsUploaded"
                         >Check</button>
                     @elseif($images_pending_upload && count($images_pending_upload))
-                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                 wire:click="uploadPendingProofsAndWebImages"
                         >Upload</button>
                     @else
                         <div>
-                            <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All web images uploaded</div>
+                            <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">All web images uploaded</div>
                         </div>
                     @endif
                 </div>
@@ -180,7 +180,7 @@
 
                     @else
                         <div>
-                            <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">No images imported yet</div>
+                            <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">No images imported yet</div>
                         </div>
                     @endif
                 </div>

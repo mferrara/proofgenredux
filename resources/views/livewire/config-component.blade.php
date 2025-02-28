@@ -42,28 +42,10 @@
                                             <div class="text-sm text-gray-400 italic">Hidden</div>
                                         @else
                                             @if($config->type === 'boolean')
-                                                @if($config->key === 'upload_proofs')
-                                                    <flux:switch
-                                                        wire:model.live="upload_proofs"
-                                                        wire:key="enable_proofs-switch"
-                                                        variant="segmented"
-                                                    />
-                                                @else
-                                                    <flux:radio.group
-                                                        class="max-w-48"
-                                                        wire:model="configValues.{{ $config->key }}"
-                                                        wire:key="{{ $config->key }}-switch"
-                                                        variant="segmented"
-                                                    >
-                                                        @if($config->value === 'false' || !$config->value)
-                                                            <flux:radio value="false" label="Off" class="!bg-red-500/80" />
-                                                            <flux:radio value="true" label="On" />
-                                                        @else
-                                                            <flux:radio value="false" label="Off" />
-                                                            <flux:radio value="true" label="On" class="!bg-green-500/80" />
-                                                        @endif
-                                                    </flux:radio.group>
-                                                @endif
+                                                <flux:switch
+                                                    wire:model.live="configValues.{{ $config->key }}"
+                                                    wire:key="{{ $config->key }}-switch"
+                                                />
                                             @else
                                                 <div class="text-sm text-yellow-400">
                                                     {{ $this->getDisplayValue($config->value, $config->type) }}

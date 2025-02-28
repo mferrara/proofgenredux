@@ -20,21 +20,21 @@
                 <p class="mb-2 font-semibold"></p>
                 <div class="flex flex-row justify-end items-center gap-x-2">
                     <div wire:loading
-                         class="px-2 py-1 text-sm bg-blue-200 text-blue-800 rounded-sm border border-blue-300 animate-pulse"
+                         class="px-2 py-1 text-sm bg-blue-200 text-blue-800 rounded-xs border border-blue-300 animate-pulse"
                     >Working...</div>
                     @if(isset($flash_message) && strlen($flash_message))
-                        <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">{{ $flash_message }}</div>
+                        <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">{{ $flash_message }}</div>
                     @endif
                     @if( ! $check_proofs_uploaded)
-                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                 wire:click="checkProofsUploaded"
                         >Check Proofs & Web Images</button>
                     @else
                         @if(count($images_pending_upload) || count($web_images_pending_upload))
                             <div class="flex flex-row justify-end items-center gap-x-2">
-                                <div class="px-2 py-1 text-sm font-semibold bg-yellow-200 text-yellow-800 rounded-sm border border-yellow-300">Proofs to upload: {{ count($images_pending_upload) }}</div>
-                                <div class="px-2 py-1 text-sm font-semibold bg-yellow-200 text-yellow-800 rounded-sm border border-yellow-300">Web Images to upload: {{ count($web_images_pending_upload) }}</div>
-                                <button class="px-2 py-1 text-sm font-semibold bg-red-200 text-green-800 rounded-sm border border-green-300"
+                                <div class="px-2 py-1 text-sm font-semibold bg-yellow-200 text-yellow-800 rounded-xs border border-yellow-300">Proofs to upload: {{ count($images_pending_upload) }}</div>
+                                <div class="px-2 py-1 text-sm font-semibold bg-yellow-200 text-yellow-800 rounded-xs border border-yellow-300">Web Images to upload: {{ count($web_images_pending_upload) }}</div>
+                                <button class="px-2 py-1 text-sm font-semibold bg-red-200 text-green-800 rounded-xs border border-green-300"
                                         wire:click="uploadPendingProofsAndWebImages"
                                 >Upload
                                     @if(count($images_pending_upload))
@@ -50,7 +50,7 @@
                             </div>
                         @else
                             <div>
-                                <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300">All proofs & web images uploaded</div>
+                                <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">All proofs & web images uploaded</div>
                             </div>
                         @endif
                     @endif
@@ -85,7 +85,7 @@
                         <td class="text-right">@if($class_folder_data['images_pending_web_count']){{ $class_folder_data['images_pending_web_count'] }}@endif</td>
                         <td class="text-right">
                             @if($class_folder_data['images_pending_processing_count'])
-                                <button class="px-2 py-1 text-sm font-semibold rounded-sm border hover:bg-gray-300"
+                                <button class="px-2 py-1 text-sm font-semibold rounded-xs border hover:bg-gray-300"
                                         :class="{ 'bg-cyan-200 text-gray-800 border-gray-300': !isQueued, 'bg-green-500 text-white border-green-600': isQueued }"
                                         wire:click="processPendingImages('{{ $class_folder_data['path'] }}')"
                                         x-data="{ isQueued: false }"
@@ -96,13 +96,13 @@
                                 </button>
                             @endif
                             @if($class_folder_data['images_imported'])
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                         wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Force Upload ({{ $class_folder_data['images_imported'] }})</button>
                             @endif
                             @if($class_folder_data['images_imported'])
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                         wire:click="regenerateProofs('{{ $class_folder_data['path'] }}')">Regen Proofs</button>
-                                    <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300"
+                                    <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                             wire:click="regenerateWebImages('{{ $class_folder_data['path'] }}')">Regen Web</button>
                             @endif
                         </td>

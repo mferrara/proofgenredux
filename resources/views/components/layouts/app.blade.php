@@ -15,7 +15,6 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
 
         <!-- Styles -->
-        @livewireStyles
         @fluxAppearance
     </head>
     <body class="font-sans antialiased">
@@ -26,7 +25,7 @@
 
             <!-- Page Heading -->
             @if (isset($header))
-                <header class="shadow">
+                <header class="shadow-sm">
                     <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                         {{ $header }}
                     </div>
@@ -75,10 +74,10 @@
                     @if(shell_exec("ps aux | grep '[a]rtisan horizon'"))
                         <span class="text-green-700 px-1 py-0.5 font-semibold">Running</span>
                     @else
-                        <flux:heading class="flex items-center !font-semibold !text-rose-500">
+                        <flux:heading class="flex items-center font-semibold! text-rose-500!">
                             Stopped
                             <flux:tooltip toggleable>
-                                <flux:button icon="information-circle" size="xs" variant="ghost" class="!text-rose-500/80" />
+                                <flux:button icon="information-circle" size="xs" variant="ghost" class="text-rose-500/80!" />
 
                                 <flux:tooltip.content class="max-w-[20rem] space-y-2">
                                     <p>Horizon is needed to process tasks.</p>
@@ -97,7 +96,6 @@
         </div>
 
         @stack('modals')
-        @livewireScripts
         @fluxScripts
     </body>
 </html>

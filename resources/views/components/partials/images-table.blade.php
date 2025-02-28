@@ -50,7 +50,7 @@
             <td>
                 @if(isset($display_thumbnail) && $display_thumbnail)
                     <div class="p-1">
-                        <img src="{{ $thumbnail_base64 }}" alt="{{ $filename }}" class="rounded-sm">
+                        <img src="{{ $thumbnail_base64 }}" alt="{{ $filename }}" class="rounded-xs">
                     </div>
                 @else
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-gray-700">
@@ -68,12 +68,12 @@
             @if(is_array($actions) && count($actions) > 0)
             <td class="text-right">
                 @if(is_array($actions) && in_array('proof', $actions))
-                    <button class="px-1 py-0.5 text-xs font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300 hover:bg-gray-300 hover:text-gray-800 hover:border-gray-400"
+                    <button class="px-1 py-0.5 text-xs font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300 hover:bg-gray-300 hover:text-gray-800 hover:border-gray-400"
                             wire:click="proofImage('{{ $image_path }}')"
                     >Proof</button>
                 @endif
                 @if(is_array($actions) && in_array('import', $actions))
-                    <button class="px-1 py-0.5 text-xs font-semibold bg-gray-200 text-gray-800 rounded-sm border border-gray-300 hover:bg-gray-300 hover:text-gray-800 hover:border-gray-400"
+                    <button class="px-1 py-0.5 text-xs font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300 hover:bg-gray-300 hover:text-gray-800 hover:border-gray-400"
                             wire:click="processImage('{{ $image_path }}')"
                     >Import</button>
                 @endif
@@ -87,12 +87,12 @@
                 <td>
                     <div class="ml-2 flex flex-row justify-start items-center gap-x-2">
                         @if($image_obj->is_original)
-                            <div class="text-xs font-semibold bg-blue-200 text-blue-800 rounded-sm border border-blue-300 px-1">Imported</div>
+                            <div class="text-xs font-semibold bg-blue-200 text-blue-800 rounded-xs border border-blue-300 px-1">Imported</div>
                         @endif
                         @if($image_obj->is_proofed)
-                            <div class="text-xs font-semibold bg-green-200 text-green-800 rounded-sm border border-green-300 px-1">Proofed</div>
+                            <div class="text-xs font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300 px-1">Proofed</div>
                         @else
-                            <div class="text-xs font-semibold bg-red-200 text-red-800 rounded-sm border border-red-300 px-1">Not Proofed</div>
+                            <div class="text-xs font-semibold bg-red-200 text-red-800 rounded-xs border border-red-300 px-1">Not Proofed</div>
                         @endif
                     </div>
                 </td>

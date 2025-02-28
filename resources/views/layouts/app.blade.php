@@ -15,7 +15,6 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
 
         <!-- Styles -->
-        @livewireStyles
         @fluxAppearance
     </head>
     <body class="font-sans antialiased">
@@ -26,7 +25,7 @@
 
             <!-- Page Heading -->
             @if (isset($header))
-                <header class="shadow">
+                <header class="shadow-sm">
                     <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                         {{ $header }}
                     </div>
@@ -41,7 +40,6 @@
 
         @stack('modals')
 
-        @livewireScripts
         @fluxScripts
     </body>
 </html>
