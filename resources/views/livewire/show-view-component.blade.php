@@ -1,4 +1,4 @@
-<div class="bg-gray-100 px-8 py-4"
+<div class="px-8 py-4"
      wire:poll.5s
 >
     <div class="mt-4 flex flex-row justify-start items-center">
@@ -59,7 +59,7 @@
 
             <table class="w-full">
                 <thead>
-                <tr class="border-b border-b-indigo-300 text-lg text-gray-600">
+                <tr class="border-b border-b-gray-500 text-lg text-gray-600">
                     <th class="text-left">Class</th>
                     <th class="text-right">Photos <br> Imported</th>
                     <th class="text-right">Photos <br> to Import</th>
@@ -70,7 +70,7 @@
                 </thead>
                 <tbody>
                 @foreach($class_folders as $key => $class_folder_data)
-                    <tr class="@if($key % 2 === 0) bg-indigo-100 @endif">
+                    <tr class="@if($key % 2 === 0) bg-gray-800 @endif">
                         <td class="flex flex-row justify-start gap-x-1 items-center">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-600">
                                 <path d="M3.75 3A1.75 1.75 0 0 0 2 4.75v3.26a3.235 3.235 0 0 1 1.75-.51h12.5c.644 0 1.245.188 1.75.51V6.75A1.75 1.75 0 0 0 16.25 5h-4.836a.25.25 0 0 1-.177-.073L9.823 3.513A1.75 1.75 0 0 0 8.586 3H3.75ZM3.75 9A1.75 1.75 0 0 0 2 10.75v4.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0 0 18 15.25v-4.5A1.75 1.75 0 0 0 16.25 9H3.75Z" />

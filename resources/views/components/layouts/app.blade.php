@@ -16,23 +16,24 @@
 
         <!-- Styles -->
         @livewireStyles
+        @fluxAppearance
     </head>
     <body class="font-sans antialiased">
         <x-banner />
 
-        <div class="min-h-screen bg-gray-100">
+        <div class="min-h-screen">
             @livewire('navigation-menu')
 
             <!-- Page Heading -->
             @if (isset($header))
-                <header class="bg-white shadow">
+                <header class="shadow">
                     <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                         {{ $header }}
                     </div>
                 </header>
             @endif
 
-            <div class="w-full bg-indigo-50 border border-b-indigo-100 px-2 py-1 text-indigo-700 flex flex-row justify-end items-center gap-x-2">
+            <div class="w-full bg-gray-700 border border-gray-600 px-2 py-1 flex flex-row justify-end items-center gap-x-2">
                 <div class="text-sm font-semibold">
                     Backup:
                     @if(config('proofgen.archive_enabled'))
@@ -47,10 +48,10 @@
                         }
                         @endphp
                         @if( ! $archive_reachable)
-                            <span class="text-red-700 px-1 py-0.5 font-semibold">Archive path unreachable</span>
+                            <span class="text-red-500 px-1 py-0.5 font-semibold">Archive path unreachable</span>
                         @endif
                     @else
-                        <span class="text-red-700 px-1 py-0.5 font-semibold">Disabled</span>
+                        <span class="text-rose-500 px-1 py-0.5 font-semibold">Disabled</span>
                     @endif
                 </div>
                 <div class="text-sm font-semibold">
@@ -69,6 +70,24 @@
                         <span class="text-yellow-700 px-1 py-0.5 font-semibold">Disabled</span>
                     @endif
                 </div>
+                <div class="text-sm font-semibold flex flex-row items-center">
+                    <div>Horizon: &nbsp;</div>
+                    @if(shell_exec("ps aux | grep '[a]rtisan horizon'"))
+                        <span class="text-green-700 px-1 py-0.5 font-semibold">Running</span>
+                    @else
+                        <flux:heading class="flex items-center !font-semibold !text-rose-500">
+                            Stopped
+                            <flux:tooltip toggleable>
+                                <flux:button icon="information-circle" size="xs" variant="ghost" class="!text-rose-500/80" />
+
+                                <flux:tooltip.content class="max-w-[20rem] space-y-2">
+                                    <p>Horizon is needed to process tasks.</p>
+                                    <p>Run `php artisan horizon` in the terminal</p>
+                                </flux:tooltip.content>
+                            </flux:tooltip>
+                        </flux:heading>
+                    @endif
+                </div>
             </div>
 
             <!-- Page Content -->
@@ -78,7 +97,7 @@
         </div>
 
         @stack('modals')
-
         @livewireScripts
+        @fluxScripts
     </body>
 </html>

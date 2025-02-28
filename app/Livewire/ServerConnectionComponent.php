@@ -2,14 +2,7 @@
 
 namespace App\Livewire;
 
-use App\Proofgen\Utility;
-use Hamcrest\Util;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use League\Flysystem\Filesystem;
-use League\Flysystem\PhpseclibV2\SftpAdapter;
-use League\Flysystem\PhpseclibV2\SftpConnectionProvider;
-use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use Livewire\Component;
 
 class ServerConnectionComponent extends Component
@@ -20,6 +13,9 @@ class ServerConnectionComponent extends Component
     public string $key_path = '';
     public string $proofs_path = '';
     public string $debug_output = '';
+    public array $paths_found = [];
+    public bool $server_connection_test_result = false;
+    public bool $horizon_is_running = false;
 
     public function mount(): void
     {
@@ -34,23 +30,33 @@ class ServerConnectionComponent extends Component
     {
         $this->debug_output = '';
         // Try to get a directory listing from the base path
-        $listing = Storage::disk('remote_proofs')->directories();
+        try{
+            $listing = Storage::disk('remote_proofs')->directories();
+        } catch(\Throwable $e) {
+            $this->debug_output = 'Connection failed: '.$e->getMessage();
+            $this->server_connection_test_result = false;
+            return;
+        }
+        $this->server_connection_test_result = true;
 
-        $paths = [];
+        $paths_found = [];
         // Get and store the paths of only the directories
         foreach ($listing as $item) {
-            $paths[] = $item;
+            $paths_found[] = $item;
         }
-        if(count($paths)) {
-            $this->debug_output = 'Connection successful, found '.count($paths).' items in the remote directory.';
+        if(count($paths_found)) {
+            $this->debug_output = 'Connection successful';
         } else {
             $this->debug_output = 'Connection successful, but no items found in the remote directory.';
         }
-
+        $this->paths_found = $paths_found;
     }
 
     public function render()
     {
+        // Determine if Horizon is running and set flag
+        $this->horizon_is_running = app()->bound('horizon') && app('horizon')->running();
+
         return view('livewire.server-connection-component');
     }
 }

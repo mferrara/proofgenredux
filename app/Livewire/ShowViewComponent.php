@@ -6,8 +6,6 @@ use App\Jobs\ShowClass\ImportPhotos;
 use App\Proofgen\Show;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 
 class ShowViewComponent extends Component

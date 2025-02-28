@@ -1,4 +1,4 @@
-<div class="bg-gray-100 px-8 py-4">
+<div class="px-8 py-4">
     <div class="mt-4 ml-8 flex flex-col justify-start">
         <p class="mb-4 text-4xl font-semibold">Select Show</p>
         @foreach($current_path_directories as $directory)
