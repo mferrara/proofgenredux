@@ -42,19 +42,27 @@
                                             <div class="text-sm text-gray-400 italic">Hidden</div>
                                         @else
                                             @if($config->type === 'boolean')
+                                                <div class="flex flex-row items-center gap-x-2 my-auto">
                                                 <flux:switch
                                                     wire:model.live="configValues.{{ $config->key }}"
                                                     wire:key="{{ $config->key }}-switch"
                                                 />
+                                                @if($config->value)
+                                                    <div class="text-sm text-success">
+                                                        Enabled
+                                                    </div>
+                                                @else
+                                                    <div class="text-sm text-error">
+                                                        Disabled
+                                                    </div>
+                                                @endif
+                                                </div>
                                             @else
                                                 <div class="text-sm text-yellow-400">
                                                     {{ $this->getDisplayValue($config->value, $config->type) }}
                                                 </div>
                                             @endif
                                         @endif
-                                        <div class="text-xs text-gray-400">
-                                            Type: {{ $config->type }}
-                                        </div>
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="text-sm text-gray-300">

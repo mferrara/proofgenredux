@@ -33,10 +33,10 @@
             @endif
 
             <div class="w-full bg-gray-700 border border-gray-600 px-2 py-1 flex flex-row justify-end items-center gap-x-2">
-                <div class="text-sm font-semibold">
-                    Backup:
+                <div class="text-sm">
+                    Backups:
                     @if(config('proofgen.archive_enabled'))
-                        <span class="text-green-700 px-1 py-0.5 font-semibold">Enabled</span>
+                        <span class="text-success px-1 py-0.5 font-semibold">Enabled</span>
                         @php
                         // Ensure the archive path is reachable
                         $archive_reachable = true;
@@ -47,37 +47,37 @@
                         }
                         @endphp
                         @if( ! $archive_reachable)
-                            <span class="text-red-500 px-1 py-0.5 font-semibold">Archive path unreachable</span>
+                            <span class="text-error px-1 py-0.5">Archive path unreachable</span>
                         @endif
                     @else
-                        <span class="text-rose-500 px-1 py-0.5 font-semibold">Disabled</span>
+                        <span class="text-error px-1 py-0.5">Disabled</span>
                     @endif
                 </div>
-                <div class="text-sm font-semibold">
+                <div class="text-sm">
                     Uploads:
                     @if(config('proofgen.upload_proofs'))
-                        <span class="text-green-700 px-1 py-0.5 font-semibold">Enabled</span>
+                        <span class="text-success px-1 py-0.5">Enabled</span>
                     @else
-                        <span class="text-yellow-700 px-1 py-0.5 font-semibold">Disabled</span>
+                        <span class="text-yellow-700 px-1 py-0.5">Disabled</span>
                     @endif
                 </div>
-                <div class="text-sm font-semibold">
+                <div class="text-sm">
                     Rename:
                     @if(config('proofgen.rename_files'))
-                        <span class="text-green-700 px-1 py-0.5 font-semibold">Enabled</span>
+                        <span class="text-success px-1 py-0.5">Enabled</span>
                     @else
-                        <span class="text-yellow-700 px-1 py-0.5 font-semibold">Disabled</span>
+                        <span class="text-yellow-700 px-1 py-0.5">Disabled</span>
                     @endif
                 </div>
-                <div class="text-sm font-semibold flex flex-row items-center">
+                <div class="text-sm flex flex-row items-center">
                     <div>Horizon: &nbsp;</div>
                     @if(shell_exec("ps aux | grep '[a]rtisan horizon'"))
-                        <span class="text-green-700 px-1 py-0.5 font-semibold">Running</span>
+                        <span class="text-success px-1 py-0.5">Running</span>
                     @else
-                        <flux:heading class="flex items-center font-semibold! text-rose-500!">
+                        <flux:heading class="flex items-center text-error!">
                             Stopped
                             <flux:tooltip toggleable>
-                                <flux:button icon="information-circle" size="xs" variant="ghost" class="text-rose-500/80!" />
+                                <flux:button icon="information-circle" size="xs" variant="ghost" class="text-error!" />
 
                                 <flux:tooltip.content class="max-w-[20rem] space-y-2">
                                     <p>Horizon is needed to process tasks.</p>

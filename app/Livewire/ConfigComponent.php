@@ -13,8 +13,6 @@ class ConfigComponent extends Component
     public array $categoryLabels = [];
     public array $configValues = [];
 
-    public bool $upload_proofs = false;
-
     protected $rules = [
         'configValues.*' => 'nullable|string|max:255',
     ];
@@ -175,7 +173,6 @@ class ConfigComponent extends Component
 
     public function render()
     {
-        Log::debug('upload_proofs is ' . ($this->upload_proofs ? 'true' : 'false'));
         return view('livewire.config-component');
     }
 }
