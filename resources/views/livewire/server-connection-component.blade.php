@@ -1,6 +1,6 @@
 <div class="px-8 py-4">
 
-    <div class="mt-4 ml-8 flex flex-col justify-start gap-y-2">
+    <div class="mt-4 mx-8 flex flex-col justify-start gap-y-2">
         <div class="flex flex-row justify-start items-center gap-x-4">
             <div class="text-4xl font-semibold">Server Configuration</div>
         </div>

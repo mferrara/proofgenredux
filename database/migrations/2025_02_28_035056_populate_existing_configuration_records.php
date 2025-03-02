@@ -32,7 +32,7 @@ return new class extends Migration
                 'type' => 'boolean',
                 'category' => 'archive',
                 'label' => 'Archive Enabled',
-                'description' => 'Whether the archive feature is enabled.',
+                'description' => 'Whether the archive/backup feature is enabled.',
             ],
             'test_source_dir' => [
                 'value' => $proofgen_config['test_source_dir'],
@@ -46,7 +46,7 @@ return new class extends Migration
                 'type' => 'boolean',
                 'category' => 'proofs',
                 'label' => 'Rename Files',
-                'description' => 'Whether to rename files during upload.',
+                'description' => 'Whether to rename images during import/processing.',
             ],
             'upload_proofs' => [
                 'value' => $proofgen_config['upload_proofs'],
@@ -241,15 +241,15 @@ return new class extends Migration
                 'value' => $proofgen_config['sftp']['path'],
                 'type' => 'path',
                 'category' => 'sftp',
-                'label' => 'SFTP Path',
-                'description' => 'The path on the SFTP server.',
+                'label' => 'SFTP Proofs Path',
+                'description' => 'The path to the "proofs" directory on the server.',
             ],
             'sftp.web_images_path' => [
                 'value' => $proofgen_config['sftp']['web_images_path'],
                 'type' => 'path',
                 'category' => 'sftp',
-                'label' => 'SFTP Proofs Path',
-                'description' => 'The path on the SFTP server for proofs.',
+                'label' => 'SFTP Web Images Path',
+                'description' => 'The path to the directory where web images are stored on the server.',
             ],
         ];
         foreach ($configurations as $key => $config) {

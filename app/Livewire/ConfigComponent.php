@@ -2,10 +2,11 @@
 
 namespace App\Livewire;
 
+use Flux\Flux;
+use Livewire\Component;
 use App\Models\Configuration;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Livewire\Component;
 
 class ConfigComponent extends Component
 {
@@ -14,7 +15,7 @@ class ConfigComponent extends Component
     public array $configValues = [];
 
     protected $rules = [
-        'configValues.*' => 'nullable|string|max:255',
+        'configValues.*' => 'nullable|max:250',
     ];
 
     public function mount(): void
@@ -40,70 +41,56 @@ class ConfigComponent extends Component
         // Initialize values for all configurations
         foreach ($this->configurationsByCategory as $category => $configs) {
             foreach ($configs as $config) {
-                $this->configValues[$config->key] = Configuration::castValue($config->value, $config->type);
+                $this->configValues[$config->id] = Configuration::castValue($config->value, $config->type);
             }
         }
     }
 
-    public function toggleBooleanConfigValue(string $key): void
+    public function updatingConfigValues($value, $key): void
     {
-        $config = Configuration::where('key', $key)->first();
+        // Log::debug('Updating config value', ['key' => $key, 'value' => $value]);
 
-        if( ! $config ) {
-            return;
+        // If the $key is an integer, it means it's an ID, if it's a string, it's a key
+        // Find the configuration by key
+        if (is_numeric($key)) {
+            $config = Configuration::find($key);
+        } else {
+            $config = Configuration::where('key', $key)->first();
         }
-
-        $config->value = !$config->value;
-        $config->save();
-
-        $this->dispatch('config-updated', [
-            'key' => $key,
-            'value' => $config->value,
-        ]);
-
-        // Refresh configurations
-        $this->loadConfigurations();
-        // Set the updated value in the configValues array
-        $this->configValues[$config->key] = Configuration::castValue($config->value, $config->type);
-    }
-
-    public function updateConfigValue(string $key, string $value): void
-    {
-        $config = Configuration::where('key', $key)->first();
 
         if (!$config) {
+
+            $this->returnError('Configuration '.$key.' not found.');
+
             return;
         }
+        // Validate the updated value
+        $this->validateOnly($config->id, [
+            'configValues.' . $config->id => 'nullable|string|max:255',
+        ]);
 
+        // Log::debug('Update passed validation');
+
+        // Update the configuration value
         $config->value = Configuration::castValue($value, $config->type);
         $config->save();
 
-        $this->dispatch('config-updated', [
-            'key' => $key,
-            'value' => $config->value,
-        ]);
-
         // Refresh configurations
         $this->loadConfigurations();
         // Set the updated value in the configValues array
-        $this->configValues[$config->key] = Configuration::castValue($config->value, $config->type);
+        $this->configValues[$config->id] = Configuration::castValue($config->value, $config->type);
+
+        // Dispatch a success event
+        $this->dispatchUpdateEvent();
     }
 
-    public function updatingConfigValues($value, $key): void
+    public function returnError(?string $message = null): void
     {
-        Log::debug('Updating config value', [
-            'key' => $key,
-            'value' => $value,
-        ]);
-        // Validate the updated value
-        $this->validateOnly($key, [
-            'configValues.' . $key => 'nullable|string|max:255',
-        ]);
+        if( !$message ) {
+            $message = 'An error occurred while saving the configuration.';
+        }
 
-        Log::debug('Update passed validation');
-
-        // Update the configuration value
-        $this->updateConfigValue($key, $value);
+        Flux::toast(text: $message, heading: 'Error', variant: 'danger', position: 'top right');
     }
 
     private function groupConfigurationsByCategory(Collection $configurations): void
@@ -169,6 +156,50 @@ class ConfigComponent extends Component
             default:
                 return (string) $value;
         }
+    }
+
+    public function save()
+    {
+        $this->validate();
+
+        foreach ($this->configValues as $key => $value) {
+            $config = Configuration::find($key);
+
+            if ($config) {
+                $current_value = Configuration::castValue($config->value, $config->type);
+                $passed_value = Configuration::castValue($value, $config->type);
+                if($current_value === $passed_value ) {
+                    continue;
+                }
+                $config->value = Configuration::castValue($value, $config->type);
+                if($config->isDirty()) {
+                    $config->save();
+                }
+            }
+        }
+
+        // Refresh configurations
+        $this->loadConfigurations();
+
+        // Dispatch a success event
+        Flux::toast(text: 'The settings have saved successfully.', heading: 'Settings saved', variant: 'success', position: 'top right');
+        $this->dispatchUpdateEvent();
+    }
+
+    public function dispatchUpdateEvent(): void
+    {
+        Log::debug('dispatchUpdateEvent called');
+        // Emit an event to notify other components
+        $this->dispatch('config-updated')->to(AppStatusBar::class);
+        Log::debug('AppStatusBar event dispatched');
+    }
+
+    public function cancel()
+    {
+        // Reload configurations to discard changes
+        $this->loadConfigurations();
+        // Reset the configValues array to the original values
+        $this->initializeConfigValues();
     }
 
     public function render()

@@ -31,7 +31,7 @@ class ConfigurationServiceProvider extends ServiceProvider
 
         try {
             // Load configuration overrides from cache/database and set them with the application config() helper
-            Log::debug('Loading configurations.');
+            // Log::debug('Loading configurations.');
             Configuration::overrideApplicationConfig();
 
         } catch (QueryException $e) {

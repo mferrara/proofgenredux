@@ -61,13 +61,13 @@ class Configuration extends Model
 
     public static function setReloadRequiredFlag(): void
     {
-        Log::debug('Setting reload required flag');
+        // Log::debug('Setting reload required flag');
         Cache::put(self::CONFIG_REQUIRES_RELOAD_CACHE_KEY, true);
     }
 
     public function clearCaches(): void
     {
-        Log::debug('Clearing all caches for key: ' . $this->key);
+        // Log::debug('Clearing all caches for key: ' . $this->key);
         Cache::forget(self::CONFIGURATIONS_SINGLE_VALUE_KEY.'.' . $this->key);
         if($this->category) {
             Cache::forget(self::CONFIGURATIONS_CATEGORY_KEY.'.' . $this->category);
@@ -85,7 +85,7 @@ class Configuration extends Model
 
     public static function checkUpdateRequired(): bool
     {
-        Log::debug('Checking update required flag');
+         //Log::debug('Checking update required flag');
         return Cache::has(self::CONFIG_REQUIRES_RELOAD_CACHE_KEY);
     }
 
@@ -93,7 +93,7 @@ class Configuration extends Model
     {
         if(self::checkUpdateRequired()) {
             // If the cache has been invalidated, if so, compile the configurations
-            Log::debug('Updating application configuration');
+            // Log::debug('Updating compiled app configuration');
             $configs = self::compile();
         } else {
             // Get the compiled configuration from the cache
@@ -102,10 +102,14 @@ class Configuration extends Model
 
         // If we have _something_ and not just an empty array, we'll use that
         if ($configs && count($configs) > 0) {
+            // Log::debug(print_r($configs, true));
             foreach ($configs as $config_key => $config_value) {
                 $full_key = self::CONFIG_PREFIX . $config_key;
                 // Just as a sanity check while building this feature, we'll load the _current_ value for this config key
                 $current_value = config($full_key);
+                if( ! $current_value && $current_value !== false) {
+                    Log::debug('No current value for key: '. $full_key);
+                }
                 // Is the current value an int as a string?
                 if (is_string($current_value) && is_numeric($current_value)) {
                     $current_value = (int) $current_value;
@@ -120,11 +124,11 @@ class Configuration extends Model
                     continue;
                 }
 
-                if( ! $current_value) {
+                if( ! $current_value && $current_value !== false) {
                     // There is no current value for this key, we'll set it now
                     Log::debug('Config key: ' . $full_key . ' is not set, setting it to: ' . $config_value);
                 } else {
-                    Log::debug('Overriding current value ('.$current_value.') for config key: ' . $full_key . ' with value: ' . $config_value);
+                    // Log::debug('Overriding current value ('.$current_value.' / '.gettype($current_value).') for config key: ' . $full_key . ' with value: ' . $config_value);
                 }
 
                 // Set configuration key-value pair in the config repository
@@ -261,7 +265,6 @@ class Configuration extends Model
     public static function getAll(): Collection
     {
         return Cache::remember(self::CONFIGURATIONS_ALL_COLLECTION_KEY, self::CACHE_TTL, function () {
-            Log::debug('Loading all configurations from the database');
             return self::all();
         });
     }

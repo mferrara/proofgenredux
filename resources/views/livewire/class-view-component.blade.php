@@ -1,9 +1,9 @@
-<div class="bg-gray-100 px-8 py-4"
+<div class="px-8 py-4"
      wire:poll.5s
 >
-    <div class="mt-4 flex flex-row justify-start items-center">
+    <div class="mt-4 mx-4 flex flex-row justify-start items-center">
         <a href="/show/{{ $show }}"
-           class="mt-2 underline text-indigo-400 hover:cursor-pointer mb-2 ml-2"
+           class="my-2 underline text-indigo-400 hover:cursor-pointer"
            title="Back to {{ $show }}"
         >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
@@ -13,7 +13,7 @@
         <div class="ml-2 text-4xl font-semibold">Show: <a href="/show/{{ $show }}" class="text-indigo-600 underline">{{ $show }}</a> / Class: {{ $class }}</a></div>
     </div>
 
-    <div class="mt-4 ml-12 text-xl flex flex-col justify-start">
+    <div class="mt-4 mx-8 text-xl flex flex-col justify-start">
         <div class="flex flex-row justify-between items-start gap-x-8">
             <div class="w-1/2">
                 @if(count($current_path_directories) === 0)
@@ -82,7 +82,7 @@
                         >Import</button>
                     @else
                         <div>
-                            <div class="px-2 py-1 text-sm font-semibold text-green-800 rounded-xs">All images imported</div>
+                            <div class="px-2 py-1 text-sm font-semibold text-success rounded-xs">All images imported</div>
                         </div>
                     @endif
                 </div>
@@ -102,7 +102,7 @@
                         >Start</button>
                     @else
                         <div class="flex flex-row justify-end gap-x-2">
-                            <div class="px-2 py-1 text-sm font-semibold text-green-800 rounded-xs">All images proofed</div>
+                            <div class="px-2 py-1 text-sm font-semibold text-success rounded-xs">All images proofed</div>
                             <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
                                     wire:click="regenerateProofs"
                             >Regenerate</button>

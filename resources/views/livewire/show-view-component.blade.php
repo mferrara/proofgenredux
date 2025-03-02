@@ -1,9 +1,9 @@
 <div class="px-8 py-4"
      wire:poll.5s
 >
-    <div class="mt-4 flex flex-row justify-start items-center">
+    <div class="mt-4 mx-4 flex flex-row justify-start items-center">
         <a href="/"
-           class="mt-2 underline text-indigo-400 hover:cursor-pointer mb-2 ml-2"
+           class="my-2 underline text-indigo-400 hover:cursor-pointer"
            title="Back to Home"
         >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
@@ -12,7 +12,7 @@
         </a>
         <div class="ml-2 text-4xl font-semibold">Show: <a href="/show/{{ $show }}" class="text-indigo-600">{{ $show }}</a></div>
     </div>
-    <div class="mt-4 ml-12 text-xl flex flex-col justify-start gap-y-0.5">
+    <div class="mt-4 mx-8 text-xl flex flex-col justify-start gap-y-0.5">
         @if(count($current_path_directories) === 0)
             <div class="font-semibold">No directories in this path</div>
         @else
