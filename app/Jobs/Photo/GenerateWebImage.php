@@ -3,6 +3,7 @@
 namespace App\Jobs\Photo;
 
 use App\Proofgen\Image;
+use App\Services\PhotoService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -30,6 +31,7 @@ class GenerateWebImage implements ShouldQueue
      */
     public function handle(): void
     {
-        Image::createWebImage($this->full_size_path, $this->web_destination_path);
+        $photoService = app(PhotoService::class);
+        $photoService->generateWebImage($this->full_size_path, $this->web_destination_path);
     }
 }

@@ -47,7 +47,7 @@ class Configuration extends Model
 
         // Clear the cache when a configuration is created, updated...
         static::saved(function (Configuration $model) {
-            Log::debug('Config saved for key: ' . $model->key.' with value: ' . $model->value);
+            // Log::debug('Config saved for key: ' . $model->key.' with value: ' . $model->value);
             $model->clearCaches();
             self::setReloadRequiredFlag();
         });

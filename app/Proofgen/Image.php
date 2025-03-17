@@ -2,6 +2,7 @@
 
 namespace App\Proofgen;
 
+use App\Services\PathResolver;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\ImageManager;
@@ -16,15 +17,17 @@ class Image
     public bool $is_proofed = false;
     public array $missing_proofs = [];
     public bool $rename_files = true;
-
     public string $filename = '';
+    
+    protected PathResolver $pathResolver;
 
-    public function __construct(string $image_path)
+    public function __construct(string $image_path, PathResolver $pathResolver = null)
     {
-        $this->image_path = $image_path;
+        $this->pathResolver = $pathResolver ?? app(PathResolver::class);
+        $this->image_path = $this->pathResolver->normalizePath($image_path);
 
         // Determine show and class from path
-        $path_parts = explode('/', $image_path);
+        $path_parts = explode('/', $this->image_path);
         $this->show = $path_parts[0];
         $this->class = $path_parts[1];
         $this->is_original = isset($path_parts[2]) && $path_parts[2] === 'originals';
@@ -34,8 +37,8 @@ class Image
 
     public function checkForProofs(): bool
     {
-        $proofs_path = '/proofs/'.$this->show.'/'.$this->class;
-        $proofs = Storage::disk('fullsize')->files($proofs_path);
+        $proofs_path = $this->pathResolver->getProofsPath($this->show, $this->class);
+        $proofs = Storage::disk('fullsize')->files($this->pathResolver->normalizePath($proofs_path));
         $proofed = false;
         $proof_sizes = [];
         foreach(config('proofgen.thumbnails') as $size) {
@@ -91,17 +94,18 @@ class Image
         $image = Storage::disk('fullsize')->get($this->image_path);
 
         $original_filename = $this->filename;
-        $path_to_original_copy = $this->show.'/'.$this->class.'/originals/'.$this->filename;
+        $path_to_originals_file = $this->pathResolver->getOriginalFilePath($this->show, $this->class, $this->filename);
+        $path_to_originals_file = $this->pathResolver->normalizePath($path_to_originals_file);
 
         // Next, we'll move the image to the original directory
-        Storage::disk('fullsize')->put($path_to_original_copy, $image);
+        Storage::disk('fullsize')->put($path_to_originals_file, $image);
         if($debug) {
-            Log::debug('Moved image to originals directory; '.$this->image_path);
+            Log::debug('Moved '.$this->image_path.' to originals directory; '.$path_to_originals_file);
         }
         // Next, we'll confirm that copied file exists
-        $exists = Storage::disk('fullsize')->exists($path_to_original_copy);
+        $exists = Storage::disk('fullsize')->exists($path_to_originals_file);
         if($debug) {
-            Log::debug('File exists in originals directory; '.$this->image_path);
+            Log::debug('File exists in originals directory; '.$path_to_originals_file);
         }
 
         if( ! $exists) {
@@ -114,35 +118,38 @@ class Image
             $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
             // Next, generate the new filename
             $new_filename = $proof_number.'.'.$extension;
-            $new_original_path = $this->show.'/'.$this->class.'/originals/'.$new_filename;
+            
+            // Use PathResolver for path construction
+            $new_original_path = $this->pathResolver->getOriginalFilePath($this->show, $this->class, $new_filename);
+            $new_original_path = $this->pathResolver->normalizePath($new_original_path);
+            
             // Next, rename the file we put in the originals path
-            Storage::disk('fullsize')->move($path_to_original_copy, $new_original_path);
+            Storage::disk('fullsize')->move($path_to_originals_file, $new_original_path);
             if($debug) {
-                Log::debug('Renamed file in originals directory from '.$original_filename.' to '.$new_filename);
+                Log::debug('Renamed file in originals directory from '.$original_filename.' to '.$new_filename.', including paths; from '.$path_to_originals_file.' to '.$new_original_path);
             }
+            
             // Now, rename the file in $this->image_path
-            $new_path = $this->show.'/'.$this->class.'/'.$new_filename;
-            Log::debug('Renaming file in processing directory from '.$original_filename.' to '.$new_filename.', from '.$this->image_path.' to '.$new_path);
+            $new_path = $this->pathResolver->getFullsizePath($this->show, $this->class).'/'.$new_filename;
+            $new_path = $this->pathResolver->normalizePath($new_path);
+            
+            if($debug) {
+                Log::debug('Renaming file in processing directory from '.$original_filename.' to '.$new_filename.', including paths; from '.$this->image_path.' to '.$new_path);
+            }
             Storage::disk('fullsize')->move($this->image_path, $new_path);
 
-            // Update $this->image_path to reflect the new filename
-            // $this->image_path = $new_path;
-
-            if($debug) {
-                Log::debug('Renamed file in processing directory from '.$original_filename.' to '.$new_filename);
-            }
-            $this->filename = $new_filename;
-            if($debug) {
-                Log::debug('Filename updated to '.$new_filename);
-            }
+            // Update $this->image_path to reflect the new path
+            // Update $this->filename to reflect the new filename
             $this->image_path = $new_path;
-            if($debug) {
-                Log::debug('Image path updated to '.$new_path);
-            }
+            $this->filename = $new_filename;
+            // Set out return value to this new, renamed file
+            $path_to_originals_file = $new_original_path;
         }
 
         // Next we'll copy this file to the archive directory
-        $archive_path = $this->show.'/'.$this->class.'/'.$this->filename;
+        // Note: If we re-named the file, the new name will already be included in $this->filename
+        $archive_path = $this->pathResolver->getArchivePath($this->show, $this->class).'/'.$this->filename;
+        $archive_path = $this->pathResolver->normalizePath($archive_path);
 
         // First, we'll see if it already exists in the archive from a previous failed run...
         $exists = Storage::disk('archive')->exists($archive_path);
@@ -150,6 +157,10 @@ class Image
             if($debug) {
                 Log::debug('File already exists in archive directory; '.$archive_path.' - Deleting...');
             }
+            // TODO: Should we have some sort of directory in the /show/class directory, like /deleted that we move
+            // these files to and add something like _deleted01 to the filename (where 01 increments when there's
+            // a filename conflict rather than overwriting)? Seems better in the case where something goes wrong
+            // and we need to recover the original file.
             Storage::disk('archive')->delete($archive_path);
         }
 
@@ -168,49 +179,42 @@ class Image
         }
 
         // Finally, we'll delete the original file
-        if(isset($new_path)) {
-            Storage::disk('fullsize')->delete($new_path);
-        } else {
-            Storage::disk('fullsize')->delete($this->image_path);
-        }
+        $path_to_delete = isset($new_path) ? $new_path : $this->image_path;
+        Storage::disk('fullsize')->delete($path_to_delete);
+        
         if($debug) {
-            if(isset($new_path)) {
-                Log::debug('Deleted original file; '.$new_path);
-            } else {
-                Log::debug('Deleted original file; '.$this->image_path);
-            }
+            Log::debug('Deleted original file; '.$path_to_delete);
         }
+        
         // Confirm the file is deleted
-        if(isset($new_path)) {
-            $exists = Storage::disk('fullsize')->exists($new_path);
-        } else {
-            $exists = Storage::disk('fullsize')->exists($this->image_path);
-        }
+        $exists = Storage::disk('fullsize')->exists($path_to_delete);
 
         if($exists) {
-            if(isset($new_path)) {
-                throw new \Exception('File not deleted; '.$new_path);
-            } else {
-                throw new \Exception('File not deleted; '.$this->image_path);
-            }
+            throw new \Exception('File not deleted; '.$path_to_delete);
         }
 
-        if(isset($new_original_path))
-            return $new_original_path;
-
-        return $path_to_original_copy;
+        return $path_to_originals_file;
     }
 
     public static function createWebImage($full_size_image_path, $web_dest_path): array|string
     {
+        // Get PathResolver from the container
+        $pathResolver = app(PathResolver::class);
+        
+        // Normalize the paths
+        $full_size_image_path = $pathResolver->normalizePath($full_size_image_path);
+        $web_dest_path = $pathResolver->normalizePath($web_dest_path);
+        
         // Confirm the $web_dest_path exists, if not, create it
         if( ! Storage::disk('fullsize')->exists($web_dest_path)) {
             Storage::disk('fullsize')->makeDirectory($web_dest_path);
         }
 
         $base_path = config('proofgen.fullsize_home_dir');
-        $full_size_image_path = $base_path.'/'.$full_size_image_path;
-        $web_dest_path = $base_path.'/'.$web_dest_path;
+        
+        // Use PathResolver to ensure consistent path formatting
+        $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
+        $web_dest_system_path = $pathResolver->getAbsolutePath($web_dest_path, $base_path);
 
         $manager = ImageManager::gd();
 
@@ -218,11 +222,11 @@ class Image
         // TODO: based on their exif data. That method is gone, not sure if it's automatically done or just not supported
         // TODO: anymore. We'll see if it causes problems.
         // $image = $manager->read($full_size_image_path)->orientate();
-        $image = $manager->read($full_size_image_path);
+        $image = $manager->read($full_system_path);
         $web_suf = config('proofgen.web_images.suffix');
-        $image_filename = pathinfo($full_size_image_path, PATHINFO_FILENAME);
+        $image_filename = pathinfo($full_system_path, PATHINFO_FILENAME);
         $web_thumb_filename = $image_filename.$web_suf.'.jpg';
-        $web_thumb_path = $web_dest_path.'/'.$web_thumb_filename;
+        $web_thumb_path = $web_dest_system_path.'/'.$web_thumb_filename;
 
         // Save small thumbnail
         $image->scale(config('proofgen.web_images.width'), config('proofgen.web_images.height'))
@@ -300,15 +304,37 @@ class Image
 
     public static function createThumbnails($full_size_image_path, $proofs_dest_path): array|string
     {
+        // Get PathResolver from the container
+        $pathResolver = app(PathResolver::class);
+        
+        $original_full_size_image_path = $full_size_image_path;
         ini_set('memory_limit', '4096M');
+
+        // Normalize paths using PathResolver
+        $full_size_image_path = $pathResolver->normalizePath($full_size_image_path);
+        $proofs_dest_path = $pathResolver->normalizePath($proofs_dest_path);
+        
+        // Get base path from config
+        $base_path = config('proofgen.fullsize_home_dir');
+        
+        // Use PathResolver to ensure consistent path formatting for filesystem operations
+        // Note: Storage::disk('fullsize') will prepend the base path for storage operations
+        // but direct filesystem operations need the full path
+        $proofs_dest_system_path = $pathResolver->getAbsolutePath($proofs_dest_path, $base_path);
+
+        if($full_size_image_path !== $original_full_size_image_path) {
+            Log::debug('Full size image path was changed from '.$original_full_size_image_path.' to '.$full_size_image_path);
+        }
+
         // Confirm the $proofs_dest_path exists, if not, create it
         if( ! Storage::disk('fullsize')->exists($proofs_dest_path)) {
             Storage::disk('fullsize')->makeDirectory($proofs_dest_path);
         }
 
-        $base_path = config('proofgen.fullsize_home_dir');
-        $full_size_image_path = $base_path.'/'.$full_size_image_path;
-        $proofs_dest_path = $base_path.'/'.$proofs_dest_path;
+        // Confirm the $full_size_image_path exists, if not, throw an exception
+        if( ! Storage::disk('fullsize')->exists($full_size_image_path)) {
+            throw new UnableToReadFile('File not found: '.$full_size_image_path);
+        }
 
         $manager = ImageManager::gd();
 
@@ -316,14 +342,18 @@ class Image
         // TODO: based on their exif data. That method is gone, not sure if it's automatically done or just not supported
         // TODO: anymore. We'll see if it causes problems.
         // $image = $manager->read($full_size_image_path)->orientate();
-        $image = $manager->read($full_size_image_path);
+
+        // Use PathResolver.getAbsolutePath to get the correct full system path
+        $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
+        $image = $manager->read($full_system_path);
+        
         $lrg_suf = config('proofgen.thumbnails.large.suffix');
         $sml_suf = config('proofgen.thumbnails.small.suffix');
         $image_filename = pathinfo($full_size_image_path, PATHINFO_FILENAME);
         $large_thumb_filename = $image_filename.$lrg_suf.'.jpg';
         $small_thumb_filename = $image_filename.$sml_suf.'.jpg';
-        $small_thumb_path = $proofs_dest_path.'/'.$small_thumb_filename;
-        $large_thumb_path = $proofs_dest_path.'/'.$large_thumb_filename;
+        $small_thumb_path = $proofs_dest_system_path.'/'.$small_thumb_filename;
+        $large_thumb_path = $proofs_dest_system_path.'/'.$large_thumb_filename;
         $do_we_watermark = config('proofgen.watermark_proofs');
 
         // Save small thumbnail
@@ -343,7 +373,7 @@ class Image
         }
 
         // Save large thumbnail
-        $image = $manager->read($full_size_image_path);
+        $image = $manager->read($full_system_path);
         $image->scale(config('proofgen.thumbnails.large.width'), config('proofgen.thumbnails.large.height'))
             ->save($large_thumb_path, getenv('LARGE_THUMBNAIL_QUALITY'));
         unset($image);
@@ -379,8 +409,6 @@ class Image
             }
             unset($image);
         }
-
-        //echo 'Thumbnails created.'.PHP_EOL;
 
         $manager = null;
         unset($manager);

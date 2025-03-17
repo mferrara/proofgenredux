@@ -5,9 +5,8 @@ namespace App\Proofgen;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
-use Illuminate\Support\Facades\Log;
+use App\Services\PathResolver;
 use Illuminate\Support\Facades\Storage;
-use Redis;
 
 class ShowClass
 {
@@ -15,20 +14,33 @@ class ShowClass
     protected string $class_folder = '';
     protected string $fullsize_base_path = '';
     protected string $archive_base_path = '';
+
+    protected string $fullsize_path = '';
+    protected string $originals_path = '';
     protected string $proofs_path = '';
     protected string $remote_proofs_path = '';
     protected string $web_images_path = '';
     protected string $remote_web_images_path = '';
+    protected PathResolver $pathResolver;
 
-    public function __construct(string $show_folder, string $class_folder)
+    public function __construct(string $show_folder, string $class_folder, ?PathResolver $pathResolver = null)
     {
         $this->show_folder = $show_folder;
         $this->class_folder = $class_folder;
         $this->fullsize_base_path = config('proofgen.fullsize_home_dir');
         $this->archive_base_path = config('proofgen.archive_home_dir');
-        $this->proofs_path = '/proofs/'.$this->show_folder . '/' . $this->class_folder;
+
+        // Use dependency injection or create a new PathResolver instance
+        $this->pathResolver = $pathResolver ?? app(PathResolver::class);
+
+        // Use PathResolver for local paths
+        $this->fullsize_path = $this->pathResolver->getFullsizePath($show_folder, $class_folder);
+        $this->originals_path = $this->pathResolver->getOriginalsPath($show_folder, $class_folder);
+        $this->proofs_path = $this->pathResolver->getProofsPath($show_folder, $class_folder);
+        $this->web_images_path = $this->pathResolver->getWebImagesPath($show_folder, $class_folder);
+
+        // Keep the remote paths as they were for now
         $this->remote_proofs_path = '/'.$this->show_folder.'/'.$this->class_folder;
-        $this->web_images_path = '/web_images/'.$this->show_folder . '/' . $this->class_folder;
         $this->remote_web_images_path = '/'.$this->show_folder.'/'.$this->class_folder;
     }
 
@@ -82,8 +94,9 @@ class ShowClass
 
     public function pendingProofUploads(): array
     {
-        if( ! Storage::disk('remote_proofs')->exists($this->remote_proofs_path))
+        if( ! Storage::disk('remote_proofs')->exists($this->remote_proofs_path)) {
             Storage::disk('remote_proofs')->makeDirectory($this->remote_proofs_path);
+        }
 
         $command = $this->rsyncProofsCommand(true);
         exec($command, $output, $returnCode);
@@ -179,7 +192,7 @@ class ShowClass
 
     public function getImportedImages(): array
     {
-        $contents = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder.'/originals', false);
+        $contents = Utility::getContentsOfPath($this->originals_path, false);
 
         $images = [];
         if(isset($contents['images']))
@@ -191,7 +204,8 @@ class ShowClass
     public function getImagesPendingProofing(): array
     {
         // Get contents of the originals directory and compare to contents of the proofs directory
-        $originals = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder.'/originals', false);
+
+        $originals = Utility::getContentsOfPath($this->originals_path, false);
         $proofs = Utility::getContentsOfPath($this->proofs_path, false);
 
         $images = [];
@@ -228,7 +242,7 @@ class ShowClass
     public function getImagesPendingWeb(): array
     {
         // Get contents of the originals directory and compare to contents of the proofs directory
-        $originals = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder.'/originals', false);
+        $originals = Utility::getContentsOfPath($this->originals_path, false);
         $web_images_array = Utility::getContentsOfPath($this->web_images_path, false);
 
         $images = [];
@@ -264,7 +278,7 @@ class ShowClass
 
     public function getImagesPendingProcessing(): array
     {
-        $contents = Utility::getContentsOfPath('/'.$this->show_folder.'/'.$this->class_folder, false);
+        $contents = Utility::getContentsOfPath($this->fullsize_path, false);
 
         $images = [];
         if(isset($contents['images']))
@@ -281,8 +295,7 @@ class ShowClass
         if($images) {
             foreach($images as $image) {
                 $image_path = $image->path();
-                $proofs_path = '/proofs/'.$this->show_folder.'/'.$this->class_folder;
-                GenerateThumbnails::dispatch($image_path, $proofs_path)->onQueue('thumbnails');
+                GenerateThumbnails::dispatch($image_path, $this->proofs_path)->onQueue('thumbnails');
                 $proofed++;
             }
         }
@@ -298,8 +311,7 @@ class ShowClass
         if($images) {
             foreach($images as $image) {
                 $image_path = $image->path();
-                $web_images_path = '/web_images/'.$this->show_folder.'/'.$this->class_folder;
-                GenerateWebImage::dispatch($image_path, $web_images_path)->onQueue('thumbnails');
+                GenerateWebImage::dispatch($image_path, $this->web_images_path)->onQueue('thumbnails');
                 $proofed++;
             }
         }
@@ -315,10 +327,8 @@ class ShowClass
         if($images) {
             foreach($images as $image) {
                 $image_path = $image->path();
-                $proofs_path = '/proofs/'.$this->show_folder.'/'.$this->class_folder;
-                $web_images_path = '/web_images/'.$this->show_folder.'/'.$this->class_folder;
-                GenerateThumbnails::dispatch($image_path, $proofs_path)->onQueue('thumbnails');
-                GenerateWebImage::dispatch($image_path, $web_images_path)->onQueue('thumbnails');
+                GenerateThumbnails::dispatch($image_path, $this->proofs_path)->onQueue('thumbnails');
+                GenerateWebImage::dispatch($image_path, $this->web_images_path)->onQueue('thumbnails');
                 $proofed++;
             }
         }
@@ -362,7 +372,7 @@ class ShowClass
 
     public function processImage(string $image_path): void
     {
-        $image_obj = new Image($image_path);
+        $image_obj = new Image($image_path, $this->pathResolver);
         $proof_numbers = Utility::generateProofNumbers($this->show_folder, 1);
         $image_obj->processImage(array_shift($proof_numbers), false);
     }
