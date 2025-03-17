@@ -14,6 +14,45 @@ exif
 gd
 pcntl
 
+## Sample Images for Testing
+
+The application uses a sample image system that can automatically download test images from an S3-compatible bucket (like Digital Ocean Spaces):
+
+1. **Setup S3 bucket**:
+   - Create a bucket for sample images (separate from production images)
+   - Add appropriate sample files in the structure `{show}/{class}/{image.jpg}`
+   - Configure S3 credentials in `.env`
+
+2. **Environment configuration**:
+   ```
+   SAMPLE_IMAGES_S3_KEY=your_key
+   SAMPLE_IMAGES_S3_SECRET=your_secret
+   SAMPLE_IMAGES_S3_REGION=nyc3
+   SAMPLE_IMAGES_S3_BUCKET=your-sample-images-bucket
+   SAMPLE_IMAGES_S3_ENDPOINT=https://nyc3.digitaloceanspaces.com
+   SAMPLE_IMAGES_S3_PATH_STYLE=true
+   AUTO_DOWNLOAD_SAMPLE_IMAGES=true
+   ```
+
+3. **Commands**:
+   ```bash
+   # Download sample images from bucket
+   php artisan proofgen:download-samples
+   
+   # Upload local sample images to bucket
+   php artisan proofgen:upload-samples
+   
+   # Upload from a different directory
+   php artisan proofgen:upload-samples --path=/path/to/images
+   
+   # Upload without overwriting existing files
+   php artisan proofgen:upload-samples --no-overwrite
+   ```
+
+4. **Automatic downloading**:
+   - Set `AUTO_DOWNLOAD_SAMPLE_IMAGES=true` to auto-download when tests run
+   - Tests will be skipped if images aren't available and auto-download is disabled
+
 ## Getting new images into the system:
 
 FULLSIZE_HOME_DIR="~/Desktop/ShowPhotos"

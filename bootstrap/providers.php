@@ -7,4 +7,5 @@ return [
     App\Providers\HorizonServiceProvider::class,
     App\Providers\JetstreamServiceProvider::class,
     App\Providers\PathServiceProvider::class,
+    App\Providers\SampleImagesServiceProvider::class,
 ];

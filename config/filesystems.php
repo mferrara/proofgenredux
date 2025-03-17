@@ -73,6 +73,24 @@ return [
             'root' => getenv('TEST_SOURCE_DIR'),
             'throw' => false,
         ],
+        
+        'sample_images' => [
+            'driver' => 'local',
+            'root' => storage_path('sample_images'),
+            'throw' => false,
+        ],
+        
+        'sample_images_bucket' => [
+            'driver' => 's3',
+            'key' => env('SAMPLE_IMAGES_S3_KEY'),
+            'secret' => env('SAMPLE_IMAGES_S3_SECRET'),
+            'region' => env('SAMPLE_IMAGES_S3_REGION', 'us-east-1'),
+            'bucket' => env('SAMPLE_IMAGES_S3_BUCKET'),
+            'url' => env('SAMPLE_IMAGES_S3_URL'),
+            'endpoint' => env('SAMPLE_IMAGES_S3_ENDPOINT'),
+            'use_path_style_endpoint' => env('SAMPLE_IMAGES_S3_PATH_STYLE', false),
+            'throw' => false,
+        ],
 
         'public' => [
             'driver' => 'local',

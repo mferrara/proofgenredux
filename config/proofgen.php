@@ -5,7 +5,10 @@ return [
     'archive_home_dir' => getenv('ARCHIVE_HOME_DIR'),
     'archive_enabled' => getenv('ARCHIVE_ENABLED') === 'TRUE',
     'test_source_dir' => getenv('TEST_SOURCE_DIR'),
-
+    
+    // Sample images configuration
+    'auto_download_sample_images' => getenv('AUTO_DOWNLOAD_SAMPLE_IMAGES') === 'TRUE',
+    
     'rename_files' => getenv('RENAME_FILES') === 'TRUE',
     'upload_proofs' => getenv('UPLOAD_PROOFS') === 'TRUE',
     'watermark_proofs' => getenv('WATERMARK_PROOFS'),

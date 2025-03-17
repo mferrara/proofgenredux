@@ -45,14 +45,59 @@ This is a Laravel application that processes event photography images for a phot
    - `Configuration` model handles storage and retrieval
    - Aims to improve UX for non-technical users
 
-## Sample Images
-The project includes sample images for testing:
-- Located in `storage/sample_images/`
-- Sample show: "2023R41"
-- Sample classes: "121" and "127"
-- Images named to simulate files directly out of the camera (e.g., "IMG_xxxxx.jpg")
+## Sample Images System
 
-These images represent an unprocessed state, ready to be processed by the proofing system. (Note: These are here mainly for use in testing, they should be left in this state for future testing, copied to another location _when_ testing to preserve state.)
+The project now includes a robust sample image handling system:
+
+### Remote Sample Images Storage
+
+- Sample images are stored in an S3-compatible bucket (separate from production images)
+- This allows everyone working on the project to access the same testing data
+- Using Digital Ocean Spaces for cost-effective storage
+
+### Directory Structure
+
+- Sample images follow the same structure as expected by the application:
+  ```
+  {show_id}/{class_id}/IMG_xxxxx.jpg
+  ```
+- Standard sample data includes:
+  - Show: "2023R41"
+  - Classes: "121" and "127"
+  - Images named to simulate files directly from camera (e.g., "IMG_xxxxx.jpg")
+
+### Automatic Download Feature
+
+- Tests can automatically download sample images when needed
+- This keeps sample images out of version control while ensuring tests have necessary data
+- Configure with `AUTO_DOWNLOAD_SAMPLE_IMAGES=true` in `.env`
+
+### Management Commands
+
+- Download images: `php artisan proofgen:download-samples`
+- Upload images: `php artisan proofgen:upload-samples`
+- Upload from custom path: `php artisan proofgen:upload-samples --path=/path/to/images`
+- Upload without overwriting: `php artisan proofgen:upload-samples --no-overwrite`
+
+### Implementation Details
+
+- Uses Laravel's storage system with S3 disk configuration
+- `SampleImagesService` handles checking for, downloading, and uploading sample images
+- Tests gracefully skip when images aren't available and auto-download is disabled
+- Allows tests to run in CI environments without needing the images
+
+### Environment Configuration
+
+```
+# Sample Images S3 Configuration
+SAMPLE_IMAGES_S3_KEY=your_key
+SAMPLE_IMAGES_S3_SECRET=your_secret
+SAMPLE_IMAGES_S3_REGION=nyc3
+SAMPLE_IMAGES_S3_BUCKET=your-sample-images-bucket
+SAMPLE_IMAGES_S3_ENDPOINT=https://nyc3.digitaloceanspaces.com
+SAMPLE_IMAGES_S3_PATH_STYLE=true
+AUTO_DOWNLOAD_SAMPLE_IMAGES=true
+```
 
 ## Testing Setup
 
