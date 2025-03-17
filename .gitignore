@@ -6,6 +6,8 @@
 /storage/*.key
 /storage/sample_images/*
 !/storage/sample_images/.gitkeep
+/storage/fake_bucket/*
+!/storage/fake_bucket/.gitkeep
 /vendor
 .env
 .env.backup
