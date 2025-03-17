@@ -3,6 +3,7 @@
 namespace App\Jobs\ShowClass;
 
 use App\Proofgen\ShowClass;
+use App\Services\PathResolver;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -33,7 +34,8 @@ class UploadProofs implements ShouldQueue
      */
     public function handle(): void
     {
-        $show_class = new ShowClass($this->show, $this->class);
+        $pathResolver = app(PathResolver::class);
+        $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $uploaded = $show_class->uploadPendingProofs();
         if(count($uploaded)) {
             Log::info('Uploaded '.count($uploaded).' proofs for '.$this->show.' '.$this->class);

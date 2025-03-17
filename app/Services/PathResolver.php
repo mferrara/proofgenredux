@@ -17,20 +17,43 @@ class PathResolver
     }
     
     // Proofs path (separate tree for rsync)
-    public function getProofsPath(string $show, string $class): string
+    public function getProofsPath(string $show, string $class = ''): string
     {
+        if (empty($class)) {
+            return "/proofs/{$show}";
+        }
         return "/proofs/{$show}/{$class}";
     }
     
     // Web images path (separate tree for rsync)
-    public function getWebImagesPath(string $show, string $class): string
+    public function getWebImagesPath(string $show, string $class = ''): string
     {
+        if (empty($class)) {
+            return "/web_images/{$show}";
+        }
         return "/web_images/{$show}/{$class}";
     }
     
     // Archive path
     public function getArchivePath(string $show, string $class): string
     {
+        return "/{$show}/{$class}";
+    }
+    
+    // Remote paths
+    public function getRemoteProofsPath(string $show, string $class = ''): string
+    {
+        if (empty($class)) {
+            return "/{$show}";
+        }
+        return "/{$show}/{$class}";
+    }
+    
+    public function getRemoteWebImagesPath(string $show, string $class = ''): string
+    {
+        if (empty($class)) {
+            return "/{$show}";
+        }
         return "/{$show}/{$class}";
     }
     
@@ -78,5 +101,31 @@ class PathResolver
     public function getAbsolutePath(string $path, string $basePath): string
     {
         return $this->addBasePath($this->normalizePath($path), $basePath);
+    }
+    
+    // Show-specific paths (without class)
+    
+    // Get show-level proofs path
+    public function getShowProofsPath(string $show): string
+    {
+        return $this->getProofsPath($show);
+    }
+    
+    // Get show-level web images path
+    public function getShowWebImagesPath(string $show): string
+    {
+        return $this->getWebImagesPath($show);
+    }
+    
+    // Get show-level remote proofs path
+    public function getShowRemoteProofsPath(string $show): string
+    {
+        return $this->getRemoteProofsPath($show);
+    }
+    
+    // Get show-level remote web images path
+    public function getShowRemoteWebImagesPath(string $show): string
+    {
+        return $this->getRemoteWebImagesPath($show);
     }
 }

@@ -38,26 +38,30 @@ class ShowClass
         $this->originals_path = $this->pathResolver->getOriginalsPath($show_folder, $class_folder);
         $this->proofs_path = $this->pathResolver->getProofsPath($show_folder, $class_folder);
         $this->web_images_path = $this->pathResolver->getWebImagesPath($show_folder, $class_folder);
-
-        // Keep the remote paths as they were for now
-        $this->remote_proofs_path = '/'.$this->show_folder.'/'.$this->class_folder;
-        $this->remote_web_images_path = '/'.$this->show_folder.'/'.$this->class_folder;
+        
+        // Use PathResolver for remote paths
+        $this->remote_proofs_path = $this->pathResolver->getRemoteProofsPath($show_folder, $class_folder);
+        $this->remote_web_images_path = $this->pathResolver->getRemoteWebImagesPath($show_folder, $class_folder);
     }
 
     public function rsyncProofsCommand($dry_run = false): string
     {
-        $local_full_path = $this->fullsize_base_path.$this->proofs_path.'/';
+        $local_full_path = $this->pathResolver->getAbsolutePath($this->proofs_path, $this->fullsize_base_path) . '/';
         $dry_run = $dry_run === true ? '--dry-run' : '';
 
-        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.$local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.path').$this->remote_proofs_path;
+        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
+            $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.path').
+            $this->remote_proofs_path;
     }
 
     public function rsyncWebImagesCommand($dry_run = false): string
     {
-        $local_full_path = $this->fullsize_base_path.$this->web_images_path.'/';
+        $local_full_path = $this->pathResolver->getAbsolutePath($this->web_images_path, $this->fullsize_base_path) . '/';
         $dry_run = $dry_run === true ? '--dry-run' : '';
 
-        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.$local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.web_images_path').$this->remote_web_images_path;
+        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
+            $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.web_images_path').
+            $this->remote_web_images_path;
     }
 
     public function uploadPendingProofs(): array
@@ -84,7 +88,7 @@ class ShowClass
                 $fileName = end($parts);
 
                 if (!empty($fileName) && strpos($fileName, '.') !== false) {
-                    $uploaded_proofs[] = $this->proofs_path.'/'.$fileName;
+                    $uploaded_proofs[] = $this->pathResolver->normalizePath($this->proofs_path.'/'.$fileName);
                 }
             }
         }
@@ -117,7 +121,7 @@ class ShowClass
                 $fileName = end($parts);
 
                 if (!empty($fileName) && strpos($fileName, '.') !== false) {
-                    $pending_proofs[] = $this->proofs_path.'/'.$fileName;
+                    $pending_proofs[] = $this->pathResolver->normalizePath($this->proofs_path.'/'.$fileName);
                 }
             }
         }
@@ -149,7 +153,7 @@ class ShowClass
                 $fileName = end($parts);
 
                 if (!empty($fileName) && strpos($fileName, '.') !== false) {
-                    $pending_web_images[] = $this->web_images_path.'/'.$fileName;
+                    $pending_web_images[] = $this->pathResolver->normalizePath($this->web_images_path.'/'.$fileName);
                 }
             }
         }
@@ -182,7 +186,7 @@ class ShowClass
                 $fileName = end($parts);
 
                 if (!empty($fileName) && strpos($fileName, '.') !== false) {
-                    $uploaded_web_images[] = $this->web_images_path.'/'.$fileName;
+                    $uploaded_web_images[] = $this->pathResolver->normalizePath($this->web_images_path.'/'.$fileName);
                 }
             }
         }

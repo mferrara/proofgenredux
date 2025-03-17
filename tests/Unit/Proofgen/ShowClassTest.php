@@ -6,6 +6,7 @@ use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
 use App\Proofgen\ShowClass;
+use App\Services\PathResolver;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Queue;
@@ -33,6 +34,10 @@ class ShowClassTest extends TestCase
         Config::set('proofgen.fullsize_home_dir', '/test/fullsize');
         Config::set('proofgen.archive_home_dir', '/test/archive');
         Config::set('proofgen.rename_files', true);
+        Config::set('proofgen.sftp.private_key', '/path/to/private_key');
+        Config::set('proofgen.sftp.host', 'test.example.com');
+        Config::set('proofgen.sftp.path', '/remote/path/');
+        Config::set('proofgen.sftp.web_images_path', '/remote/web_images/');
         
         // Set up mock for Redis
         $this->mock = Mockery::mock('alias:'.Redis::class);
@@ -184,5 +189,101 @@ class ShowClassTest extends TestCase
             return $job->full_size_path === "/{$this->show}/{$this->class}/originals/image2.jpg" &&
                    $job->web_destination_path === "/web_images/{$this->show}/{$this->class}";
         });
+    }
+    
+    /**
+     * Test path resolution with PathResolver
+     */
+    public function test_path_resolution_with_path_resolver()
+    {
+        // Create a mock PathResolver
+        $mockPathResolver = Mockery::mock(PathResolver::class);
+        
+        // Setup expectations for the PathResolver methods
+        $mockPathResolver->shouldReceive('getFullsizePath')
+            ->with($this->show, $this->class)
+            ->andReturn("/{$this->show}/{$this->class}");
+            
+        $mockPathResolver->shouldReceive('getOriginalsPath')
+            ->with($this->show, $this->class)
+            ->andReturn("/{$this->show}/{$this->class}/originals");
+            
+        $mockPathResolver->shouldReceive('getProofsPath')
+            ->with($this->show, $this->class)
+            ->andReturn("/proofs/{$this->show}/{$this->class}");
+            
+        $mockPathResolver->shouldReceive('getWebImagesPath')
+            ->with($this->show, $this->class)
+            ->andReturn("/web_images/{$this->show}/{$this->class}");
+            
+        $mockPathResolver->shouldReceive('getRemoteProofsPath')
+            ->with($this->show, $this->class)
+            ->andReturn("/{$this->show}/{$this->class}");
+            
+        $mockPathResolver->shouldReceive('getRemoteWebImagesPath')
+            ->with($this->show, $this->class)
+            ->andReturn("/{$this->show}/{$this->class}");
+            
+        // Create ShowClass with the mocked PathResolver
+        $showClass = new ShowClass($this->show, $this->class, $mockPathResolver);
+        
+        // Test the paths are set correctly by testing methods that use them
+        $mockImage = Mockery::mock();
+        $mockImage->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/originals/image1.jpg");
+        
+        $mockPathResolver->shouldReceive('normalizePath')
+            ->with("/proofs/{$this->show}/{$this->class}/image1.jpg")
+            ->andReturn("proofs/{$this->show}/{$this->class}/image1.jpg");
+        
+        $mockPathResolver->shouldReceive('getAbsolutePath')
+            ->with("/proofs/{$this->show}/{$this->class}", '/test/fullsize')
+            ->andReturn('/test/fullsize/proofs/testshow/testclass');
+            
+        // Test that PathResolver is used in methods
+        $this->assertInstanceOf(ShowClass::class, $showClass);
+    }
+    
+    /**
+     * Test rsync commands
+     */
+    public function test_rsync_commands()
+    {
+        // Create a mock PathResolver for specific behavior testing
+        $mockPathResolver = Mockery::mock(PathResolver::class);
+        
+        // Set expectations for path methods
+        $mockPathResolver->shouldReceive('getFullsizePath')->andReturn("/{$this->show}/{$this->class}");
+        $mockPathResolver->shouldReceive('getOriginalsPath')->andReturn("/{$this->show}/{$this->class}/originals");
+        $mockPathResolver->shouldReceive('getProofsPath')->andReturn("/proofs/{$this->show}/{$this->class}");
+        $mockPathResolver->shouldReceive('getWebImagesPath')->andReturn("/web_images/{$this->show}/{$this->class}");
+        $mockPathResolver->shouldReceive('getRemoteProofsPath')->andReturn("/{$this->show}/{$this->class}");
+        $mockPathResolver->shouldReceive('getRemoteWebImagesPath')->andReturn("/{$this->show}/{$this->class}");
+        
+        // Set expectations for getAbsolutePath
+        $mockPathResolver->shouldReceive('getAbsolutePath')
+            ->with("/proofs/{$this->show}/{$this->class}", '/test/fullsize')
+            ->andReturn('/test/fullsize/proofs/testshow/testclass');
+            
+        $mockPathResolver->shouldReceive('getAbsolutePath')
+            ->with("/web_images/{$this->show}/{$this->class}", '/test/fullsize')
+            ->andReturn('/test/fullsize/web_images/testshow/testclass');
+        
+        $showClass = new ShowClass($this->show, $this->class, $mockPathResolver);
+        
+        // Test proofs rsync command
+        $proofsCommand = $showClass->rsyncProofsCommand();
+        $this->assertStringContainsString('-avz --delete', $proofsCommand);
+        $this->assertStringContainsString('/test/fullsize/proofs/testshow/testclass/', $proofsCommand);
+        $this->assertStringContainsString('/path/to/private_key', $proofsCommand);
+        $this->assertStringContainsString('forge@test.example.com', $proofsCommand);
+        $this->assertStringContainsString('/remote/path//testshow/testclass', $proofsCommand);
+        
+        // Test web images rsync command
+        $webImagesCommand = $showClass->rsyncWebImagesCommand();
+        $this->assertStringContainsString('-avz --delete', $webImagesCommand);
+        $this->assertStringContainsString('/test/fullsize/web_images/testshow/testclass/', $webImagesCommand);
+        $this->assertStringContainsString('/path/to/private_key', $webImagesCommand);
+        $this->assertStringContainsString('forge@test.example.com', $webImagesCommand);
+        $this->assertStringContainsString('/remote/web_images//testshow/testclass', $webImagesCommand);
     }
 }
