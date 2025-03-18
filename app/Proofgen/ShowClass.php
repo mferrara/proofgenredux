@@ -38,7 +38,7 @@ class ShowClass
         $this->originals_path = $this->pathResolver->getOriginalsPath($show_folder, $class_folder);
         $this->proofs_path = $this->pathResolver->getProofsPath($show_folder, $class_folder);
         $this->web_images_path = $this->pathResolver->getWebImagesPath($show_folder, $class_folder);
-        
+
         // Use PathResolver for remote paths
         $this->remote_proofs_path = $this->pathResolver->getRemoteProofsPath($show_folder, $class_folder);
         $this->remote_web_images_path = $this->pathResolver->getRemoteWebImagesPath($show_folder, $class_folder);
@@ -64,6 +64,11 @@ class ShowClass
             $this->remote_web_images_path;
     }
 
+    /**
+     * Perform the rsync command to upload proofs to the remote server
+     *
+     * @return array
+     */
     public function uploadPendingProofs(): array
     {
         if( ! Storage::disk('remote_proofs')->exists($this->remote_proofs_path))
@@ -96,12 +101,18 @@ class ShowClass
         return $uploaded_proofs;
     }
 
+    /**
+     * Perform a dry run of the rsync command to determine what files need to be uploaded
+     *
+     * @return array
+     */
     public function pendingProofUploads(): array
     {
         if( ! Storage::disk('remote_proofs')->exists($this->remote_proofs_path)) {
             Storage::disk('remote_proofs')->makeDirectory($this->remote_proofs_path);
         }
 
+        // Run a dry run of the rsync to determine what files need to be uploaded
         $command = $this->rsyncProofsCommand(true);
         exec($command, $output, $returnCode);
 
@@ -129,11 +140,17 @@ class ShowClass
         return $pending_proofs;
     }
 
+    /**
+     * Perform a dry run of the rsync command to determine what files need to be uploaded
+     *
+     * @return array
+     */
     public function pendingWebImageUploads(): array
     {
         if( ! Storage::disk('remote_web_images')->exists($this->remote_web_images_path))
             Storage::disk('remote_web_images')->makeDirectory($this->remote_web_images_path);
 
+        // Run a dry run of the rsync to determine what files need to be uploaded
         $command = $this->rsyncWebImagesCommand(true);
         exec($command, $output, $returnCode);
 
@@ -161,6 +178,11 @@ class ShowClass
         return $pending_web_images;
     }
 
+    /**
+     * Perform the rsync command to upload web images to the remote server
+     *
+     * @return array
+     */
     public function uploadPendingWebImages(): array
     {
         // Confirm show directory exists in web_images
@@ -194,6 +216,11 @@ class ShowClass
         return $uploaded_web_images;
     }
 
+    /**
+     * Get the images that have been imported/are inside the originals directory
+     *
+     * @return array
+     */
     public function getImportedImages(): array
     {
         $contents = Utility::getContentsOfPath($this->originals_path, false);
@@ -205,10 +232,15 @@ class ShowClass
         return $images;
     }
 
+    /**
+     * Get the images that are in the originals directory but not in the proofs directory
+     *
+     * @return array
+     */
     public function getImagesPendingProofing(): array
     {
         // Get contents of the originals directory and compare to contents of the proofs directory
-
+        // The files that are in the originals directory but not in the proofs directory those that need to be proofed
         $originals = Utility::getContentsOfPath($this->originals_path, false);
         $proofs = Utility::getContentsOfPath($this->proofs_path, false);
 
@@ -243,9 +275,16 @@ class ShowClass
         return $images;
     }
 
+    /**
+     * Get the images that are in the originals directory but not in the web images directory
+     *
+     * @return array
+     */
     public function getImagesPendingWeb(): array
     {
         // Get contents of the originals directory and compare to contents of the proofs directory
+        // The files that are in the originals directory but not in the proofs directory those that need to
+        // have web images generated
         $originals = Utility::getContentsOfPath($this->originals_path, false);
         $web_images_array = Utility::getContentsOfPath($this->web_images_path, false);
 
@@ -280,6 +319,11 @@ class ShowClass
         return $images;
     }
 
+    /**
+     * Get the images that are in the fullsize directory but not in the originals directory
+     *
+     * @return array
+     */
     public function getImagesPendingProcessing(): array
     {
         $contents = Utility::getContentsOfPath($this->fullsize_path, false);
@@ -291,6 +335,11 @@ class ShowClass
         return $images;
     }
 
+    /**
+     * Regenerate the proofs for all images in the originals directory
+     *
+     * @return int
+     */
     public function regenerateProofs(): int
     {
         $images = $this->getImportedImages();
@@ -307,6 +356,11 @@ class ShowClass
         return $proofed;
     }
 
+    /**
+     * Regenerate the web images for all images in the originals directory
+     *
+     * @return int
+     */
     public function regenerateWebImages(): int
     {
         $images = $this->getImportedImages();
@@ -323,6 +377,11 @@ class ShowClass
         return $proofed;
     }
 
+    /**
+     * Proof all images that are in the originals directory but not in the proofs directory
+     *
+     * @return int
+     */
     public function proofPendingImages(): int
     {
         $images = $this->getImagesPendingProofing();
@@ -340,6 +399,50 @@ class ShowClass
         return $proofed;
     }
 
+    /**
+     * Process all images that are in the fullsize directory but not in the originals directory
+     *
+     * @return int
+     */
+    public function processPendingImages(): int
+    {
+        $images = $this->getImagesPendingProcessing();
+
+        $processed = 0;
+        if ($images) {
+            foreach ($images as $image) {
+                ImportPhoto::dispatch($image->path(), $this->getNextProofNumber())->onQueue('processing');
+                $processed++;
+            }
+        }
+
+        return $processed;
+    }
+
+    /**
+     * Process a single image, which includes 'importing' the image;
+     *  - Copy from fullsize to originals
+     *  - Rename to proof number (optional, based on config)
+     *  - Copy to archive/backup location (optional, based on config)
+     *  - Confirm all copies
+     *  - Delete from fullsize
+     *
+     * @param string $image_path
+     * @return void
+     * @throws \Exception
+     */
+    public function processImage(string $image_path): void
+    {
+        $image_obj = new Image($image_path, $this->pathResolver);
+        $proof_numbers = Utility::generateProofNumbers($this->show_folder, 1);
+        $image_obj->processImage(array_shift($proof_numbers), false);
+    }
+
+    /**
+     * Get the next available proof number from the redis list
+     *
+     * @return string
+     */
     public function getNextProofNumber(): string
     {
         $redis_key = 'available_proof_numbers_' . $this->show_folder;
@@ -357,27 +460,5 @@ class ShowClass
         $proof_number = $redis_client->lpop($redis_key);
 
         return $proof_number;
-    }
-
-    public function processPendingImages(): int
-    {
-        $images = $this->getImagesPendingProcessing();
-
-        $processed = 0;
-        if ($images) {
-            foreach ($images as $image) {
-                ImportPhoto::dispatch($image->path(), $this->getNextProofNumber())->onQueue('processing');
-                $processed++;
-            }
-        }
-
-        return $processed;
-    }
-
-    public function processImage(string $image_path): void
-    {
-        $image_obj = new Image($image_path, $this->pathResolver);
-        $proof_numbers = Utility::generateProofNumbers($this->show_folder, 1);
-        $image_obj->processImage(array_shift($proof_numbers), false);
     }
 }
