@@ -108,27 +108,22 @@ class Configuration extends Model
                 // Just as a sanity check while building this feature, we'll load the _current_ value for this config key
                 $current_value = config($full_key);
                 if( ! $current_value && $current_value !== false) {
-                    Log::debug('No current value for key: '. $full_key);
-                }
-                // Is the current value an int as a string?
-                if (is_string($current_value) && is_numeric($current_value)) {
-                    $current_value = (int) $current_value;
-                }
-                // Is the current value a bool as a string?
-                if (is_string($current_value) && in_array(strtolower($current_value), ['true', 'false'])) {
-                    $current_value = filter_var($current_value, FILTER_VALIDATE_BOOLEAN);
-                }
-                // If the current value is the same as the new value, skip it
-                if ($current_value === $config_value) {
-                    // Log::debug('Config key: ' . $full_key . ' already set to the same value: ' . $config_value);
-                    continue;
-                }
-
-                if( ! $current_value && $current_value !== false) {
-                    // There is no current value for this key, we'll set it now
-                    Log::debug('Config key: ' . $full_key . ' is not set, setting it to: ' . $config_value);
+                    // There is no current value for this key, we'll set it below
+                    // Log::debug('No current value for key: '. $full_key.' found, setting it to: ' . $config_value);
                 } else {
-                    // Log::debug('Overriding current value ('.$current_value.' / '.gettype($current_value).') for config key: ' . $full_key . ' with value: ' . $config_value);
+                    // Is the current value an int as a string?
+                    if (is_string($current_value) && is_numeric($current_value)) {
+                        $current_value = (int) $current_value;
+                    }
+                    // Is the current value a bool as a string?
+                    if (is_string($current_value) && in_array(strtolower($current_value), ['true', 'false'])) {
+                        $current_value = filter_var($current_value, FILTER_VALIDATE_BOOLEAN);
+                    }
+                    // If the current value is the same as the new value, skip it
+                    if ($current_value === $config_value) {
+                        // Log::debug('Config key: ' . $full_key . ' already set to the same value: ' . $config_value);
+                        continue;
+                    }
                 }
 
                 // Set configuration key-value pair in the config repository
@@ -280,6 +275,15 @@ class Configuration extends Model
     {
         switch ($type) {
             case 'boolean':
+                // Handle common boolean string representations
+                $value = strtolower(trim($value));
+                if (in_array($value, ['true', '1', 'yes', 'y', 'on'])) {
+                    return true;
+                }
+                if (in_array($value, ['false', '0', 'no', 'n', 'off'])) {
+                    return false;
+                }
+                // Default PHP-style casting for other values
                 return ($value) ? true : false;
             case 'integer':
                 return (int) $value;
@@ -292,6 +296,28 @@ class Configuration extends Model
             default:
                 return $value;
         }
+    }
+    
+    /**
+     * Get the PHP binary path to use for commands
+     * 
+     * @return string The PHP binary path
+     */
+    public static function getPhpBinary(): string
+    {
+        // Get from configuration if available
+        try {
+            $configuredPath = self::getConfig('php_binary_path', null);
+            
+            if ($configuredPath) {
+                return $configuredPath;
+            }
+        } catch (\Exception $e) {
+            // If the config doesn't exist yet, just continue with default
+        }
+        
+        // Default to 'php' command which will use system PATH
+        return 'php';
     }
 
     public static function updateOrCreate(
