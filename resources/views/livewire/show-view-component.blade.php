@@ -10,7 +10,7 @@
                 <path fill-rule="evenodd" d="M4.72 9.47a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 1 0 1.06-1.06L6.31 10l3.72-3.72a.75.75 0 1 0-1.06-1.06L4.72 9.47Zm9.25-4.25L9.72 9.47a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 1 0 1.06-1.06L11.31 10l3.72-3.72a.75.75 0 0 0-1.06-1.06Z" clip-rule="evenodd" />
             </svg>
         </a>
-        <div class="ml-2 text-4xl font-semibold">Show: <a href="/show/{{ $show }}" class="text-indigo-600">{{ $show }}</a></div>
+        <div class="ml-2 text-4xl font-semibold text-gray-300">Show: <a href="/show/{{ $show }}" class="text-indigo-600">{{ $show }}</a></div>
     </div>
     <div class="mt-4 mx-8 text-xl flex flex-col justify-start gap-y-0.5">
         @if(count($current_path_directories) === 0)
@@ -71,7 +71,7 @@
                 <tbody>
                 @foreach($class_folders as $key => $class_folder_data)
                     <tr class="@if($key % 2 === 0) bg-gray-800 @endif">
-                        <td class="flex flex-row justify-start gap-x-1 items-center">
+                        <td class="flex flex-row justify-start gap-x-1 items-center pl-1">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-600">
                                 <path d="M3.75 3A1.75 1.75 0 0 0 2 4.75v3.26a3.235 3.235 0 0 1 1.75-.51h12.5c.644 0 1.245.188 1.75.51V6.75A1.75 1.75 0 0 0 16.25 5h-4.836a.25.25 0 0 1-.177-.073L9.823 3.513A1.75 1.75 0 0 0 8.586 3H3.75ZM3.75 9A1.75 1.75 0 0 0 2 10.75v4.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0 0 18 15.25v-4.5A1.75 1.75 0 0 0 16.25 9H3.75Z" />
                             </svg>
@@ -97,7 +97,7 @@
                             @endif
                             @if($class_folder_data['images_imported'])
                                 <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                        wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Force Upload ({{ $class_folder_data['images_imported'] }})</button>
+                                        wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Force Upload</button>
                             @endif
                             @if($class_folder_data['images_imported'])
                                 <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
