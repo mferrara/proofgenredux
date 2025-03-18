@@ -8,6 +8,7 @@ use App\Jobs\ShowClass\UploadProofs;
 use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
+use App\Services\PathResolver;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 
@@ -23,23 +24,28 @@ class ClassViewComponent extends Component
     public string $web_images_path = '';
     public string $flash_message = '';
     public bool $check_proofs_uploaded = false;
+    protected PathResolver $pathResolver;
 
-    public function mount()
+    public function mount(PathResolver $pathResolver)
     {
+        $this->pathResolver = $pathResolver;
         $this->fullsize_base_path = config('proofgen.fullsize_home_dir');
         $this->archive_base_path = config('proofgen.archive_home_dir');
         $this->working_path = $this->show.'/'.$this->class;
-        $this->proofs_path = '/proofs/'.$this->show . '/' . $this->class;
-        $this->web_images_path = '/web_images/'.$this->show . '/' . $this->class;
+        $this->proofs_path = $this->pathResolver->getProofsPath($this->show, $this->class);
+        $this->web_images_path = $this->pathResolver->getWebImagesPath($this->show, $this->class);
     }
     public function render()
     {
-        $this->working_full_path = $this->fullsize_base_path . '/' . $this->working_path;
+        // Get PathResolver instance on each render for Livewire polling
+        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        
+        $this->working_full_path = $pathResolver->getAbsolutePath($this->working_path, $this->fullsize_base_path);
 
         $current_path_contents = Utility::getContentsOfPath($this->working_path, false);
         $current_path_directories = Utility::getDirectoriesOfPath($this->working_path);
 
-        $show_class = new ShowClass($this->show, $this->class);
+        $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $images_pending_processing = $show_class->getImagesPendingProcessing();
         $images_pending_proofing = $show_class->getImagesPendingProofing();
         $images_pending_upload = [];
@@ -68,7 +74,8 @@ class ClassViewComponent extends Component
 
     public function processPendingImages(): void
     {
-        $show_class = new ShowClass($this->show, $this->class);
+        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $count = $show_class->processPendingImages();
         $this->flash_message = $count.' Images queued for import.';
         $this->check_proofs_uploaded = false;
@@ -76,7 +83,8 @@ class ClassViewComponent extends Component
 
     public function processImage($image_path): void
     {
-        $show_class = new ShowClass($this->show, $this->class);
+        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $show_class->processImage($image_path);
         $this->flash_message = $image_path.' Processed.';
         $this->check_proofs_uploaded = false;
@@ -84,7 +92,8 @@ class ClassViewComponent extends Component
 
     public function proofPendingImages(): void
     {
-        $show_class = new ShowClass($this->show, $this->class);
+        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $count = $show_class->proofPendingImages();
         $this->flash_message = $count.' Images proofed.';
         $this->check_proofs_uploaded = false;
@@ -93,15 +102,24 @@ class ClassViewComponent extends Component
     public function proofImage($image_path): void
     {
         ini_set('memory_limit', '4096M');
-        GenerateThumbnails::dispatch($image_path, $this->proofs_path)->onQueue('thumbnails');
-        GenerateWebImage::dispatch($image_path, $this->web_images_path)->onQueue('thumbnails');
+        
+        // Get PathResolver instance for this request
+        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        
+        // Get fresh paths based on the current PathResolver instance
+        $proofs_path = $pathResolver->getProofsPath($this->show, $this->class);
+        $web_images_path = $pathResolver->getWebImagesPath($this->show, $this->class);
+        
+        GenerateThumbnails::dispatch($image_path, $proofs_path)->onQueue('thumbnails');
+        GenerateWebImage::dispatch($image_path, $web_images_path)->onQueue('thumbnails');
         $this->flash_message = $image_path.' Proofs queued.';
         $this->check_proofs_uploaded = false;
     }
 
     public function regenerateProofs(): void
     {
-        $show_class = new ShowClass($this->show, $this->class);
+        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $show_class->regenerateProofs();
         $this->flash_message = 'Queued';
         $this->check_proofs_uploaded = false;
