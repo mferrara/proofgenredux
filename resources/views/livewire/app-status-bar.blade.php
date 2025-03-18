@@ -37,20 +37,34 @@
     </div>
     <div class="text-sm flex flex-row items-center">
         <div>Horizon: &nbsp;</div>
-        @if(shell_exec("ps aux | grep '[a]rtisan horizon'"))
+        @if($isHorizonRunning)
             <span class="text-success px-1 py-0.5">Running</span>
+            @if($autoRestartEnabled)
+                <span class="text-xs text-blue-400 ml-1">(Auto-restart enabled)</span>
+            @endif
         @else
-            <flux:heading class="flex items-center text-error!">
-                Stopped
+            <div class="flex items-center gap-2">
+                <span class="text-error px-1 py-0.5">Stopped</span>
+                <flux:button
+                    wire:click="startHorizon"
+                    wire:loading.attr="disabled"
+                    wire:target="startHorizon"
+                    icon="play"
+                    size="xs"
+                    variant="ghost"
+                    class="text-success hover:text-success/80"
+                    title="Start Horizon"
+                />
                 <flux:tooltip toggleable>
                     <flux:button icon="information-circle" size="xs" variant="ghost" class="text-error!" />
 
                     <flux:tooltip.content class="max-w-[20rem] space-y-2">
                         <p>Horizon is needed to process tasks.</p>
-                        <p>Run `php artisan horizon` in the terminal</p>
+                        <p>Click the play button to start Horizon</p>
+                        <p>Or use the "Start Horizon" button in Settings</p>
                     </flux:tooltip.content>
                 </flux:tooltip>
-            </flux:heading>
+            </div>
         @endif
     </div>
 </div>
