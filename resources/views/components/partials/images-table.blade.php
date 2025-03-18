@@ -1,4 +1,4 @@
-<table class="w-full mt-4">
+<table class="w-full mt-4 text-gray-300">
     <thead>
     <tr>
         <th class="@if(isset($display_thumbnail) && $display_thumbnail) w-24 @else w-8 @endif"></th>
@@ -33,14 +33,28 @@
             if(isset($display_thumbnail) && $display_thumbnail) {
                 $display_thumbnail = true;
                 $thumbnail_path = $image_path;
-                $thumbnail_path = str_replace('originals', 'proofs', $thumbnail_path);
+                $thumbnail_path = str_replace('originals/', '', $thumbnail_path);
                 $thumbnail_path = str_replace('.jpg', '_thm.jpg', $thumbnail_path);
-                try{
-                    $thumbnail_data = \Illuminate\Support\Facades\Storage::disk('fullsize')->get($thumbnail_path);
-                    $thumbnail_base64 = \Intervention\Image\Laravel\Facades\Image::read($thumbnail_data)->toJpeg(90);
-                    $thumbnail_base64 = 'data:image/jpeg;base64,'.base64_encode($thumbnail_base64);
-                }catch(\Exception $e){
-                    $display_thumbnail = false;
+                $thumbnail_path = 'proofs/'.$thumbnail_path;
+
+                // Cache the base64 encoded thumbnail using the path and modified time as the
+                // cache key so that it's busted anytime the image is updated
+                $thumbnail_cache_key = 'thumbnails3-'.md5($thumbnail_path.$image_modified);
+                if( ! $thumbnail_base64 = \Cache::get($thumbnail_cache_key, null)) {
+                    $valid_thumbnail = false;
+                    try{
+                        $thumbnail_data = \Illuminate\Support\Facades\Storage::disk('fullsize')->get($thumbnail_path);
+                        $thumbnail_base64 = \Intervention\Image\Laravel\Facades\Image::read($thumbnail_data)->toJpeg(90);
+                        $thumbnail_base64 = 'data:image/jpeg;base64,'.base64_encode($thumbnail_base64);
+                        $valid_thumbnail = true;
+                    }catch(\Exception $e) {
+                        $display_thumbnail = false;
+                    }
+
+                    // If we have a valid thumbnail, cache it for 1 hour
+                    if ($valid_thumbnail) {
+                        Cache::put($thumbnail_cache_key, $thumbnail_base64, now()->addMinutes(60));
+                    }
                 }
             } else {
                 $display_thumbnail = false;
@@ -53,13 +67,13 @@
                         <img src="{{ $thumbnail_base64 }}" alt="{{ $filename }}" class="rounded-xs">
                     </div>
                 @else
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-gray-400">
                         <path fill-rule="evenodd" d="M1 5.25A2.25 2.25 0 0 1 3.25 3h13.5A2.25 2.25 0 0 1 19 5.25v9.5A2.25 2.25 0 0 1 16.75 17H3.25A2.25 2.25 0 0 1 1 14.75v-9.5Zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 0 0 .75-.75v-2.69l-2.22-2.219a.75.75 0 0 0-1.06 0l-1.91 1.909.47.47a.75.75 0 1 1-1.06 1.06L6.53 8.091a.75.75 0 0 0-1.06 0l-2.97 2.97ZM12 7a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" clip-rule="evenodd" />
                     </svg>
                 @endif
             </td>
             <td>
-                <div class="text-indigo-600">
+                <div class="text-indigo-400">
                     {{ $filename }}
                 </div>
             </td>
