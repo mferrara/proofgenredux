@@ -18,12 +18,12 @@ class HorizonService
     {
         try {
             // Use Artisan::call directly to run the horizon:status command without shell execution
-            Log::debug('Checking Horizon status using Artisan::call');
+            // Log::debug('Checking Horizon status using Artisan::call');
 
             $exitCode = Artisan::call('horizon:status');
             $output = Artisan::output();
 
-            Log::debug('Horizon status check output: ' . $output . ' (exit code: ' . $exitCode . ')');
+            // Log::debug('Horizon status check output: ' . $output . ' (exit code: ' . $exitCode . ')');
 
             // If we see "Horizon is running", then it's active
             if (strpos($output, 'Horizon is running') !== false) {
