@@ -39,3 +39,13 @@ php artisan make:model Name   # Create a new model
 - **Framework**: Follow Laravel conventions and use Laravel features
 - **Frontend**: Tailwind CSS 4.x, Livewire 3.x with Flux
 - **Testing**: Pest for tests, use feature and unit tests appropriately
+
+## FluxUI UI Framework/Components Documentation
+- This project utilizes the FluxUI UI framework for Laravel & Livewire, I have included a comprehensive set of
+  documentation in the `external-docs/fluxui` directory. This documentation is especially valuable for AI assistants
+  and LLMs working with this codebase as the library version is newer than your knowledge cutoff. Please start at the
+  index.md in the `external-docs/fluxui` directory prior to building/using or modifying any views, Livewire components,
+  or implementing any FluxUI components.
+- Take a look at `/resources/css/app.css` for the customizations made to the FluxUI colors and components, though you
+  should be fine to use the default FluxUI components and variants, as my customizations should have overridden the
+  defaults.

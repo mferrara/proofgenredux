@@ -1,115 +1,144 @@
-<div class="px-8 py-4"
-     wire:poll.5s
->
-    <div class="mt-4 mx-4 flex flex-row justify-start items-center">
-        <a href="/"
-           class="my-2 underline text-indigo-400 hover:cursor-pointer"
-           title="Back to Home"
-        >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                <path fill-rule="evenodd" d="M4.72 9.47a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 1 0 1.06-1.06L6.31 10l3.72-3.72a.75.75 0 1 0-1.06-1.06L4.72 9.47Zm9.25-4.25L9.72 9.47a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 1 0 1.06-1.06L11.31 10l3.72-3.72a.75.75 0 0 0-1.06-1.06Z" clip-rule="evenodd" />
-            </svg>
-        </a>
-        <div class="ml-2 text-4xl font-semibold text-gray-300">Show: <a href="/show/{{ $show }}" class="text-indigo-600">{{ $show }}</a></div>
-    </div>
-    <div class="mt-4 mx-8 text-xl flex flex-col justify-start gap-y-0.5">
-        @if(count($current_path_directories) === 0)
-            <div class="font-semibold">No directories in this path</div>
-        @else
-            <div class="flex flex-row justify-between items-center mt-2 mb-4">
-                <p class="mb-2 font-semibold"></p>
-                <div class="flex flex-row justify-end items-center gap-x-2">
-                    <div wire:loading
-                         class="px-2 py-1 text-sm bg-blue-200 text-blue-800 rounded-xs border border-blue-300 animate-pulse"
-                    >Working...</div>
-                    @if(isset($flash_message) && strlen($flash_message))
-                        <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">{{ $flash_message }}</div>
-                    @endif
-                    @if( ! $check_proofs_uploaded)
-                        <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                wire:click="checkProofsUploaded"
-                        >Check Proofs & Web Images</button>
-                    @else
-                        @if(count($images_pending_upload) || count($web_images_pending_upload))
-                            <div class="flex flex-row justify-end items-center gap-x-2">
-                                <div class="px-2 py-1 text-sm font-semibold bg-yellow-200 text-yellow-800 rounded-xs border border-yellow-300">Proofs to upload: {{ count($images_pending_upload) }}</div>
-                                <div class="px-2 py-1 text-sm font-semibold bg-yellow-200 text-yellow-800 rounded-xs border border-yellow-300">Web Images to upload: {{ count($web_images_pending_upload) }}</div>
-                                <button class="px-2 py-1 text-sm font-semibold bg-red-200 text-green-800 rounded-xs border border-green-300"
-                                        wire:click="uploadPendingProofsAndWebImages"
-                                >Upload
-                                    @if(count($images_pending_upload))
-                                        {{ number_format(count($images_pending_upload)) }} proofs
-                                    @endif
-                                    @if(count($web_images_pending_upload))
-                                        @if(count($images_pending_upload))
-                                            and
-                                        @endif
-                                        {{ number_format(count($web_images_pending_upload)) }} web images
-                                    @endif
-                                </button>
-                            </div>
-                        @else
-                            <div>
-                                <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">All proofs & web images uploaded</div>
-                            </div>
-                        @endif
-                    @endif
-                </div>
-            </div>
+<div class="px-8 py-6" wire:poll.5s>
+    <div class="max-w-6xl mx-auto">
+        <div class="flex items-center gap-3 mb-6">
+            <a href="/" class="text-indigo-400 hover:text-indigo-300" title="Back to Home">
+                <flux:icon name="chevron-left" variant="outline" />
+            </a>
+            <flux:heading size="xl">
+                Show: <a href="/show/{{ $show_id }}" class="text-indigo-500 hover:text-indigo-400">{{ $show_id }}</a>
+            </flux:heading>
 
-            <table class="w-full">
-                <thead>
-                <tr class="border-b border-b-gray-500 text-lg text-gray-600">
-                    <th class="text-left">Class</th>
-                    <th class="text-right">Photos <br> Imported</th>
-                    <th class="text-right">Photos <br> to Import</th>
-                    <th class="text-right">Photos <br> to Proof</th>
-                    <th class="text-right">Photos <br> to Web</th>
-                    <th class="text-right">Actions</th>
-                </tr>
-                </thead>
-                <tbody>
-                @foreach($class_folders as $key => $class_folder_data)
-                    <tr class="@if($key % 2 === 0) bg-gray-800 @endif">
-                        <td class="flex flex-row justify-start gap-x-1 items-center pl-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-600">
-                                <path d="M3.75 3A1.75 1.75 0 0 0 2 4.75v3.26a3.235 3.235 0 0 1 1.75-.51h12.5c.644 0 1.245.188 1.75.51V6.75A1.75 1.75 0 0 0 16.25 5h-4.836a.25.25 0 0 1-.177-.073L9.823 3.513A1.75 1.75 0 0 0 8.586 3H3.75ZM3.75 9A1.75 1.75 0 0 0 2 10.75v4.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0 0 18 15.25v-4.5A1.75 1.75 0 0 0 16.25 9H3.75Z" />
-                            </svg>
-                            <a href="/show/{{ $show }}/class/{{ $class_folder_data['path'] }}"
-                               class="underline text-indigo-600 hover:cursor-pointer"
-                            >{{ $class_folder_data['path'] }}</a>
-                        </td>
-                        <td class="text-right">@if($class_folder_data['images_imported']){{ $class_folder_data['images_imported'] }}@endif</td>
-                        <td class="text-right">@if($class_folder_data['images_pending_processing_count']){{ $class_folder_data['images_pending_processing_count'] }}@endif</td>
-                        <td class="text-right">@if($class_folder_data['images_pending_proofing_count']){{ $class_folder_data['images_pending_proofing_count'] }}@endif</td>
-                        <td class="text-right">@if($class_folder_data['images_pending_web_count']){{ $class_folder_data['images_pending_web_count'] }}@endif</td>
-                        <td class="text-right">
-                            @if($class_folder_data['images_pending_processing_count'])
-                                <button class="px-2 py-1 text-sm font-semibold rounded-xs border hover:bg-gray-300"
-                                        :class="{ 'bg-cyan-200 text-gray-800 border-gray-300': !isQueued, 'bg-green-500 text-white border-green-600': isQueued }"
-                                        wire:click="processPendingImages('{{ $class_folder_data['path'] }}')"
-                                        x-data="{ isQueued: false }"
-                                        x-on:click="isQueued = true"
+            <div wire:loading class="ml-3">
+                <flux:badge variant="solid" color="sky" size="sm" class="animate-pulse">
+                    Working...
+                </flux:badge>
+            </div>
+        </div>
+
+        <div class="mt-4 flex flex-col gap-4">
+            @if(count($current_path_directories) === 0)
+                <div class="py-8 text-center bg-gray-800/50 rounded-md">
+                    <div class="mb-4">
+                        <flux:icon name="folder-open" variant="outline" class="text-gray-400 size-12 mx-auto" />
+                    </div>
+                    <flux:heading class="text-gray-400">No class directories found</flux:heading>
+                    <p class="text-gray-500 text-sm mt-2">Create a class directory to get started</p>
+                </div>
+            @else
+                <div class="flex justify-between items-center mb-4 bg-gray-800/50 p-3 rounded-md">
+                    <flux:heading>Classes</flux:heading>
+
+                    <div class="flex items-center gap-3">
+                        @if(isset($flash_message) && strlen($flash_message))
+                            <flux:badge variant="solid" color="green">{{ $flash_message }}</flux:badge>
+                        @endif
+
+                        @if(!$check_proofs_uploaded)
+                            <flux:button
+                                wire:click="checkProofsUploaded"
+                                size="sm"
+                            >
+                                Check Proofs & Web Images
+                            </flux:button>
+                        @else
+                            @if(count($images_pending_upload) || count($web_images_pending_upload))
+                                <div class="flex items-center gap-2">
+                                    <flux:badge variant="solid" color="amber" size="sm">
+                                        Proofs to upload: {{ count($images_pending_upload) }}
+                                    </flux:badge>
+                                    <flux:badge variant="solid" color="amber" size="sm">
+                                        Web Images to upload: {{ count($web_images_pending_upload) }}
+                                    </flux:badge>
+                                    <flux:button
+                                        wire:click="uploadPendingProofsAndWebImages"
+                                        size="sm"
+                                    >
+                                        Upload
+                                        @if(count($images_pending_upload))
+                                            {{ number_format(count($images_pending_upload)) }} proofs
+                                        @endif
+                                        @if(count($web_images_pending_upload))
+                                            @if(count($images_pending_upload))
+                                                and
+                                            @endif
+                                            {{ number_format(count($web_images_pending_upload)) }} web images
+                                        @endif
+                                    </flux:button>
+                                </div>
+                            @else
+                                <flux:badge variant="solid" color="green" size="sm">
+                                    All proofs & web images uploaded
+                                </flux:badge>
+                            @endif
+                        @endif
+                    </div>
+                </div>
+
+                <flux:table class="!text-gray-300 hover">
+                    <thead>
+                        <tr>
+                            <th>Class</th>
+                            <th class="text-right">Photos Imported</th>
+                            <th class="text-right">Photos to Import</th>
+                            <th class="text-right">Photos to Proof</th>
+                            <th class="text-right pr-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach($class_folders as $key => $class_folder_data)
+                        <tr class="hover:bg-gray-800/50">
+                            <td class="flex items-center gap-2 min-h-8 pl-2">
+                                <flux:icon name="folder" variant="outline" class="text-yellow-500" />
+                                <a href="/show/{{ $show_id }}/class/{{ $class_folder_data['path'] }}"
+                                   class="text-indigo-500 hover:text-indigo-400 hover:underline font-medium"
                                 >
-                                    <span x-show="!isQueued">Import</span>
-                                    <span x-show="isQueued">Queued</span>
-                                </button>
-                            @endif
-                            @if($class_folder_data['images_imported'])
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                        wire:click="uploadPendingProofs('{{ $class_folder_data['path'] }}')">Force Upload</button>
-                            @endif
-                            @if($class_folder_data['images_imported'])
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                        wire:click="regenerateProofs('{{ $class_folder_data['path'] }}')">Regen Proofs</button>
-                                    <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                            wire:click="regenerateWebImages('{{ $class_folder_data['path'] }}')">Regen Web</button>
-                            @endif
-                        </td>
-                    </tr>
-                @endforeach
-                </tbody>
-            </table>
-        @endif
+                                    {{ $class_folder_data['path'] }}
+                                    @if($class_folder_data['show_class'] === null)
+                                        <flux:badge variant="solid" color="red" size="sm">
+                                            Not Imported
+                                        </flux:badge>
+                                    @endif
+                                </a>
+                            </td>
+                            <td class="text-right">
+                                @if($class_folder_data['show_class'])
+                                    {{ $class_folder_data['show_class']->photos()->count() }}
+                                @endif
+                            </td>
+                            <td class="text-right">
+                                @if($class_folder_data['images_pending_processing_count'])
+                                    <flux:badge variant="solid" color="sky" size="sm">
+                                        {{ $class_folder_data['images_pending_processing_count'] }}
+                                    </flux:badge>
+                                @endif
+                            </td>
+                            <td class="text-right">
+                                @if($class_folder_data['images_pending_proofing_count'])
+                                    <flux:badge variant="solid" color="sky" size="sm">
+                                        {{ $class_folder_data['images_pending_proofing_count'] }}
+                                    </flux:badge>
+                                @endif
+                            </td>
+                            <td class="text-right pr-2">
+                                <div class="flex justify-end gap-2 my-0.5">
+                                    @if($class_folder_data['images_pending_processing_count'])
+                                        <flux:button
+                                            wire:click="processPendingImages('{{ $class_folder_data['path'] }}')"
+                                            x-data="{ isQueued: false }"
+                                            x-on:click="isQueued = true"
+                                            size="xs"
+                                        >
+                                            <span x-show="!isQueued">Import</span>
+                                            <span x-show="isQueued">Queued</span>
+                                        </flux:button>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </flux:table>
+            @endif
+        </div>
     </div>
 </div>

@@ -12,7 +12,8 @@ use Livewire\Component;
 class ShowViewComponent extends Component
 {
     public string $working_path = '';
-    public string $show = '';
+    public string $show_id = '';
+    protected \App\Models\Show $show;
     public string $fullsize_base_path = '';
     public string $archive_base_path = '';
     public string $working_full_path = '';
@@ -25,7 +26,12 @@ class ShowViewComponent extends Component
         $this->pathResolver = $pathResolver;
         $this->fullsize_base_path = config('proofgen.fullsize_home_dir');
         $this->archive_base_path = config('proofgen.archive_home_dir');
-        $this->working_path = $this->show;
+        $this->working_path = $this->show_id;
+    }
+
+    public function boot()
+    {
+        $this->show = \App\Models\Show::find($this->show_id);
     }
 
     public function render()
@@ -35,14 +41,19 @@ class ShowViewComponent extends Component
 
         $this->working_full_path = $pathResolver->getAbsolutePath($this->working_path, $this->fullsize_base_path);
 
-        $current_path_contents = Utility::getContentsOfPath($this->working_path, false);
         $current_path_directories = Utility::getDirectoriesOfPath($this->working_path);
 
         $class_folders = [];
         foreach ($current_path_directories as $directory) {
             $class = explode('/', $directory);
             $class = end($class);
-            $show_class = new ShowClass($this->show, $class, $pathResolver);
+
+            // Check if we have this database record
+            if( ! $this->show->hasClass($class)) {
+                $this->show->addClass($class);
+            }
+
+            $show_class = new ShowClass($this->show->id, $class, $pathResolver);
             $images_to_process = $show_class->getImagesPendingProcessing();
             $images_to_proof = $show_class->getImagesPendingProofing();
             $images_to_web = $show_class->getImagesPendingWeb();
@@ -55,6 +66,7 @@ class ShowViewComponent extends Component
                 'images_pending_proofing_count' => count($images_to_proof),
                 'images_pending_web_count' => count($images_to_web),
                 'images_imported' => count($images_imported),
+                'show_class' => $this->show->classes()->where('id', $this->show->id.'_'.$folder_name)->first(),
             ];
         }
 
@@ -62,7 +74,7 @@ class ShowViewComponent extends Component
         $web_images_pending_upload = [];
         if($this->check_proofs_uploaded)
         {
-            $show = new Show($this->show, $pathResolver);
+            $show = new Show($this->show->id, $pathResolver);
             $images_pending_upload = $show->pendingProofUploads();
             $web_images_pending_upload = $show->pendingWebImageUploads();
         }
@@ -73,19 +85,19 @@ class ShowViewComponent extends Component
         });
 
         return view('livewire.show-view-component')
-            ->with('current_path_contents', $current_path_contents)
+            ->with('show', $this->show)
             ->with('current_path_directories', $current_path_directories)
             ->with('class_folders', $class_folders)
             ->with('images_pending_upload', $images_pending_upload)
             ->with('web_images_pending_upload', $web_images_pending_upload)
-            ->title($this->show.' - Proofgen');
+            ->title($this->show->id.' - Proofgen');
     }
 
     public function processPendingImages(string $class_folder): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        $show_class = new ShowClass($this->show, $class_folder, $pathResolver);
-        ImportPhotos::dispatch($this->show, $class_folder)->onQueue('imports');
+        $show_class = new ShowClass($this->show->id, $class_folder, $pathResolver);
+        ImportPhotos::dispatch($this->show->id, $class_folder)->onQueue('imports');
         $this->flash_message = $class_folder.' queued for import.';
         $this->check_proofs_uploaded = false;
     }
@@ -98,7 +110,7 @@ class ShowViewComponent extends Component
     public function uploadPendingProofs(string $show_folder): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        $show = new Show($this->show, $pathResolver);
+        $show = new Show($this->show->id, $pathResolver);
         $uploaded = $show->uploadPendingProofs();
         if(count($uploaded) === 0)
         {
@@ -113,7 +125,7 @@ class ShowViewComponent extends Component
     public function uploadPendingProofsAndWebImages(): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        $show = new Show($this->show, $pathResolver);
+        $show = new Show($this->show->id, $pathResolver);
         $uploaded = $show->uploadPendingProofs();
         $web_images = $show->uploadPendingWebImages();
         if(count($uploaded) === 0 && count($web_images) === 0)
@@ -139,7 +151,7 @@ class ShowViewComponent extends Component
     public function regenerateProofs(string $class_folder): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        $show_class = new ShowClass($this->show, $class_folder, $pathResolver);
+        $show_class = new ShowClass($this->show->id, $class_folder, $pathResolver);
         $show_class->regenerateProofs();
         $this->flash_message = 'Queued';
         $this->check_proofs_uploaded = false;
@@ -148,7 +160,7 @@ class ShowViewComponent extends Component
     public function regenerateWebImages(string $class_folder): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        $show_class = new ShowClass($this->show, $class_folder, $pathResolver);
+        $show_class = new ShowClass($this->show->id, $class_folder, $pathResolver);
         $show_class->regenerateWebImages();
     }
 

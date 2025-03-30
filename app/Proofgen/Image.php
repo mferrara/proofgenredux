@@ -2,6 +2,7 @@
 
 namespace App\Proofgen;
 
+use App\Models\Photo;
 use App\Services\PathResolver;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -18,7 +19,7 @@ class Image
     public array $missing_proofs = [];
     public bool $rename_files = true;
     public string $filename = '';
-    
+
     protected PathResolver $pathResolver;
 
     public function __construct(string $image_path, PathResolver $pathResolver = null)
@@ -118,21 +119,21 @@ class Image
             $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
             // Next, generate the new filename
             $new_filename = $proof_number.'.'.$extension;
-            
+
             // Use PathResolver for path construction
             $new_original_path = $this->pathResolver->getOriginalFilePath($this->show, $this->class, $new_filename);
             $new_original_path = $this->pathResolver->normalizePath($new_original_path);
-            
+
             // Next, rename the file we put in the originals path
             Storage::disk('fullsize')->move($path_to_originals_file, $new_original_path);
             if($debug) {
                 Log::debug('Renamed file in originals directory from '.$original_filename.' to '.$new_filename.', including paths; from '.$path_to_originals_file.' to '.$new_original_path);
             }
-            
+
             // Now, rename the file in $this->image_path
             $new_path = $this->pathResolver->getFullsizePath($this->show, $this->class).'/'.$new_filename;
             $new_path = $this->pathResolver->normalizePath($new_path);
-            
+
             if($debug) {
                 Log::debug('Renaming file in processing directory from '.$original_filename.' to '.$new_filename.', including paths; from '.$this->image_path.' to '.$new_path);
             }
@@ -181,11 +182,11 @@ class Image
         // Finally, we'll delete the original file
         $path_to_delete = isset($new_path) ? $new_path : $this->image_path;
         Storage::disk('fullsize')->delete($path_to_delete);
-        
+
         if($debug) {
             Log::debug('Deleted original file; '.$path_to_delete);
         }
-        
+
         // Confirm the file is deleted
         $exists = Storage::disk('fullsize')->exists($path_to_delete);
 
@@ -193,25 +194,42 @@ class Image
             throw new \Exception('File not deleted; '.$path_to_delete);
         }
 
+        // If we've made it all the way here let's create the Photo record
+        $photo = self::importPhoto($proof_number, $this->show, $this->class);
+
         return $path_to_originals_file;
+    }
+
+    public static function importPhoto(string $proof_number, string $show_id, string $show_class_id)
+    {
+        $photo = Photo::find($proof_number);
+        if( ! $photo) {
+            // If the image doesn't exist, create it
+            $photo = Photo::create([
+                'show_class_id' => $show_id.'_'.$show_class_id,
+                'proof_number' => $proof_number,
+            ]);
+        }
+
+        return $photo;
     }
 
     public static function createWebImage($full_size_image_path, $web_dest_path): array|string
     {
         // Get PathResolver from the container
         $pathResolver = app(PathResolver::class);
-        
+
         // Normalize the paths
         $full_size_image_path = $pathResolver->normalizePath($full_size_image_path);
         $web_dest_path = $pathResolver->normalizePath($web_dest_path);
-        
+
         // Confirm the $web_dest_path exists, if not, create it
         if( ! Storage::disk('fullsize')->exists($web_dest_path)) {
             Storage::disk('fullsize')->makeDirectory($web_dest_path);
         }
 
         $base_path = config('proofgen.fullsize_home_dir');
-        
+
         // Use PathResolver to ensure consistent path formatting
         $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
         $web_dest_system_path = $pathResolver->getAbsolutePath($web_dest_path, $base_path);
@@ -306,17 +324,17 @@ class Image
     {
         // Get PathResolver from the container
         $pathResolver = app(PathResolver::class);
-        
+
         $original_full_size_image_path = $full_size_image_path;
         ini_set('memory_limit', '4096M');
 
         // Normalize paths using PathResolver
         $full_size_image_path = $pathResolver->normalizePath($full_size_image_path);
         $proofs_dest_path = $pathResolver->normalizePath($proofs_dest_path);
-        
+
         // Get base path from config
         $base_path = config('proofgen.fullsize_home_dir');
-        
+
         // Use PathResolver to ensure consistent path formatting for filesystem operations
         // Note: Storage::disk('fullsize') will prepend the base path for storage operations
         // but direct filesystem operations need the full path
@@ -346,7 +364,7 @@ class Image
         // Use PathResolver.getAbsolutePath to get the correct full system path
         $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
         $image = $manager->read($full_system_path);
-        
+
         $lrg_suf = config('proofgen.thumbnails.large.suffix');
         $sml_suf = config('proofgen.thumbnails.small.suffix');
         $image_filename = pathinfo($full_size_image_path, PATHINFO_FILENAME);

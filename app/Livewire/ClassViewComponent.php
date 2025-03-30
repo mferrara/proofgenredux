@@ -5,17 +5,24 @@ namespace App\Livewire;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\ShowClass\UploadProofs;
+use App\Models\Photo;
+use App\Models\Show;
 use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
 use Illuminate\Support\Facades\Log;
+use League\Flysystem\FileAttributes;
 use Livewire\Component;
 
 class ClassViewComponent extends Component
 {
     public string $show = '';
     public string $class = '';
+
+    protected Show $showModel;
+    protected \App\Models\ShowClass $showClass;
+
     public string $working_path = '';
     public string $working_full_path = '';
     public string $fullsize_base_path = '';
@@ -35,11 +42,18 @@ class ClassViewComponent extends Component
         $this->proofs_path = $this->pathResolver->getProofsPath($this->show, $this->class);
         $this->web_images_path = $this->pathResolver->getWebImagesPath($this->show, $this->class);
     }
+
+    public function boot()
+    {
+        $this->showModel = Show::find($this->show);
+        $this->showClass = \App\Models\ShowClass::find($this->show.'_'.$this->class);
+    }
+
     public function render()
     {
         // Get PathResolver instance on each render for Livewire polling
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        
+
         $this->working_full_path = $pathResolver->getAbsolutePath($this->working_path, $this->fullsize_base_path);
 
         $current_path_contents = Utility::getContentsOfPath($this->working_path, false);
@@ -55,6 +69,24 @@ class ClassViewComponent extends Component
         if($this->check_proofs_uploaded)
             $web_images_pending_upload = $show_class->pendingWebImageUploads();
         $images_imported = $show_class->getImportedImages();
+
+        // Loop through imported images ensuring we have database records for them
+        foreach($images_imported as $image) {
+            /** @var FileAttributes $image */
+            $image = explode('/', $image->path());
+            $filename = end($image);
+            $proof_number = explode('.', $filename);
+            $proof_number = array_shift($proof_number);
+
+            $photo = $this->showClass->photos()->where('id', $this->showClass->id.'_'.$proof_number)->first();
+            if( ! $photo) {
+                // If the image doesn't exist, create it
+                Photo::create([
+                    'show_class_id' => $this->showClass->id,
+                    'proof_number' => $proof_number,
+                ]);
+            }
+        }
 
         return view('livewire.class-view-component')
             ->with('current_path_contents', $current_path_contents)
@@ -102,14 +134,14 @@ class ClassViewComponent extends Component
     public function proofImage($image_path): void
     {
         ini_set('memory_limit', '4096M');
-        
+
         // Get PathResolver instance for this request
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        
+
         // Get fresh paths based on the current PathResolver instance
         $proofs_path = $pathResolver->getProofsPath($this->show, $this->class);
         $web_images_path = $pathResolver->getWebImagesPath($this->show, $this->class);
-        
+
         GenerateThumbnails::dispatch($image_path, $proofs_path)->onQueue('thumbnails');
         GenerateWebImage::dispatch($image_path, $web_images_path)->onQueue('thumbnails');
         $this->flash_message = $image_path.' Proofs queued.';

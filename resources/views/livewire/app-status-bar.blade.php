@@ -1,8 +1,8 @@
-<div class="w-full bg-gray-700 border border-gray-600 px-2 py-1 flex flex-row justify-end items-center gap-x-2">
-    <div class="text-sm">
-        Backups:
+<div class="w-full bg-gray-700 border border-gray-600 px-3 py-2 flex flex-row justify-end items-center gap-x-4">
+    <div class="text-sm flex items-center gap-2">
+        <span>Backups:</span>
         @if(config('proofgen.archive_enabled'))
-            <span class="text-success px-1 py-0.5 font-semibold">Enabled</span>
+            <flux:badge variant="solid" color="green" size="sm">Enabled</flux:badge>
             @php
                 // Ensure the archive path is reachable
                 $archive_reachable = true;
@@ -13,38 +13,41 @@
                 }
             @endphp
             @if( ! $archive_reachable)
-                <span class="text-error px-1 py-0.5">Archive path unreachable</span>
+                <flux:badge variant="solid" color="rose" size="sm">Archive path unreachable</flux:badge>
             @endif
         @else
-            <span class="text-error px-1 py-0.5">Disabled</span>
+            <flux:badge variant="outline" color="rose" size="sm">Disabled</flux:badge>
         @endif
     </div>
-    <div class="text-sm">
-        Uploads:
+
+    <div class="text-sm flex items-center gap-2">
+        <span>Uploads:</span>
         @if(config('proofgen.upload_proofs'))
-            <span class="text-success px-1 py-0.5">Enabled</span>
+            <flux:badge variant="solid" color="green" size="sm">Enabled</flux:badge>
         @else
-            <span class="text-yellow-700 px-1 py-0.5">Disabled</span>
+            <flux:badge variant="outline" color="amber" size="sm">Disabled</flux:badge>
         @endif
     </div>
-    <div class="text-sm">
-        Rename:
+
+    <div class="text-sm flex items-center gap-2">
+        <span>Rename:</span>
         @if(config('proofgen.rename_files'))
-            <span class="text-success px-1 py-0.5">Enabled</span>
+            <flux:badge variant="solid" color="green" size="sm">Enabled</flux:badge>
         @else
-            <span class="text-yellow-700 px-1 py-0.5">Disabled</span>
+            <flux:badge variant="solid" color="amber" size="sm">Disabled</flux:badge>
         @endif
     </div>
-    <div class="text-sm flex flex-row items-center">
-        <div>Horizon: &nbsp;</div>
+
+    <div class="text-sm flex items-center gap-2">
+        <span>Horizon:</span>
         @if($isHorizonRunning)
-            <span class="text-success px-1 py-0.5">Running</span>
+            <flux:badge variant="solid" color="green" size="sm">Running</flux:badge>
             @if($autoRestartEnabled)
-                <span class="text-xs text-blue-400 ml-1">(Auto-restart enabled)</span>
+                <flux:badge variant="outline" color="sky" size="sm">Auto-restart enabled</flux:badge>
             @endif
         @else
             <div class="flex items-center gap-2">
-                <span class="text-error px-1 py-0.5">Stopped</span>
+                <flux:badge variant="outline" color="rose" size="sm">Stopped</flux:badge>
                 <flux:button
                     wire:click="startHorizon"
                     wire:loading.attr="disabled"

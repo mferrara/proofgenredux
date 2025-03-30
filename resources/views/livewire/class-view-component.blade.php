@@ -1,194 +1,267 @@
-<div class="px-8 py-4"
-     wire:poll.5s
->
-    <div class="mt-4 mx-4 flex flex-row justify-between items-center">
-        <div class="flex flex-row justify-start items-center">
-            <a href="/show/{{ $show }}"
-               class="my-2 underline text-indigo-400 hover:cursor-pointer"
-               title="Back to {{ $show }}"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path fill-rule="evenodd" d="M4.72 9.47a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 1 0 1.06-1.06L6.31 10l3.72-3.72a.75.75 0 1 0-1.06-1.06L4.72 9.47Zm9.25-4.25L9.72 9.47a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 1 0 1.06-1.06L11.31 10l3.72-3.72a.75.75 0 0 0-1.06-1.06Z" clip-rule="evenodd" />
-                </svg>
-            </a>
-            <div class="ml-2 text-4xl font-semibold">Show: <a href="/show/{{ $show }}" class="text-indigo-600 underline">{{ $show }}</a> / Class: <span class="text-indigo-300">{{ $class }}</span></a></div>
-            <div wire:loading
-                 class="ml-4 px-2 py-1 text-sm font-semibold bg-yellow-200 text-yellow-800 rounded-xs border border-yellow-300 animate-pulse"
-            >Working...</div>
-        </div>
-        <div class="flex flex-row justify-start items-center bg-red-50">
+<div class="px-8 py-6" wire:poll.5s>
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-3">
+                <a href="/show/{{ $show }}" class="text-indigo-400 hover:text-indigo-300" title="Back to {{ $show }}">
+                    <flux:icon name="chevron-left" variant="outline" />
+                </a>
+                <flux:heading size="xl">
+                    Show: <a href="/show/{{ $show }}" class="text-indigo-500 hover:text-indigo-400 hover:underline">{{ $show }}</a> /
+                    <span class="text-indigo-300">Class: {{ $class }}</span>
+                </flux:heading>
+
+                <div wire:loading class="ml-3">
+                    <flux:badge variant="solid" color="blue" size="sm" class="animate-pulse">
+                        Working...
+                    </flux:badge>
+                </div>
+            </div>
+
             @if(isset($flash_message) && strlen($flash_message))
-                <div class="px-2 py-1 text-lg font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">{{ $flash_message }}</div>
+                <flux:badge variant="solid" color="green">{{ $flash_message }}</flux:badge>
             @endif
         </div>
-    </div>
 
-    <div class="mt-4 mx-8 text-xl flex flex-col justify-start">
-        <div class="flex flex-row justify-start items-start gap-x-8">
-            <div class="w-3/5">
-                <div class="grid grid-cols-4 text-right">
-                    <div></div><div class="font-semibold">Pending</div><div class="font-semibold">Complete</div><div class="font-semibold">Uploaded</div>
-                    <div class="font-semibold">Import</div><div>{{ count($images_pending_processing) }}</div><div>{{ count($images_imported) }}</div><div>n/a</div>
-                    <div class="font-semibold">Proof</div><div>{{ count($images_pending_proofing) }}</div><div>{{ count($images_imported) - count($images_pending_proofing) }}</div><div>n/a</div>
-                </div>
+        <div class="grid grid-cols-12 gap-6 mb-8">
+            <!-- Summary Stats -->
+            <div class="col-span-6">
+                <flux:card>
+                    <flux:heading size="lg" class="mb-4">Image Status</flux:heading>
+
+                    <flux:table class="!text-gray-400">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th class="text-center">Pending</th>
+                                <th class="text-center">Complete</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="font-medium">Imported</td>
+                                <td class="text-center">
+                                    @if(count($images_pending_processing))
+                                        <flux:badge variant="outline" color="sky" size="sm">
+                                            {{ count($images_pending_processing) }}
+                                        </flux:badge>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+                                <td class="text-center">{{ count($images_imported) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="font-medium">Proofed</td>
+                                <td class="text-center">
+                                    @if(count($images_pending_proofing))
+                                        <flux:badge variant="outline" color="sky" size="sm">
+                                            {{ count($images_pending_proofing) }}
+                                        </flux:badge>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+                                <td class="text-center">{{ count($images_imported) - count($images_pending_proofing) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-medium">Uploaded</td>
+                                <td class="text-center">
+                                    @if(count($images_pending_upload))
+                                        <flux:badge variant="outline" color="sky" size="sm">
+                                            {{ count($images_pending_upload) }}
+                                        </flux:badge>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+                                <td class="text-center">
+                                    @if(isset($proofs_uploaded) && count($proofs_uploaded))
+                                        <flux:badge variant="outline" color="sky" size="sm">
+                                            {{ count($proofs_uploaded) }}
+                                        </flux:badge>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+                            </tr>
+                        </tbody>
+                    </flux:table>
+                </flux:card>
             </div>
-            <div class="w-2/5">
-                <div class="bg-gray-600">
-                    <div class="text-xl bg-gray-700 text-right px-2">Actions</div>
-                    <div class="p-2 flex flex-col gap-y-1">
+
+            <!-- Action Panel -->
+            <div class="col-span-6">
+                <flux:card>
+                    <flux:heading size="lg" class="mb-4">Actions</flux:heading>
+
+                    <div class="flex flex-col gap-3 text-gray-400">
                         @if($images_pending_processing && count($images_pending_processing))
-                            <div class="flex flex-row justify-end gap-x-2">
-                                <div class="px-2 py-1 text-sm font-semibold text-gray-300 rounded-xs">Import <span class="text-indigo-300">{!! count($images_pending_processing) !!}</span> {!! str('image')->plural(count($images_pending_processing)) !!}</div>
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300 hover:bg-gray-300 hover:text-gray-800 hover:border-gray-400"
-                                        wire:click="processPendingImages"
-                                >Go</button>
+                            <div class="flex justify-between items-center">
+                                <span>Import <flux:badge variant="outline" color="sky" size="sm">{{ count($images_pending_processing) }}</flux:badge> {{ str('image')->plural(count($images_pending_processing)) }}</span>
+                                <flux:button
+                                    wire:click="processPendingImages"
+                                    size="sm"
+                                >
+                                    Process
+                                </flux:button>
                             </div>
                         @endif
+
                         @if($images_pending_proofing && count($images_pending_proofing))
-                            <div class="flex flex-row justify-end gap-x-2">
-                                <div class="px-2 py-1 text-sm font-semibold text-gray-300 rounded-xs">Generate proofs and web images on <span class="text-indigo-300">{!! count($images_pending_proofing) !!}</span> {!! str('image')->plural(count($images_pending_proofing)) !!}</div>
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                        wire:click="proofPendingImages"
-                                >Go</button>
+                            <div class="flex justify-between items-center">
+                                <span>Generate proofs for <flux:badge variant="outline" color="sky" size="sm">{{ count($images_pending_proofing) }}</flux:badge> {{ str('image')->plural(count($images_pending_proofing)) }}</span>
+                                <flux:button
+                                    wire:click="proofPendingImages"
+                                    size="sm"
+                                >
+                                    Generate
+                                </flux:button>
                             </div>
                         @endif
-                        <div class="flex flex-row justify-end gap-x-2">
-                            <div class="px-2 py-1 text-sm font-semibold text-gray-300 rounded-xs">
-                                @if($check_proofs_uploaded === false)
-                                    Check proof & web image sync status
-                                @elseif($images_pending_upload && count($images_pending_upload))
-                                    Upload <span class="text-indigo-300">{!! count($images_pending_upload) !!}</span> proofs and web images
-                                @else
-                                    <span class="font-semibold text-success">All proofs and web images uploaded</span>
-                                @endif
-                            </div>
+
+                        <div class="flex justify-between items-center">
                             @if($check_proofs_uploaded === false)
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                        wire:click="checkProofsUploaded"
-                                >Go</button>
+                                <span>Check proof & web image sync status</span>
+                                <flux:button
+                                    wire:click="checkProofsUploaded"
+                                    size="sm"
+                                >
+                                    Check
+                                </flux:button>
                             @elseif($images_pending_upload && count($images_pending_upload))
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                        wire:click="uploadPendingProofsAndWebImages"
-                                >Upload</button>
+                                <span>Upload <flux:badge variant="solid" color="blue" size="sm">{{ count($images_pending_upload) }}</flux:badge> proofs and web images</span>
+                                <flux:button
+                                    wire:click="uploadPendingProofsAndWebImages"
+                                    size="sm"
+                                >
+                                    Upload
+                                </flux:button>
                             @else
-                                <div class="min-w-10"></div>
+                                <flux:badge variant="solid" color="green" size="sm">All proofs and web images uploaded</flux:badge>
                             @endif
                         </div>
+
                         @if($images_imported && count($images_imported))
-                            <div class="flex flex-row justify-end gap-x-2 bg-amber-100/20">
-                                <div class="px-2 py-1 text-sm font-semibold text-amber-200 rounded-xs">Regenerate proofs on all <span class="text-indigo-300">{!! count($images_imported) !!}</span> imported images</div>
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                        wire:click="regenerateProofs"
-                                >Go</button>
+                            <div class="flex justify-between items-center border-t border-gray-700 pt-3 mt-2">
+                                <span>Regenerate proofs on <flux:badge variant="outline" color="amber" size="sm">{{ count($images_imported) }}</flux:badge> images</span>
+                                <flux:button
+                                    wire:click="regenerateProofs"
+                                    size="sm"
+                                >
+                                    Regenerate
+                                </flux:button>
                             </div>
                         @endif
+
                         @if(count($images_imported) - count($images_pending_proofing) > 0)
-                            <div class="flex flex-row justify-end gap-x-2 bg-amber-100/20">
-                                <div class="px-2 py-1 text-sm font-semibold text-amber-200 rounded-xs">Force upload proofs & web images on all <span class="text-indigo-300">{!! count($images_imported) - count($images_pending_proofing) !!}</span> proofed images</div>
-                                <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                        wire:click="uploadPendingProofsAndWebImages"
-                                >Go</button>
+                            <div class="flex justify-between items-center">
+                                <span>Upload all <flux:badge variant="outline" color="amber" size="sm">{{ count($images_imported) - count($images_pending_proofing) }}</flux:badge> images</span>
+                                <flux:button
+                                    wire:click="uploadPendingProofsAndWebImages"
+                                    size="sm"
+                                >
+                                    Upload All
+                                </flux:button>
                             </div>
                         @endif
                     </div>
-                </div>
+                </flux:card>
             </div>
         </div>
-        <ul class="list-disc text-base px-4 mt-8">
-            <li><div>Images pending import are any photos in the base
-                    <span class="text-indigo-400">/{!! $show !!}/{!! $class !!}</span> folder</div></li>
-            <li><div>Images not proofed are any photos in the
-                    <span class="text-indigo-400">/{!! $show !!}/{!! $class !!}/originals</span>
-                    folder that aren't yet proofed</div></li>
-            <li><div>Proofs and Web Images to upload are those that don't yet exist on the web server
-                    but have been generated locally</div></li>
-        </ul>
+
+        <flux:card class="mb-8">
+            <flux:heading size="lg" class="mb-4">Information</flux:heading>
+            <ul class="list-disc pl-5 space-y-2 text-gray-400">
+                <li>Images pending import are any photos in the base
+                    <span class="text-indigo-400 font-medium">/{!! $show !!}/{!! $class !!}</span> folder</li>
+                <li>Images not proofed are any photos in the
+                    <span class="text-indigo-400 font-medium">/{!! $show !!}/{!! $class !!}/originals</span>
+                    folder that aren't yet proofed</li>
+                <li>Proofs and Web Images to upload are those that don't yet exist on the web server
+                    but have been generated locally</li>
+            </ul>
+        </flux:card>
 
         @if(($images_pending_processing && count($images_pending_processing)) || ($images_pending_proofing && count($images_pending_proofing)))
-            <div class="mt-8 flex flex-row w-full justify-between items-start gap-x-8 p-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 @if($images_pending_processing && count($images_pending_processing))
-                    <div class="w-1/2 bg-gray-700">
-                        <div class="flex flex-row justify-between items-center">
-                            <div class="text-xl py-1 px-2 bg-gray-800 w-full">Images to import @if($images_pending_processing && count($images_pending_processing)) ({{ count($images_pending_processing) }}) @endif</div>
-                            @if($images_pending_processing && count($images_pending_processing))
+                    <flux:card>
+                        <flux:heading size="lg" class="mb-4">
+                            Images to Import ({{ count($images_pending_processing) }})
+                        </flux:heading>
 
-                            @else
-                                <div>
-                                    <div class="px-2 py-1 text-sm font-semibold text-success rounded-xs">All images imported</div>
-                                </div>
-                            @endif
-                        </div>
-                        @if($images_pending_processing && count($images_pending_processing))
-                            <div class="mt-6 px-2 mb-2">
-                                @include('components.partials.images-table', ['images' => $images_pending_processing, 'actions' => ['import']])
-                            </div>
-                        @endif
-                    </div>
+                        @include('components.partials.images-table', ['images' => $images_pending_processing, 'actions' => ['import']])
+                    </flux:card>
                 @endif
+
                 @if($images_pending_proofing && count($images_pending_proofing))
-                    <div class="w-1/2 bg-gray-700">
-                        <div class="flex flex-row justify-between items-center">
-                            <div class="text-xl py-1 px-2 bg-gray-800 w-full">Images to proof @if($images_pending_proofing && count($images_pending_proofing))({{ count($images_pending_proofing)}})@endif </div>
-                        </div>
-                        @if($images_pending_proofing && count($images_pending_proofing))
-                            <div class="mt-6 px-2 mb-2">
-                                @include('components.partials.images-table', ['images' => $images_pending_proofing, 'actions' => ['proof']])
-                            </div>
-                        @endif
-                    </div>
+                    <flux:card>
+                        <flux:heading size="lg" class="mb-4">
+                            Images to Proof ({{ count($images_pending_proofing) }})
+                        </flux:heading>
+
+                        @include('components.partials.images-table', ['images' => $images_pending_proofing, 'actions' => ['proof']])
+                    </flux:card>
                 @endif
             </div>
         @endif
 
         @if(($images_pending_upload && count($images_pending_upload)) || ($web_images_pending_upload && count($web_images_pending_upload)))
-            <div class="mt-8 flex flex-row w-full justify-between items-start gap-x-8 border border-gray-200 p-3">
-                <div class="w-1/2">
-                    <div class="flex flex-row justify-between items-center">
-                        <div class="text-xl font-semibold">Proofs to upload @if($images_pending_upload && count($images_pending_upload))({{ count($images_pending_upload)}})@endif </div>
-                        <div class="flex flex-row justify-end items-center gap-x-2">
-                            <button class="px-2 py-1 text-sm font-semibold bg-gray-200 text-gray-800 rounded-xs border border-gray-300"
-                                    wire:click="uploadPendingProofsAndWebImages"
-                            >Force Upload</button>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                @if($images_pending_upload && count($images_pending_upload))
+                    <flux:card>
+                        <div class="flex justify-between items-center mb-4">
+                            <flux:heading>
+                                Proofs to Upload ({{ count($images_pending_upload) }})
+                            </flux:heading>
+
+                            <flux:button
+                                wire:click="uploadPendingProofsAndWebImages"
+                                size="xs"
+                            >
+                                Force Upload
+                            </flux:button>
                         </div>
-                    </div>
-                    @if($images_pending_upload && count($images_pending_upload))
-                        <div class="mt-6">
-                            @include('components.partials.images-table', ['images' => $images_pending_upload, 'actions' => []])
-                        </div>
-                    @endif
-                </div>
-                <div class="w-1/2">
-                    <div class="flex flex-row justify-between items-center">
-                        <div class="text-xl font-semibold">Web Images to upload @if($web_images_pending_upload && count($web_images_pending_upload))({{ count($web_images_pending_upload)}})@endif </div>
-                    </div>
-                    @if($web_images_pending_upload && count($web_images_pending_upload))
-                        <div class="mt-6">
-                            @include('components.partials.images-table', ['images' => $web_images_pending_upload, 'actions' => []])
-                        </div>
-                    @endif
-                </div>
+
+                        @include('components.partials.images-table', ['images' => $images_pending_upload, 'actions' => []])
+                    </flux:card>
+                @endif
+
+                @if($web_images_pending_upload && count($web_images_pending_upload))
+                    <flux:card>
+                        <flux:heading class="mb-4">
+                            Web Images to Upload ({{ count($web_images_pending_upload) }})
+                        </flux:heading>
+
+                        @include('components.partials.images-table', ['images' => $web_images_pending_upload, 'actions' => []])
+                    </flux:card>
+                @endif
             </div>
         @endif
 
-        <div class="mt-8 flex flex-row w-full justify-between items-start gap-x-8">
-            <div class="w-3/4 mx-auto">
-                <div class="flex flex-row justify-between items-center">
-                    <div class="text-xl font-semibold">Class photos @if($images_imported && count($images_imported)) ({{ count($images_imported) }}) @endif</div>
-                    @if($images_imported && count($images_imported))
+        <flux:card>
+            <div class="flex justify-between items-center mb-4">
+                <flux:heading size="lg">
+                    Class Photos {{ $images_imported && count($images_imported) ? '(' . count($images_imported) . ')' : '' }}
+                </flux:heading>
 
-                    @else
-                        <div>
-                            <div class="px-2 py-1 text-sm font-semibold bg-green-200 text-green-800 rounded-xs border border-green-300">No images imported yet</div>
-                        </div>
-                    @endif
-                </div>
-                <div class="p-2 text-lg font-light text-gray-700">Images here have been processed.</div>
-                @if($images_imported && count($images_imported))
-                    <div class="mt-6">
-                        @include('components.partials.images-table', ['images' => $images_imported, 'actions' => [], 'display_thumbnail' => true, 'details' => true])
-                    </div>
+                @if(!$images_imported || !count($images_imported))
+                    <flux:badge variant="solid" color="amber" size="sm">No images imported yet</flux:badge>
                 @endif
             </div>
-        </div>
+
+            <p class="text-gray-400 mb-6">Images here have been processed.</p>
+
+            @if($images_imported && count($images_imported))
+                @include('components.partials.images-table', ['images' => $images_imported, 'actions' => [], 'display_thumbnail' => true, 'details' => true])
+            @else
+                <div class="py-8 text-center">
+                    <div class="mb-4">
+                        <flux:icon name="photo" variant="outline" class="text-gray-500 size-12 mx-auto" />
+                    </div>
+                    <p class="text-gray-500">No processed images found. Import images to begin.</p>
+                </div>
+            @endif
+        </flux:card>
     </div>
 </div>
