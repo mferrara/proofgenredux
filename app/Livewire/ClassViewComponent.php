@@ -11,6 +11,7 @@ use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
+use Flux\Flux;
 use Illuminate\Support\Facades\Log;
 use League\Flysystem\FileAttributes;
 use Livewire\Component;
@@ -73,22 +74,12 @@ class ClassViewComponent extends Component
         // Loop through imported images ensuring we have database records for them
         foreach($images_imported as $image) {
             /** @var FileAttributes $image */
-            $image = explode('/', $image->path());
-            $filename = end($image);
-            $proof_number = explode('.', $filename);
-            $proof_number = array_shift($proof_number);
-
-            $photo = $this->showClass->photos()->where('id', $this->showClass->id.'_'.$proof_number)->first();
-            if( ! $photo) {
-                // If the image doesn't exist, create it
-                Photo::create([
-                    'show_class_id' => $this->showClass->id,
-                    'proof_number' => $proof_number,
-                ]);
-            }
+            $file_path = $image->path();
+            $photo = $this->showClass->importPhotoFromPath($file_path);
         }
 
         return view('livewire.class-view-component')
+            ->with('photos', $this->showClass->photos()->with('metadata')->get())
             ->with('current_path_contents', $current_path_contents)
             ->with('current_path_directories', $current_path_directories)
             ->with('images_pending_processing', $images_pending_processing)
@@ -97,6 +88,32 @@ class ClassViewComponent extends Component
             ->with('web_images_pending_upload', $web_images_pending_upload)
             ->with('images_imported', $images_imported)
             ->title($this->show.' '.$this->class.' - Proofgen');
+    }
+
+    public function fixMissingMetadataOnPhoto(string $photo_id): void
+    {
+        /** @var Photo $photo */
+        $photo = $this->showClass->photos()->where('id', $photo_id)->first();
+        Log::debug('Fixing metadata for photo: '.$photo_id);
+        if($photo) {
+            Log::debug('Found Photo record: ', $photo->toArray());
+        }
+        if ($photo) {
+            $metadata = $photo->createMetadataRecord();
+            Flux::toast(
+                text: 'Metadata fixed for '.$photo->proof_number,
+                heading: 'Info',
+                variant: 'success',
+                position: 'top right'
+            );
+        } else {
+            Flux::toast(
+                text: 'Photo not found',
+                heading: 'Error',
+                variant: 'error',
+                position: 'top right'
+            );
+        }
     }
 
     public function checkProofsUploaded(): void

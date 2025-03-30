@@ -42,25 +42,9 @@ class ShowClass extends Model
                 $images = $files['images'];
 
             foreach($images as $file) {
-                /** @var FileAttributes $proof_number */
-                $proof_number = pathinfo($file->path(), PATHINFO_FILENAME);
-                $proof_number = explode('.', $proof_number);
-                $proof_number = array_shift($proof_number);
-
-                $file_type = pathinfo($file->path(), PATHINFO_EXTENSION);
-                $file_type = strtolower($file_type);
-
-                // Check if we have this database record
-                if( ! $model->photos()->where('id', $model->show_class_id.'_'.$proof_number)->exists()) {
-                    // If the photo doesn't exist, create it
-                    // Open the file to generate it's sha1 and pass to PhotoMetadata
-                    // to generate the metadata
-                    $photo = new Photo();
-                    $photo->show_class_id = $model->id;
-                    $photo->proof_number = $proof_number;
-                    $photo->file_type = $file_type;
-                    $photo->save();
-                }
+                /** @var FileAttributes $file */
+                $file_path = $file->path();
+                $photo = $model->importPhotoFromPath($file_path);
             }
         });
     }
@@ -88,5 +72,30 @@ class ShowClass extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(Photo::class, 'show_class_id', 'id');
+    }
+
+    public function importPhotoFromPath(string $file_path): Photo
+    {
+        $proof_number = pathinfo($file_path, PATHINFO_FILENAME);
+        $proof_number = explode('.', $proof_number);
+        $proof_number = array_shift($proof_number);
+
+        $file_type = pathinfo($file_path, PATHINFO_EXTENSION);
+        $file_type = strtolower($file_type);
+
+        // Check if we have this database record
+        $photo = $this->photos()->where('id', $this->id.'_'.$proof_number)->first();
+        if( ! $photo) {
+            // If the photo doesn't exist, create it
+            // Open the file to generate it's sha1 and pass to PhotoMetadata
+            // to generate the metadata
+            $photo = new Photo();
+            $photo->show_class_id = $this->id;
+            $photo->proof_number = $proof_number;
+            $photo->file_type = $file_type;
+            $photo->save();
+        }
+
+        return $photo;
     }
 }

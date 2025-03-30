@@ -4,12 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Intervention\Image\Laravel\Facades\Image;
 
 class Photo extends Model
 {
     protected $table = 'photos';
     protected $primaryKey = 'id';
+    protected $keyType = 'string';
     public $incrementing = false;
 
     protected $guarded = [
@@ -37,18 +39,29 @@ class Photo extends Model
 
             // Check if we have a metadata record for this photo
             if (empty($model->metadata)) {
-                if($file_contents === null) {
-                    $file_contents = $model->getFileContents();
-                }
-                $intervention_image = Image::read($file_contents);
-                $metadata = $model->metadata()->create([
-                    'photo_id' => $model->id,
-                    'file_size' => strlen($file_contents),
-                ]);
-                $metadata->fillFromInterventionImage($intervention_image);
-                $metadata->save();
+                $metadata = $model->createMetadataRecord($file_contents);
             }
         });
+    }
+
+    public function createMetadataRecord(?string $file_contents = null): PhotoMetadata
+    {
+        if($file_contents === null) {
+            $file_contents = $this->getFileContents();
+        }
+
+        // Get exif data from file contents with native PHP
+        $exif_data = exif_read_data($this->full_path, 'EXIF', true);
+
+        /** @var PhotoMetadata $metadata */
+        $metadata = $this->metadata()->create([
+            'photo_id' => $this->id,
+            'file_size' => strlen($file_contents),
+        ]);
+        $metadata->fillFromExifDataArray($exif_data);
+        $metadata->save();
+
+        return $metadata;
     }
 
     public function getFullPathAttribute(): string
@@ -66,7 +79,7 @@ class Photo extends Model
         return $this->belongsTo(ShowClass::class, 'show_class_id', 'id');
     }
 
-    public function metadata()
+    public function metadata(): HasOne
     {
         return $this->hasOne(PhotoMetadata::class, 'photo_id', 'id');
     }

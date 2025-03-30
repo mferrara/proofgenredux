@@ -241,8 +241,8 @@
 
         <flux:card>
             <div class="flex justify-between items-center mb-4">
-                <flux:heading size="lg">
-                    Class Photos {{ $images_imported && count($images_imported) ? '(' . count($images_imported) . ')' : '' }}
+                <flux:heading size="xl">
+                    Processed Photos {{ $images_imported && count($images_imported) ? '(' . count($images_imported) . ')' : '' }}
                 </flux:heading>
 
                 @if(!$images_imported || !count($images_imported))
@@ -253,7 +253,7 @@
             <p class="text-gray-400 mb-6">Images here have been processed.</p>
 
             @if($images_imported && count($images_imported))
-                @include('components.partials.images-table', ['images' => $images_imported, 'actions' => [], 'display_thumbnail' => true, 'details' => true])
+                @include('components.partials.photos-table', ['photos' => $photos, 'actions' => [], 'display_thumbnail' => true, 'details' => true])
             @else
                 <div class="py-8 text-center">
                     <div class="mb-4">
