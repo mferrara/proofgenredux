@@ -80,7 +80,7 @@
                             <th>Class</th>
                             <th class="text-right">Photos Imported</th>
                             <th class="text-right">Photos to Import</th>
-                            <th class="text-right">Photos to Proof</th>
+                            <th class="text-right">Needs Proofs/Web Images</th>
                             <th class="text-right pr-2">Actions</th>
                         </tr>
                     </thead>
@@ -113,10 +113,27 @@
                                 @endif
                             </td>
                             <td class="text-right">
-                                @if($class_folder_data['images_pending_proofing_count'])
-                                    <flux:badge variant="solid" color="sky" size="sm">
-                                        {{ $class_folder_data['images_pending_proofing_count'] }}
-                                    </flux:badge>
+                                @if($class_folder_data['show_class'])
+                                    @if($class_folder_data['show_class']->photos()->whereNull('proofs_generated_at')->count())
+                                        <flux:badge color="blue" size="sm">
+                                            Proofs: {{ $class_folder_data['show_class']->photos()->whereNull('proofs_generated_at')->count() }}
+                                        </flux:badge>
+                                    @endif
+                                    @if($class_folder_data['show_class']->photos()->whereNotNull('proofs_generated_at')->whereNull('proofs_uploaded_at')->count())
+                                        <flux:badge color="blue" size="sm">
+                                            Proofs Upload: {{ $class_folder_data['show_class']->photos()->whereNotNull('proofs_generated_at')->whereNull('proofs_uploaded_at')->count() }}
+                                        </flux:badge>
+                                    @endif
+                                    @if($class_folder_data['show_class']->photos()->whereNull('web_image_generated_at')->count())
+                                        <flux:badge color="cyan" size="sm">
+                                            Web Gen: {{ $class_folder_data['show_class']->photos()->whereNull('web_image_generated_at')->count() }}
+                                        </flux:badge>
+                                    @endif
+                                    @if($class_folder_data['show_class']->photos()->whereNotNull('web_image_generated_at')->whereNull('web_image_uploaded_at')->count())
+                                        <flux:badge color="cyan" size="sm">
+                                            Web Upload: {{ $class_folder_data['show_class']->photos()->whereNotNull('web_image_generated_at')->whereNull('web_image_uploaded_at')->count() }}
+                                        </flux:badge>
+                                    @endif
                                 @endif
                             </td>
                             <td class="text-right pr-2">

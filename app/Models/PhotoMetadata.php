@@ -111,8 +111,6 @@ class PhotoMetadata extends Model
             $computed = $exif_data['COMPUTED'];
             $height = $computed['Height'] ?? null;
             $width = $computed['Width'] ?? null;
-            \Log::debug('height: ' . $height);
-            \Log::debug('width: ' . $width);
         }
 
         $this->shutter_speed = $shutter_speed;
