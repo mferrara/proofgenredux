@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\ShowClass\UploadProofs;
+use App\Jobs\ShowClass\UploadWebImages;
+use App\Models\Photo;
 use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
 use Exception;
@@ -24,30 +26,29 @@ class PhotoService
      * @param string $imagePath The path to the image to process
      * @param string $proofNumber The proof number to assign
      * @param bool $debug Whether to enable debug logging
-     * @param bool $dispatchJobs Whether to dispatch the thumbnail and web image jobs (true for production, false for testing)
      * @return array Returns [fullsizeImagePath, proofDestPath, webImagesPath] for further processing
      * @throws Exception
      */
-    public function processPhoto(string $imagePath, string $proofNumber, bool $debug = false, bool $dispatchJobs = true): array
+    public function processPhoto(string $imagePath, string $proofNumber, bool $debug = false): array
     {
         // Normalize the path and remove leading slash if present
         $imagePath = $this->pathResolver->normalizePath($imagePath);
-        
+
         $imageObj = new Image($imagePath, $this->pathResolver);
-        $fullsizeImagePath = $imageObj->processImage($proofNumber, $debug);
+        $photo = $imageObj->processImage($proofNumber, $debug);
 
-        // Use PathResolver to get standardized paths
-        $proofDestPath = $this->pathResolver->getProofsPath($imageObj->show, $imageObj->class);
-        $webImagesPath = $this->pathResolver->getWebImagesPath($imageObj->show, $imageObj->class);
+        $show_class = \App\Models\ShowClass::find($imageObj->show.'_'.$imageObj->class);
+        $proofDestPath = $show_class->proofs_path;
+        $webImagesPath = $show_class->web_images_path;
 
-        // Dispatch jobs to generate thumbnails and web images if requested
-        if ($dispatchJobs) {
-            GenerateWebImage::dispatch($fullsizeImagePath, $webImagesPath)->onQueue('thumbnails');
-            GenerateThumbnails::dispatch($fullsizeImagePath, $proofDestPath)->onQueue('thumbnails');
-        }
+        // Dispatch jobs for generating thumbnails and web images
+        \Log::debug('Queueing GenerateThumbnails job for photo_id: '.$photo->id);
+        GenerateThumbnails::dispatch($photo->id, $proofDestPath);
+        \Log::debug('Queueing GenerateWebImage job for photo_id: '.$photo->id);
+        GenerateWebImage::dispatch($photo->id, $webImagesPath);
 
         return [
-            'fullsizeImagePath' => $fullsizeImagePath,
+            'photo' => $photo,
             'proofDestPath' => $proofDestPath,
             'webImagesPath' => $webImagesPath,
         ];
@@ -56,27 +57,31 @@ class PhotoService
     /**
      * Generate thumbnails for a photo and optionally check if upload job should be dispatched
      *
-     * @param string $photoPath The path to the photo
+     * @param string $photo_id The id of the photo record
      * @param string $proofsDestinationPath The path to store proofs
      * @param bool $checkForUpload Whether to check if all images are processed and queue upload job
      * @return string The image filename that was processed
      */
-    public function generateThumbnails(string $photoPath, string $proofsDestinationPath, bool $checkForUpload = true): string
+    public function generateThumbnails(string $photo_id, string $proofsDestinationPath, bool $checkForUpload = true): string
     {
         // Normalize paths to ensure consistency
+        \Log::debug('Photo_id: '.$photo_id);
+        $photo = Photo::find($photo_id);
+        $photoPath = $photo->relative_path;
         $photoPath = $this->pathResolver->normalizePath($photoPath);
         $proofsDestinationPath = $this->pathResolver->normalizePath($proofsDestinationPath);
-        
+
         $result = Image::createThumbnails($photoPath, $proofsDestinationPath);
+
+        $photo->proofs_generated_at = now();
+        $photo->save();
 
         if ($checkForUpload) {
             // Check class, if no more images pending proofs we'll queue up the upload job
-            $image = new Image($photoPath, $this->pathResolver);
-            $showClass = new ShowClass($image->show, $image->class, $this->pathResolver);
-            $pendingProofs = $showClass->getImagesPendingProofing();
+            $pendingProofs = $photo->showClass->photos()->whereNull('proofs_generated_at')->count();
 
-            if (count($pendingProofs) === 0) {
-                UploadProofs::dispatch($image->show, $image->class);
+            if ($pendingProofs === 0) {
+                UploadProofs::dispatch($photo->showClass->show->name, $photo->showClass->name);
             }
         }
 
@@ -86,16 +91,33 @@ class PhotoService
     /**
      * Generate a web-optimized version of a photo
      *
-     * @param string $fullSizePath The path to the full-size photo
+     * @param string $photo_id The id of the photo record
      * @param string $webDestinationPath The path to store web images
-     * @return string The image filename that was processed
+     * @return string The full path to the output file
      */
-    public function generateWebImage(string $fullSizePath, string $webDestinationPath): string
+    public function generateWebImage(string $photo_id, string $webDestinationPath, bool $checkForUpload = true): string
     {
         // Normalize paths to ensure consistency
-        $fullSizePath = $this->pathResolver->normalizePath($fullSizePath);
+        \Log::debug('generateWebImage() for photo_id: '.$photo_id);
+        $photo = Photo::find($photo_id);
+        $photoPath = $photo->relative_path;
+        $photoPath = $this->pathResolver->normalizePath($photoPath);
         $webDestinationPath = $this->pathResolver->normalizePath($webDestinationPath);
-        
-        return Image::createWebImage($fullSizePath, $webDestinationPath);
+
+        $result = Image::createWebImage($photoPath, $webDestinationPath);
+
+        $photo->web_image_generated_at = now();
+        $photo->save();
+
+        if ($checkForUpload) {
+            // Check class, if no more images pending web images we'll queue up the upload job
+            $pendingWebImages = $photo->showClass->photos()->whereNull('web_image_generated_at')->count();
+
+            if ($pendingWebImages === 0) {
+                UploadWebImages::dispatch($photo->showClass->show->name, $photo->showClass->name);
+            }
+        }
+
+        return $result;
     }
 }

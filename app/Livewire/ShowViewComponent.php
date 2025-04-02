@@ -93,8 +93,6 @@ class ShowViewComponent extends Component
 
     public function processPendingImages(string $class_folder): void
     {
-        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        $show_class = new ShowClass($this->show->id, $class_folder, $pathResolver);
         ImportPhotos::dispatch($this->show->id, $class_folder)->onQueue('imports');
         $this->flash_message = $class_folder.' queued for import.';
         $this->check_proofs_uploaded = false;
@@ -105,6 +103,7 @@ class ShowViewComponent extends Component
         $this->check_proofs_uploaded = true;
     }
 
+    // TODO: To be replaced with a method in our new Show model
     public function uploadPendingProofs(string $show_folder): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
@@ -120,6 +119,7 @@ class ShowViewComponent extends Component
         }
     }
 
+    // TODO: To be replaced with a method in our new Show model
     public function uploadPendingProofsAndWebImages(): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
@@ -146,6 +146,7 @@ class ShowViewComponent extends Component
         $this->check_proofs_uploaded = false;
     }
 
+    // TODO: To be replaced with a method in our new ShowClass model
     public function regenerateProofs(string $class_folder): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
@@ -155,6 +156,7 @@ class ShowViewComponent extends Component
         $this->check_proofs_uploaded = false;
     }
 
+    // TODO: To be replaced with a method in our new ShowClass model
     public function regenerateWebImages(string $class_folder): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);

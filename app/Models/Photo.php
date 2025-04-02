@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use App\Services\PathResolver;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Intervention\Image\Laravel\Facades\Image;
-
 class Photo extends Model
 {
     protected $table = 'photos';
@@ -19,16 +19,27 @@ class Photo extends Model
         'updated_at',
     ];
 
+    protected $casts = [
+        'id' => 'string',
+        'show_class_id' => 'string',
+        'sha1' => 'string',
+        'file_type' => 'string',
+        'proofs_generated_at' => 'datetime',
+        'proofs_uploaded_at' => 'datetime',
+        'web_image_generated_at' => 'datetime',
+        'web_image_uploaded_at' => 'datetime',
+    ];
+
     // Model events
     protected static function boot()
     {
         parent::boot();
 
-        static::creating(function ($model) {
+        static::creating(function (Photo $model) {
             $model->id = (string) $model->show_class_id . '_' . $model->proof_number;
         });
 
-        static::created(function ($model) {
+        static::created(function (Photo $model) {
             // Check if we have a sha1 hash for this photo
             $file_contents = null;
             if (empty($model->sha1)) {
@@ -40,6 +51,34 @@ class Photo extends Model
             // Check if we have a metadata record for this photo
             if (empty($model->metadata)) {
                 $metadata = $model->createMetadataRecord($file_contents);
+            }
+
+            // Check if the proofs are already generated
+            $proofs_found = $model->checkPathForProofs();
+
+            // Check if the web image is already generated
+            $web_image_found = $model->checkPathForWebImage();
+        });
+
+        static::updating(function (Photo $model) {
+            // If our proofs_generated_at is changing to a non-null value we'll want to null out the proofs_uploaded_at
+            // if there is a value so that it'll be re-uploaded
+            if ($model->isDirty('proofs_generated_at') && $model->proofs_generated_at !== null) {
+                // If proofs_generated_at is _before_ proofs_uploaded_at, we don't need to null the proofs_uploaded_at
+                // value because we're probably back-setting a value from a previously generated file found in the directory
+                if ($model->proofs_uploaded_at !== null && $model->proofs_generated_at > $model->proofs_uploaded_at) {
+                    $model->proofs_uploaded_at = null;
+                }
+            }
+
+            // If our web_image_generated_at is changing to a non-null value we'll want to null out the web_image_uploaded_at
+            // if there is a value so that it'll be re-uploaded
+            if ($model->isDirty('web_image_generated_at') && $model->web_image_generated_at !== null) {
+                // If web_image_generated_at is _before_ web_image_uploaded_at, we don't need to null the web_image_uploaded_at
+                // value because we're probably back-setting a value from a previously generated file found in the directory
+                if ($model->web_image_uploaded_at !== null && $model->web_image_generated_at > $model->web_image_uploaded_at) {
+                    $model->web_image_uploaded_at = null;
+                }
             }
         });
     }
@@ -71,7 +110,7 @@ class Photo extends Model
 
     public function getRelativePathAttribute(): string
     {
-        return str_replace('_', '/', $this->show_class_id).'/originals/' . $this->proof_number.'.'.$this->file_type;
+        return str_replace('_', '/', $this->show_class_id) . '/originals/' . $this->proof_number . '.' . $this->file_type;
     }
 
     public function showClass(): BelongsTo
@@ -87,5 +126,96 @@ class Photo extends Model
     public function getFileContents(): ?string
     {
         return file_get_contents($this->full_path);
+    }
+
+    public function expectedThumbnailFilenames()
+    {
+        $thumbnails = [];
+        foreach (config('proofgen.thumbnails') as $size => $values) {
+            $suffix = $values['suffix'];
+            $expected_filename = $this->proof_number . $suffix . '.' . $this->file_type;
+            $thumbnails[] = $expected_filename;
+        }
+
+        return $thumbnails;
+    }
+
+    public function deleteLocalProofs(): void
+    {
+        $path_resolver = app(PathResolver::class);
+        $proofs_path = $path_resolver->getProofsPath($this->showClass->show->name, $this->showClass->name);
+        $proofs_path = config('proofgen.fullsize_home_dir') . '/' . $path_resolver->normalizePath($proofs_path);
+
+        foreach($this->expectedThumbnailFilenames() as $filename) {
+            $expected_proof_path = $proofs_path . '/' . $filename;
+            if (file_exists($expected_proof_path)) {
+                \Log::debug('Deleting proof: ' . $expected_proof_path);
+                unlink($expected_proof_path);
+            }
+        }
+
+        $check = $this->checkPathForProofs();
+        if( ! $check) {
+            $this->proofs_generated_at = null;
+            $this->save();
+        }
+    }
+
+    public function checkPathForWebImage(): bool
+    {
+        $path_resolver = app(PathResolver::class);
+        $web_images_path = $path_resolver->getWebImagesPath($this->showClass->show->name, $this->showClass->name);
+        $web_images_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($web_images_path);
+
+        $expected_filename = $this->proof_number.'_web.'.$this->file_type;
+        $expected_web_image_path = $web_images_path.'/'.$expected_filename;
+
+        if (file_exists($expected_web_image_path)) {
+
+            if($this->web_image_generated_at === null) {
+                $this->web_image_generated_at = Carbon::createFromTimestamp(filemtime($expected_web_image_path));
+                $this->save();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function checkPathForProofs(): false|array
+    {
+        $path_resolver = app(PathResolver::class);
+        $proofs_path = $path_resolver->getProofsPath($this->showClass->show->name, $this->showClass->name);
+        $proofs_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($proofs_path);
+
+        $proofs_found = [];
+        $expected_proof_count = count(config('proofgen.thumbnails'));
+        foreach(config('proofgen.thumbnails') as $size => $values) {
+            $suffix = $values['suffix'];
+            $expected_filename = $this->proof_number.$suffix.'.'.$this->file_type;
+            $expected_proof_path = $proofs_path.'/'.$expected_filename;
+
+            // Determine if the $expected_proof_path exists, if so, determine the modified time using native php functions
+            // and compare it to the modified time of the original file
+            if (file_exists($expected_proof_path)) {
+                $proof_modified_time = filemtime($expected_proof_path);
+                $proofs_found[$expected_proof_path] = $proof_modified_time;
+            }
+        }
+
+        if($expected_proof_count === count($proofs_found)) {
+            if($this->proofs_generated_at === null) {
+                \Log::debug('Making proofs_generated_at for photo: '.$this->id.' from '.$proofs_found[array_key_first($proofs_found)]);
+                $this->proofs_generated_at = Carbon::createFromTimestamp($proofs_found[array_key_first($proofs_found)]);
+                $this->save();
+            }
+        }
+
+        if(count($proofs_found) === 0) {
+            return false;
+        }
+
+        return $proofs_found;
     }
 }

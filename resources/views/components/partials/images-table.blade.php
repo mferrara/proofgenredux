@@ -86,7 +86,7 @@
                                     wire:click="proofImage('{{ $image_path }}')"
                                     size="xs"
                                 >
-                                    Proof
+                                    Proof (REMOVE THIS)
                                 </flux:button>
                             @endif
                             @if(is_array($actions) && in_array('import', $actions))
@@ -94,27 +94,16 @@
                                     wire:click="processImage('{{ $image_path }}')"
                                     size="xs"
                                 >
-                                    Import
+                                    Import (REMOVE THIS)
                                 </flux:button>
                             @endif
                         </div>
                     </td>
                 @endif
                 @if(isset($details) && $details)
-                    @php
-                    $image_obj = new \App\Proofgen\Image($image_path);
-                    $image_obj->checkForProofs();
-                    @endphp
                     <td>
                         <div class="flex flex-row justify-center items-center gap-x-2">
-                            @if($image_obj->is_original && ! $image_obj->is_proofed)
-                                <flux:badge variant="solid" color="sky" size="sm">Imported</flux:badge>
-                            @endif
-                            @if($image_obj->is_proofed)
-                                <flux:badge variant="solid" color="green" size="sm">Proofed</flux:badge>
-                            @else
-                                <flux:badge variant="solid" color="amber" size="sm">Not Proofed</flux:badge>
-                            @endif
+
                         </div>
                     </td>
                 @endif

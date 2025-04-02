@@ -5,12 +5,14 @@ namespace App\Livewire;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\ShowClass\UploadProofs;
+use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Photo;
 use App\Models\Show;
 use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
+use App\Services\PhotoService;
 use Flux\Flux;
 use Illuminate\Support\Facades\Log;
 use League\Flysystem\FileAttributes;
@@ -31,10 +33,12 @@ class ClassViewComponent extends Component
     public string $proofs_path = '';
     public string $web_images_path = '';
     public string $flash_message = '';
-    public bool $check_proofs_uploaded = false;
+    public bool $local_web_image_sync_performed = false;
+    public bool $local_proofs_sync_performed = false;
+    public bool $show_delete = false;
     protected PathResolver $pathResolver;
 
-    public function mount(PathResolver $pathResolver)
+    public function mount(PathResolver $pathResolver): void
     {
         $this->pathResolver = $pathResolver;
         $this->fullsize_base_path = config('proofgen.fullsize_home_dir');
@@ -44,50 +48,71 @@ class ClassViewComponent extends Component
         $this->web_images_path = $this->pathResolver->getWebImagesPath($this->show, $this->class);
     }
 
-    public function boot()
+    public function boot(): void
     {
         $this->showModel = Show::find($this->show);
-        $this->showClass = \App\Models\ShowClass::find($this->show.'_'.$this->class);
+        $this->loadShowClass();
+    }
+
+    public function loadShowClass(): void
+    {
+        $this->showClass = \App\Models\ShowClass::with('photos')->find($this->show.'_'.$this->class);
+        if( ! $this->local_web_image_sync_performed) {
+            $this->showClass->localWebImageSync();
+            $this->local_web_image_sync_performed = true;
+        }
+        if( ! $this->local_proofs_sync_performed) {
+            $this->showClass->localProofsSync();
+            $this->local_proofs_sync_performed = true;
+        }
     }
 
     public function render()
     {
-        // Get PathResolver instance on each render for Livewire polling
-        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $pre_existing_photos_imported = $this->showClass->importExistingPhotosFromOriginalsDirectory();
 
-        $this->working_full_path = $pathResolver->getAbsolutePath($this->working_path, $this->fullsize_base_path);
-
-        $current_path_contents = Utility::getContentsOfPath($this->working_path, false);
-        $current_path_directories = Utility::getDirectoriesOfPath($this->working_path);
-
-        $show_class = new ShowClass($this->show, $this->class, $pathResolver);
-        $images_pending_processing = $show_class->getImagesPendingProcessing();
-        $images_pending_proofing = $show_class->getImagesPendingProofing();
-        $images_pending_upload = [];
-        if($this->check_proofs_uploaded)
-            $images_pending_upload = $show_class->pendingProofUploads();
-        $web_images_pending_upload = [];
-        if($this->check_proofs_uploaded)
-            $web_images_pending_upload = $show_class->pendingWebImageUploads();
-        $images_imported = $show_class->getImportedImages();
-
-        // Loop through imported images ensuring we have database records for them
-        foreach($images_imported as $image) {
-            /** @var FileAttributes $image */
-            $file_path = $image->path();
-            $photo = $this->showClass->importPhotoFromPath($file_path);
+        // If we imported any photos, we need to load the show class again
+        if($pre_existing_photos_imported > 0) {
+            $this->loadShowClass();
         }
 
+        $photos_pending_import = $this->showClass->getImagesPendingImport();
+
+        $counts = $this->showClass->processingCounts();
+
+        $photos_imported = $counts['photos_imported'];
+        $photos_proofed = $counts['photos_proofed'];
+        $photos_pending_proofs = $counts['photos_pending_proofs'];
+        $photos_proofs_uploaded = $counts['photos_proofs_uploaded'];
+        $photos_pending_proof_uploads = $counts['photos_pending_proof_uploads'];
+        $photos_web_images_generated = $counts['photos_web_images_generated'];
+        $photos_pending_web_images = $counts['photos_pending_web_images'];
+        $photos_web_images_uploaded = $counts['photos_web_images_uploaded'];
+        $photos_pending_web_image_uploads = $counts['photos_pending_web_image_uploads'];
+
         return view('livewire.class-view-component')
+            ->with('show', $this->showModel)
+            ->with('show_class', $this->showClass)
             ->with('photos', $this->showClass->photos()->with('metadata')->get())
-            ->with('current_path_contents', $current_path_contents)
-            ->with('current_path_directories', $current_path_directories)
-            ->with('images_pending_processing', $images_pending_processing)
-            ->with('images_pending_proofing', $images_pending_proofing)
-            ->with('images_pending_upload', $images_pending_upload)
-            ->with('web_images_pending_upload', $web_images_pending_upload)
-            ->with('images_imported', $images_imported)
+            ->with('photos_pending_import', $photos_pending_import)
+            ->with('photos_imported', $photos_imported)
+            ->with('photos_proofed', $photos_proofed)
+            ->with('photos_pending_proofs', $photos_pending_proofs)
+            ->with('photos_proofs_uploaded', $photos_proofs_uploaded)
+            ->with('photos_pending_proof_uploads', $photos_pending_proof_uploads)
+            ->with('photos_web_images_generated', $photos_web_images_generated)
+            ->with('photos_pending_web_images', $photos_pending_web_images)
+            ->with('photos_web_images_uploaded', $photos_web_images_uploaded)
+            ->with('photos_pending_web_image_uploads', $photos_pending_web_image_uploads)
             ->title($this->show.' '.$this->class.' - Proofgen');
+    }
+
+    public function checkProofAndWebImageUploads(): void
+    {
+        $images_pending_upload = $this->showClass->pendingProofUploads();
+        // Log::debug('Images pending proof uploads', ['images_pending_upload' => $images_pending_upload]);
+        $web_images_pending_upload = $this->showClass->pendingWebImageUploads();
+        // Log::debug('Images pending web image uploads', ['web_images_pending_upload' => $web_images_pending_upload]);
     }
 
     public function fixMissingMetadataOnPhoto(string $photo_id): void
@@ -116,18 +141,12 @@ class ClassViewComponent extends Component
         }
     }
 
-    public function checkProofsUploaded(): void
-    {
-        $this->check_proofs_uploaded = true;
-    }
-
-    public function processPendingImages(): void
+    public function importPendingImages(): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
         $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $count = $show_class->processPendingImages();
         $this->flash_message = $count.' Images queued for import.';
-        $this->check_proofs_uploaded = false;
     }
 
     public function processImage($image_path): void
@@ -136,72 +155,184 @@ class ClassViewComponent extends Component
         $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $show_class->processImage($image_path);
         $this->flash_message = $image_path.' Processed.';
-        $this->check_proofs_uploaded = false;
     }
 
-    public function proofPendingImages(): void
+    public function proofPendingPhotos(): void
     {
-        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        $show_class = new ShowClass($this->show, $this->class, $pathResolver);
-        $count = $show_class->proofPendingImages();
-        $this->flash_message = $count.' Images proofed.';
-        $this->check_proofs_uploaded = false;
+        $count = $this->showClass->proofPendingPhotos();
+        $this->flash_message = $count.' Photos queued.';
     }
 
-    public function proofImage($image_path): void
+    public function webImagePendingPhotos(): void
     {
-        ini_set('memory_limit', '4096M');
+        $count = $this->showClass->webImagePendingPhotos();
+        $this->flash_message = $count.' Photos queued.';
+    }
+
+    public function proofPhoto(string $photo_id): void
+    {
+        $photo = $this->showClass->photos()->where('id', $photo_id)->first();
+        if( ! $photo) {
+            $this->flash_message = 'Photo not found';
+            return;
+        }
+
+        GenerateThumbnails::dispatch($photo->id, $photo->proofs_path)->onQueue('thumbnails');
+
+        Flux::toast(
+            text: 'Proofs queued for '.$photo->proof_number,
+            heading: 'Info',
+            variant: 'success',
+            position: 'top right'
+        );
+    }
+
+    public function generateWebImage(string $photo_id): void
+    {
+        $photo = $this->showClass->photos()->where('id', $photo_id)->first();
+        if( ! $photo) {
+            $this->flash_message = 'Photo not found';
+            return;
+        }
 
         // Get PathResolver instance for this request
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-
-        // Get fresh paths based on the current PathResolver instance
-        $proofs_path = $pathResolver->getProofsPath($this->show, $this->class);
-        $web_images_path = $pathResolver->getWebImagesPath($this->show, $this->class);
-
-        GenerateThumbnails::dispatch($image_path, $proofs_path)->onQueue('thumbnails');
-        GenerateWebImage::dispatch($image_path, $web_images_path)->onQueue('thumbnails');
-        $this->flash_message = $image_path.' Proofs queued.';
-        $this->check_proofs_uploaded = false;
+        $web_images_path = $pathResolver->getWebImagesPath($this->showModel->name, $this->showClass->name);
+        $photoService = app(PhotoService::class);
+        try{
+            $web_image_path = $photoService->generateWebImage($photo->id, $web_images_path);
+            Log::debug('Generated web image: '.$web_image_path);
+            if($web_image_path) {
+                $photo->web_image_generated_at = now();
+                $photo->save();
+                Flux::toast(
+                    text: 'Web image generated: '.$photo->proof_number,
+                    heading: 'Info',
+                    variant: 'success',
+                    position: 'top right'
+                );
+            } else {
+                Flux::toast(
+                    text: 'Web image generation failed',
+                    heading: 'Error',
+                    variant: 'error',
+                    position: 'top right'
+                );
+            }
+        } catch (\Exception $e) {
+            Log::error('Error generating web image: '.$e->getMessage());
+            $this->flash_message = 'Error generating web image: '.$e->getMessage();
+            return;
+        }
     }
 
     public function regenerateProofs(): void
     {
-        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        $show_class = new ShowClass($this->show, $this->class, $pathResolver);
-        $show_class->regenerateProofs();
-        $this->flash_message = 'Queued';
-        $this->check_proofs_uploaded = false;
+        $photos_queued = $this->showClass->regenerateProofs();
+
+        Flux::toast(
+            text: number_format($photos_queued).' photos queued to regenerate proofs for '.$this->show.' '.$this->class,
+            heading: 'Info',
+            variant: 'success',
+            position: 'top right'
+        );
     }
 
     public function uploadPendingProofsAndWebImages(): void
     {
-        UploadProofs::dispatch($this->show, $this->class);
+        // Photos pending proof uploads
+        $photos_proofed_not_uploaded = $this->showClass->photosProofedNotUploaded()->get();
+        Log::debug('uploadPendingProofsAndWebImages() '.$photos_proofed_not_uploaded->count().' photos proofed not uploaded');
+        $photos_queued_for_upload = 0;
+        if($photos_proofed_not_uploaded->count()) {
+            Log::debug('Queuing proofs for upload');
+            UploadProofs::dispatch($this->show, $this->class);
+            $photos_queued_for_upload = $photos_proofed_not_uploaded->count();
+        }
 
-        $this->flash_message = 'Queued';
+        // Photos pending web image uploads
+        $photos_web_images_not_uploaded = $this->showClass->photosWebImagedNotUploaded()->get();
+        Log::debug('uploadPendingProofsAndWebImages() '.$photos_web_images_not_uploaded->count().' photos web images not uploaded');
+        $web_images_queued_for_upload = 0;
+        if($photos_web_images_not_uploaded->count()) {
+            Log::debug('Queuing web images for upload');
+            UploadWebImages::dispatch($this->show, $this->class);
+            $web_images_queued_for_upload += $photos_web_images_not_uploaded->count();
+        }
 
-        $this->check_proofs_uploaded = false;
-    }
-
-    public function getImagesOfPath($path): array
-    {
-        $files = Utility::getFiles($path);
-        $images = [];
-        foreach ($files as $file) {
-            // If it's a hidden file we'll ignore it
-            $filename = explode('/', $file);
-            $filename = array_pop($filename);
-            if (str_starts_with($filename, '.')) {
-                continue;
+        $message = '';
+        if($photos_queued_for_upload + $web_images_queued_for_upload === 0) {
+            $message = 'Nothing to upload.';
+        } else {
+            $both = false;
+            if($photos_queued_for_upload > 0 && $web_images_queued_for_upload > 0) {
+                $both = true;
             }
 
-            foreach(['jpg', 'jpeg'] as $ext) {
-                if (str_contains(strtolower($file), $ext)) {
-                    $images[] = $file;
-                }
+            if($photos_queued_for_upload > 0 && $both) {
+                $message = $photos_queued_for_upload.' Photos and ';
+            } elseif($photos_queued_for_upload > 0) {
+                $message = $photos_queued_for_upload.' Photos queued for upload.';
+            }
+
+            if($web_images_queued_for_upload > 0 && $both) {
+                $message .= $web_images_queued_for_upload.' Web Images queued for upload.';
+            } elseif($web_images_queued_for_upload > 0) {
+                $message .= $web_images_queued_for_upload.' Web Images queued for upload.';
             }
         }
-        return $images;
+
+        Flux::toast(
+            text: $message,
+            heading: 'Info',
+            variant: 'success',
+            position: 'top right'
+        );
+    }
+
+    public function deletePhotoRecord(string $photo_id): void
+    {
+        $photo = $this->showClass->photos()->where('id', $photo_id)->first();
+        if($photo) {
+            $photo->delete();
+
+            Flux::toast(
+                text: 'Photo record deleted',
+                heading: 'Info',
+                variant: 'success',
+                position: 'top right'
+            );
+        }
+        else {
+            Flux::toast(
+                text: 'Photo record not found with photo_id: '.$photo_id,
+                heading: 'Error',
+                variant: 'error',
+                position: 'top right'
+            );
+        }
+    }
+
+    public function deleteLocalProofs(string $photo_id): void
+    {
+        $photo = $this->showClass->photos()->where('id', $photo_id)->first();
+        if($photo) {
+            $photo->deleteLocalProofs();
+            Flux::toast(
+                text: 'Local proofs deleted',
+                heading: 'Info',
+                variant: 'success',
+                position: 'top right'
+            );
+        }
+        else {
+            Flux::toast(
+                text: 'Photo record not found with photo_id: '.$photo_id,
+                heading: 'Error',
+                variant: 'error',
+                position: 'top right'
+            );
+        }
     }
 
     public function humanReadableFilesize($bytes): string

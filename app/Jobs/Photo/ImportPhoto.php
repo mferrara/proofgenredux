@@ -28,10 +28,11 @@ class ImportPhoto implements ShouldQueue
 
     /**
      * Execute the job.
+     * @throws \Exception
      */
     public function handle(): void
     {
         $photoService = app(PhotoService::class);
-        $photoService->processPhoto($this->image_path, $this->proof_number, false, true);
+        $photoService->processPhoto($this->image_path, $this->proof_number, false);
     }
 }

@@ -65,158 +65,6 @@ class ShowClass
     }
 
     /**
-     * Perform the rsync command to upload proofs to the remote server
-     *
-     * @return array
-     */
-    public function uploadPendingProofs(): array
-    {
-        if( ! Storage::disk('remote_proofs')->exists($this->remote_proofs_path))
-            Storage::disk('remote_proofs')->makeDirectory($this->remote_proofs_path);
-
-        $command = $this->rsyncProofsCommand();
-        exec($command, $output, $returnCode);
-
-        $uploaded_proofs = [];
-
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if(str_starts_with(strtolower($line), '.')
-                || str_ends_with(strtolower($line), '/')
-                || str_starts_with(strtolower($line), 'deleting')
-            )
-                continue;
-
-            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (!empty($fileName) && strpos($fileName, '.') !== false) {
-                    $uploaded_proofs[] = $this->pathResolver->normalizePath($this->proofs_path.'/'.$fileName);
-                }
-            }
-        }
-
-        return $uploaded_proofs;
-    }
-
-    /**
-     * Perform a dry run of the rsync command to determine what files need to be uploaded
-     *
-     * @return array
-     */
-    public function pendingProofUploads(): array
-    {
-        if( ! Storage::disk('remote_proofs')->exists($this->remote_proofs_path)) {
-            Storage::disk('remote_proofs')->makeDirectory($this->remote_proofs_path);
-        }
-
-        // Run a dry run of the rsync to determine what files need to be uploaded
-        $command = $this->rsyncProofsCommand(true);
-        exec($command, $output, $returnCode);
-
-        $pending_proofs = [];
-
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if(str_starts_with(strtolower($line), '.')
-                || str_ends_with(strtolower($line), '/')
-                || str_starts_with(strtolower($line), 'deleting')
-            )
-                continue;
-
-            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (!empty($fileName) && strpos($fileName, '.') !== false) {
-                    $pending_proofs[] = $this->pathResolver->normalizePath($this->proofs_path.'/'.$fileName);
-                }
-            }
-        }
-
-        return $pending_proofs;
-    }
-
-    /**
-     * Perform a dry run of the rsync command to determine what files need to be uploaded
-     *
-     * @return array
-     */
-    public function pendingWebImageUploads(): array
-    {
-        if( ! Storage::disk('remote_web_images')->exists($this->remote_web_images_path))
-            Storage::disk('remote_web_images')->makeDirectory($this->remote_web_images_path);
-
-        // Run a dry run of the rsync to determine what files need to be uploaded
-        $command = $this->rsyncWebImagesCommand(true);
-        exec($command, $output, $returnCode);
-
-        $pending_web_images = [];
-
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if(str_starts_with(strtolower($line), '.')
-                || str_ends_with(strtolower($line), '/')
-                || str_starts_with(strtolower($line), 'deleting')
-            )
-                continue;
-
-            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (!empty($fileName) && strpos($fileName, '.') !== false) {
-                    $pending_web_images[] = $this->pathResolver->normalizePath($this->web_images_path.'/'.$fileName);
-                }
-            }
-        }
-
-        return $pending_web_images;
-    }
-
-    /**
-     * Perform the rsync command to upload web images to the remote server
-     *
-     * @return array
-     */
-    public function uploadPendingWebImages(): array
-    {
-        // Confirm show directory exists in web_images
-        if( ! Storage::disk('remote_web_images')->exists($this->remote_web_images_path))
-            Storage::disk('remote_web_images')->makeDirectory($this->remote_web_images_path);
-
-        $command = $this->rsyncWebImagesCommand();
-        exec($command, $output, $returnCode);
-
-        $uploaded_web_images = [];
-
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if(str_starts_with(strtolower($line), '.')
-                || str_ends_with(strtolower($line), '/')
-                || str_starts_with(strtolower($line), 'deleting')
-            )
-                continue;
-
-            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (!empty($fileName) && strpos($fileName, '.') !== false) {
-                    $uploaded_web_images[] = $this->pathResolver->normalizePath($this->web_images_path.'/'.$fileName);
-                }
-            }
-        }
-
-        return $uploaded_web_images;
-    }
-
-    /**
      * Get the images that have been imported/are inside the originals directory
      *
      * @return array
@@ -347,8 +195,7 @@ class ShowClass
         $proofed = 0;
         if($images) {
             foreach($images as $image) {
-                $image_path = $image->path();
-                GenerateThumbnails::dispatch($image_path, $this->proofs_path)->onQueue('thumbnails');
+                GenerateThumbnails::dispatch($this->show_folder.'_'.$this->class_folder, $this->proofs_path)->onQueue('thumbnails');
                 $proofed++;
             }
         }
@@ -369,28 +216,6 @@ class ShowClass
         if($images) {
             foreach($images as $image) {
                 $image_path = $image->path();
-                GenerateWebImage::dispatch($image_path, $this->web_images_path)->onQueue('thumbnails');
-                $proofed++;
-            }
-        }
-
-        return $proofed;
-    }
-
-    /**
-     * Proof all images that are in the originals directory but not in the proofs directory
-     *
-     * @return int
-     */
-    public function proofPendingImages(): int
-    {
-        $images = $this->getImagesPendingProofing();
-
-        $proofed = 0;
-        if($images) {
-            foreach($images as $image) {
-                $image_path = $image->path();
-                GenerateThumbnails::dispatch($image_path, $this->proofs_path)->onQueue('thumbnails');
                 GenerateWebImage::dispatch($image_path, $this->web_images_path)->onQueue('thumbnails');
                 $proofed++;
             }

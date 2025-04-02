@@ -12,7 +12,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class UploadProofs implements ShouldQueue
+class UploadWebImages implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -35,17 +35,17 @@ class UploadProofs implements ShouldQueue
     public function handle(): void
     {
         $showClass = \App\Models\ShowClass::find($this->show.'_'.$this->class);
-        $uploaded = $showClass->proofUploads();
-        if(count($uploaded)) {
-            Log::info('Uploaded '.count($uploaded).' proofs for '.$this->show.' '.$this->class);
+        $web_uploaded = $showClass->webImageUploads();
+        if(count($web_uploaded)) {
+            Log::info('Uploaded '.count($web_uploaded).' web images for '.$this->show.' '.$this->class);
         } else {
-            Log::info('No proofs to upload for '.$this->show.' '.$this->class);
+            Log::info('No web images to upload for '.$this->show.' '.$this->class);
         }
     }
 
     public function failed(?Throwable $exception): void
     {
-        Log::debug('UploadProofs failed for '.$this->show.' -> '.$this->class);
-        Log::debug('UploadProofs failed: '.$exception->getMessage().' in '.$exception->getFile().':'.$exception->getLine());
+        Log::debug('UploadWebImages failed for '.$this->show.' -> '.$this->class);
+        Log::debug('UploadWebImages failed: '.$exception->getMessage().' in '.$exception->getFile().':'.$exception->getLine());
     }
 }

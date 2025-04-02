@@ -6,7 +6,7 @@
                 <th>Proof Number</th>
                 <th class="text-right pr-1">Metadata</th>
                 <th class="text-right pr-1">Timestamps</th>
-                @if(is_array($actions) && count($actions) > 0)
+                @if(is_array($actions) && count($actions) > 0 && ( ! in_array('deletePhotoRecord', $actions) || (isset($show_delete) && $show_delete)))
                     <th class="text-right pr-1">Actions</th>
                 @endif
                 @if(isset($details) && $details)
@@ -24,7 +24,8 @@
                 $modified = $photo->updated_at;
                 $shot_at = $photo->metadata?->exif_timestamp;
                 $thumbnail_path = '';
-                if(isset($display_thumbnail) && $display_thumbnail) {
+                $thumbnail_base64 = null;
+                if(isset($display_thumbnail) && $display_thumbnail && $photo->proofs_generated_at) {
                     $display_thumbnail = true;
                     $thumbnail_path = $image_path;
                     $thumbnail_path = str_replace('originals/', '', $thumbnail_path);
@@ -42,6 +43,7 @@
                             $thumbnail_base64 = 'data:image/jpeg;base64,'.base64_encode($thumbnail_base64);
                             $valid_thumbnail = true;
                         }catch(\Exception $e) {
+                            Log::debug('Error with thumbnail: '.$e->getMessage());
                             $display_thumbnail = false;
                         }
 
@@ -51,17 +53,17 @@
                         }
                     }
                 } else {
-                    $display_thumbnail = false;
+                    $thumbnail_base64 = null;
                 }
             @endphp
             <tr wire:key="{{ 'image-row-'.$photo->id }}" class="@if( ! $photo->metadata) bg-red-800/40 @endif">
                 <td>
-                    @if(isset($display_thumbnail) && $display_thumbnail)
-                        <div class="p-1">
-                            <img src="{{ $thumbnail_base64 }}" alt="{{ $filename }}" class="rounded size-24 object-cover">
+                    @if(isset($display_thumbnail) && $display_thumbnail && $thumbnail_base64 !== null)
+                        <div class="p-1 w-48">
+                            <img src="{{ $thumbnail_base64 }}" alt="{{ $filename }}" class="rounded size-44 object-cover">
                         </div>
                     @else
-                        <flux:icon name="photo" variant="outline" class="text-gray-400" />
+                        <flux:icon name="photo" variant="outline" class="text-gray-400 size-32 mx-auto" />
                     @endif
                 </td>
                 <td>
@@ -173,53 +175,111 @@
                     <div class="flex flex-col gap-y-1 text-gray-500 text-xs">
                         @if($shot_at)
                             <div class="text-gray-400">
-                                Created: {{ $photo->metadata->exif_timestamp->format('m/d/Y H:i:s') }}
+                                Photo Taken: {{ $photo->metadata->exif_timestamp->format('m/d/Y H:i:s') }}
                             </div>
                         @endif
                         <div>
                             Imported: {{ $photo->created_at->format('m/d/Y H:i:s') }}
                         </div>
                         <div>
-                            Modified: {{ $photo->updated_at->format('m/d/Y H:i:s') }}
+                            @if( ! str_contains($photo->full_path, '.jpg'))
+                                No ext on file
+                            @else
+                                Modified: {{ \Carbon\Carbon::createFromTimestamp(filemtime($photo->full_path))->format('m/d/Y H:i:s') }}
+                            @endif
                         </div>
+                        @if($photo->proofs_generated_at)
+                            <div>
+                                Proofs: {{ $photo->proofs_generated_at->format('m/d/Y H:i:s') }}
+                            </div>
+                        @endif
+                        @if($photo->proofs_uploaded_at)
+                            <div>
+                                Proofs Uploaded: {{ $photo->proofs_uploaded_at->format('m/d/Y H:i:s') }}
+                            </div>
+                        @endif
+                        @if($photo->web_image_generated_at)
+                            <div>
+                                Web: {{ $photo->web_image_generated_at->format('m/d/Y H:i:s') }}
+                            </div>
+                        @endif
+                        @if($photo->web_image_uploaded_at)
+                            <div>
+                                Web Uploaded: {{ $photo->web_image_uploaded_at->format('m/d/Y H:i:s') }}
+                            </div>
+                        @endif
                     </div>
                 </td>
-                @if(is_array($actions) && count($actions) > 0)
+                @if(is_array($actions) && count($actions) > 0 && ( ! in_array('deletePhotoRecord', $actions) || (isset($show_delete) && $show_delete)))
                     <td class="text-right pr-1">
-                        <div class="my-0.5">
-                            @if(is_array($actions) && in_array('proof', $actions))
-                                <flux:button
-                                    wire:click="proofImage('{{ $image_path }}')"
-                                    size="xs"
-                                >
-                                    Proof
-                                </flux:button>
+                        <div class="my-0.5 grid grid-cols-1 gap-1">
+                            @if(is_array($actions) && in_array('deletePhotoRecord', $actions) && (isset($show_delete) && $show_delete))
+                                <div>
+                                    <flux:button
+                                        variant="danger"
+                                        wire:click="deletePhotoRecord('{{ $photo->id }}')"
+                                        size="xs"
+                                    >
+                                        Delete
+                                    </flux:button>
+                                </div>
                             @endif
-                            @if(is_array($actions) && in_array('import', $actions))
-                                <flux:button
-                                    wire:click="processImage('{{ $image_path }}')"
-                                    size="xs"
-                                >
-                                    Import
-                                </flux:button>
+                            @if(is_array($actions) && in_array('deleteLocalProofs', $actions) && (isset($show_delete) && $show_delete))
+                                <div>
+                                    <flux:button
+                                        variant="danger"
+                                        wire:click="deleteLocalProofs('{{ $photo->id }}')"
+                                        size="xs"
+                                    >
+                                        Delete Proofs
+                                    </flux:button>
+                                </div>
                             @endif
                         </div>
                     </td>
                 @endif
                 @if(isset($details) && $details)
-                    @php
-                    $image_obj = new \App\Proofgen\Image($image_path);
-                    $image_obj->checkForProofs();
-                    @endphp
                     <td>
-                        <div class="flex flex-row justify-center items-center gap-x-2">
-                            @if($image_obj->is_original && ! $image_obj->is_proofed)
-                                <flux:badge variant="solid" color="sky" size="sm">Imported</flux:badge>
-                            @endif
-                            @if($image_obj->is_proofed)
-                                <flux:badge variant="solid" color="green" size="sm">Proofed</flux:badge>
+                        <div class="flex flex-col justify-center items-center gap-y-1">
+                            @if($photo->proofs_generated_at)
+                                @if($photo->proofs_uploaded_at)
+                                    <flux:badge color="emerald" size="sm">Proofs</flux:badge>
+                                @else
+                                    <flux:badge color="yellow" size="sm">Proofs Not Uploaded</flux:badge>
+                                @endif
                             @else
-                                <flux:badge variant="solid" color="amber" size="sm">Not Proofed</flux:badge>
+                                <div class="flex flex-row items-center justify-start gap-x-1">
+                                    <flux:badge color="rose" size="sm">No Proofs</flux:badge>
+                                    <flux:button
+                                        wire:click="proofPhoto('{{ $photo->id }}')"
+                                        size="xs"
+                                        class="!px-0 hover:cursor-pointer"
+                                    >
+                                        <flux:badge color="cyan" size="sm">
+                                            <flux:icon.play variant="micro"/>
+                                        </flux:badge>
+                                    </flux:button>
+                                </div>
+                            @endif
+                            @if($photo->web_image_generated_at)
+                                @if($photo->web_image_uploaded_at)
+                                    <flux:badge color="emerald" size="sm">Web Image</flux:badge>
+                                @else
+                                    <flux:badge color="yellow" size="sm">Web Not Uploaded</flux:badge>
+                                @endif
+                            @else
+                                <div class="flex flex-row items-center justify-start gap-x-1">
+                                    <flux:badge color="rose" size="sm">No Web</flux:badge>
+                                    <flux:button
+                                        wire:click="generateWebImage('{{ $photo->id }}')"
+                                        size="xs"
+                                        class="!px-0 hover:cursor-pointer"
+                                    >
+                                        <flux:badge color="cyan" size="sm">
+                                            <flux:icon.play variant="micro"/>
+                                        </flux:badge>
+                                    </flux:button>
+                                </div>
                             @endif
                         </div>
                     </td>

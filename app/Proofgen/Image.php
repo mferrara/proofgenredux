@@ -89,12 +89,13 @@ class Image
         return true;
     }
 
-    public function processImage(string $proof_number, bool $debug = false): string
+    public function processImage(string $proof_number, bool $debug = false): Photo
     {
         // First we'll get the image from the directory
         $image = Storage::disk('fullsize')->get($this->image_path);
 
         $original_filename = $this->filename;
+        $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
         $path_to_originals_file = $this->pathResolver->getOriginalFilePath($this->show, $this->class, $this->filename);
         $path_to_originals_file = $this->pathResolver->normalizePath($path_to_originals_file);
 
@@ -115,9 +116,7 @@ class Image
 
         // If we're configured to rename files we'll handle that now
         if($this->rename_files) {
-            // First, get the extension from the file
-            $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
-            // Next, generate the new filename
+            // Generate the new filename
             $new_filename = $proof_number.'.'.$extension;
 
             // Use PathResolver for path construction
@@ -195,26 +194,25 @@ class Image
         }
 
         // If we've made it all the way here let's create the Photo record
-        $photo = self::importPhoto($proof_number, $this->show, $this->class);
-
-        return $path_to_originals_file;
+        return self::importPhoto($proof_number, $extension, $this->show, $this->class);
     }
 
-    public static function importPhoto(string $proof_number, string $show_id, string $show_class_id)
+    public static function importPhoto(string $proof_number, string $file_type, string $show_id, string $show_class_id): Photo
     {
         $photo = Photo::find($proof_number);
         if( ! $photo) {
             // If the image doesn't exist, create it
-            $photo = Photo::create([
-                'show_class_id' => $show_id.'_'.$show_class_id,
-                'proof_number' => $proof_number,
-            ]);
+            $photo = new Photo();
+            $photo->show_class_id = $show_id.'_'.$show_class_id;
+            $photo->proof_number = $proof_number;
+            $photo->file_type = $file_type;
+            $photo->save();
         }
 
         return $photo;
     }
 
-    public static function createWebImage($full_size_image_path, $web_dest_path): array|string
+    public static function createWebImage($full_size_image_path, $web_dest_path): string
     {
         // Get PathResolver from the container
         $pathResolver = app(PathResolver::class);
@@ -239,6 +237,9 @@ class Image
         // TODO: The previous version of proofgen used an Intervention/Image method "orientate" to auto-rotate images
         // TODO: based on their exif data. That method is gone, not sure if it's automatically done or just not supported
         // TODO: anymore. We'll see if it causes problems.
+        // TODO: (3/30/2025) - Turns out, we know how this works now - the 'orientation' value in the exif data
+        // determines if the image is rotated or not. 1 = normal, 3 = 180 degrees, 6 = 90 degrees, 8 = 270 degrees
+        // But since we haven't had to change anything here this is likely handled automatically.
         // $image = $manager->read($full_size_image_path)->orientate();
         $image = $manager->read($full_system_path);
         $web_suf = config('proofgen.web_images.suffix');
@@ -246,7 +247,7 @@ class Image
         $web_thumb_filename = $image_filename.$web_suf.'.jpg';
         $web_thumb_path = $web_dest_system_path.'/'.$web_thumb_filename;
 
-        // Save small thumbnail
+        // Save smaller copy of the image that we'll work with
         $image->scale(config('proofgen.web_images.width'), config('proofgen.web_images.height'))
             ->save($web_thumb_path, config('proofgen.web_images.quality'));
         unset($image);
@@ -270,7 +271,8 @@ class Image
         $manager = null;
         unset($manager);
 
-        return $image_filename;
+        // Return the full path to the output file
+        return $web_thumb_path;
     }
 
     public static function determineAverageColor(string $image_path): array
