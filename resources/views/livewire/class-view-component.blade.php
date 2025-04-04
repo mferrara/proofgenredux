@@ -151,12 +151,12 @@
 
                     <div class="grid grid-cols-3 gap-6 mb-8">
                         <div>
-                            <flux:heading size="xl" class="mb-4">Importing</flux:heading>
+                            <flux:heading size="xl" class="mb-4">Imports</flux:heading>
 
                             <div class="flex flex-col gap-3 text-gray-400">
                                 @if($photos_pending_import && count($photos_pending_import))
                                     <div class="flex flex-col justify-start gap-y-4">
-                                        <div>
+                                        <div class="p-4 bg-gray-500/10 rounded-md">
                                             <flux:badge color="sky" size="lg" inset="top bottom">{{ count($photos_pending_import) }}</flux:badge> pending
                                         </div>
                                         <div>
@@ -169,7 +169,7 @@
                                         </div>
                                     </div>
                                 @else
-                                    <div><flux:badge color="gray" size="lg" inset="top bottom">0</flux:badge> pending</div>
+                                    <div class="p-4 bg-gray-500/10 rounded-md"><flux:badge color="gray" size="lg" inset="top bottom">0</flux:badge> pending</div>
                                 @endif
                             </div>
                         </div>
@@ -180,7 +180,7 @@
 
                                 @if($photos_pending_proofs->count())
                                     <div class="flex flex-col justify-start gap-y-4">
-                                        <div>
+                                        <div class="p-4 bg-gray-500/10 rounded-md">
                                             <flux:badge color="sky" size="lg" inset="top bottom">{{ $photos_pending_proofs->count() }}</flux:badge> pending
                                         </div>
                                         <div>
@@ -193,7 +193,7 @@
                                         </div>
                                     </div>
                                 @else
-                                    <div><flux:badge color="gray" size="lg" inset="top bottom">0</flux:badge> pending</div>
+                                    <div class="p-4 bg-gray-500/10 rounded-md"><flux:badge color="gray" size="lg" inset="top bottom">0</flux:badge> pending</div>
                                 @endif
                             </div>
                         </div>
@@ -204,7 +204,7 @@
 
                                 @if($photos_pending_web_images->count())
                                     <div class="flex flex-col justify-start gap-y-4">
-                                        <div>
+                                        <div class="p-4 bg-gray-500/10 rounded-md">
                                             <flux:badge color="sky" size="lg" inset="top bottom">{{ $photos_pending_web_images->count() }}</flux:badge> pending
                                         </div>
                                         <div><flux:button
@@ -216,7 +216,7 @@
                                         </div>
                                     </div>
                                 @else
-                                    <div><flux:badge color="gray" size="lg" inset="top bottom">0</flux:badge> pending</div>
+                                    <div class="p-4 bg-gray-500/10 rounded-md"><flux:badge color="gray" size="lg" inset="top bottom">0</flux:badge> pending</div>
                                 @endif
                             </div>
                         </div>
@@ -312,15 +312,172 @@
         </div>
 
         <flux:card class="mb-8">
-            <flux:heading size="lg" class="mb-4">Information</flux:heading>
+            <flux:heading size="lg" class="mb-4">Folder Information</flux:heading>
             <ul class="list-disc pl-5 space-y-2 text-gray-400">
-                <li>Images pending import are any photos in the base
-                    <span class="text-indigo-400 font-medium">/{!! $show !!}/{!! $class !!}</span> folder</li>
-                <li>Images not proofed are any photos in the
-                    <span class="text-indigo-400 font-medium">/{!! $show !!}/{!! $class !!}/originals</span>
-                    folder that aren't yet proofed</li>
-                <li>Proofs and Web Images to upload are those that don't yet exist on the web server
-                    but have been generated locally</li>
+                <li>
+                    <div class="flex flex-row items-center gap-x-1">
+                        <div class="flex flex-row items-center gap-x-1">
+                            <div><flux:badge color="lime">New Photos</flux:badge> can be imported into to this class by putting the image in the</div>
+                            <span class="text-indigo-400 px-2 py-1 bg-gray-400/10 shadow-md">{{ $show_class->full_path }}</span>
+                            <div>directory</div>
+                        </div>
+                        <flux:tooltip content="Copy path to clipboard">
+                            <div
+                                class="hover:text-indigo-500 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                x-data="{ copied: false }"
+                                x-on:click="
+                                    const el = document.createElement('textarea');
+                                    el.value = '{{ $show_class->full_path }}';
+                                    el.setAttribute('readonly', '');
+                                    el.style.position = 'absolute';
+                                    el.style.left = '-9999px';
+                                    document.body.appendChild(el);
+                                    el.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(el);
+                                    copied = true;
+                                    setTimeout(() => copied = false, 2000);
+                                "
+                            >
+                                <template x-if="!copied">
+                                    <flux:icon.document-duplicate class="size-5" />
+                                </template>
+                                <template x-if="copied">
+                                    <flux:icon.check class="size-5 !text-emerald-500" />
+                                </template>
+                            </div>
+                        </flux:tooltip>
+                        <flux:tooltip content="Open path in finder">
+                            <div class="hover:text-indigo-500 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                 wire:click="openFolder('{{ $show_class->full_path }}')">
+                                <flux:icon.arrow-top-right-on-square class="size-5" />
+                            </div>
+                        </flux:tooltip>
+                    </div>
+                </li>
+                <li>
+                    <div class="flex flex-row items-center gap-x-1">
+                        <div class="flex flex-row items-center gap-x-1">
+                            <div><flux:badge color="teal">Imported Photos</flux:badge> are moved from the base class directory (above) into the</div>
+                            <span class="text-indigo-400 px-2 py-1 bg-gray-400/10 shadow-md">{{ $show_class->full_originals_path }}</span>
+                            <div>directory</div>
+                        </div>
+                        <flux:tooltip content="Copy path to clipboard">
+                            <div
+                                class="hover:text-indigo-500 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                x-data="{ copied: false }"
+                                x-on:click="
+                                    const el = document.createElement('textarea');
+                                    el.value = '{{ $show_class->full_originals_path }}';
+                                    el.setAttribute('readonly', '');
+                                    el.style.position = 'absolute';
+                                    el.style.left = '-9999px';
+                                    document.body.appendChild(el);
+                                    el.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(el);
+                                    copied = true;
+                                    setTimeout(() => copied = false, 2000);
+                                "
+                            >
+                                <template x-if="!copied">
+                                    <flux:icon.document-duplicate class="size-5" />
+                                </template>
+                                <template x-if="copied">
+                                    <flux:icon.check class="size-5 !text-emerald-500" />
+                                </template>
+                            </div>
+                        </flux:tooltip>
+                        <flux:tooltip content="Open path in finder">
+                            <div class="hover:text-indigo-500 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                 wire:click="openFolder('{{ $show_class->full_originals_path }}')">
+                                <flux:icon.arrow-top-right-on-square class="size-5" />
+                            </div>
+                        </flux:tooltip>
+                    </div>
+                </li>
+                <li>
+                    <div class="flex flex-row items-center gap-x-1">
+                        <div class="flex flex-row items-center gap-x-1">
+                            <div><flux:badge color="sky">Proofs</flux:badge> that have been generated for imported photos can be found in the</div>
+                            <span class="text-indigo-400 px-2 py-1 bg-gray-400/10 shadow-md">{{ $show_class->full_proofs_path }}</span>
+                            <div>directory</div>
+                        </div>
+                        <flux:tooltip content="Copy path to clipboard">
+                            <div
+                                class="hover:text-indigo-500 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                x-data="{ copied: false }"
+                                x-on:click="
+                                    const el = document.createElement('textarea');
+                                    el.value = '{{ $show_class->full_proofs_path }}';
+                                    el.setAttribute('readonly', '');
+                                    el.style.position = 'absolute';
+                                    el.style.left = '-9999px';
+                                    document.body.appendChild(el);
+                                    el.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(el);
+                                    copied = true;
+                                    setTimeout(() => copied = false, 2000);
+                                "
+                            >
+                                <template x-if="!copied">
+                                    <flux:icon.document-duplicate class="size-5" />
+                                </template>
+                                <template x-if="copied">
+                                    <flux:icon.check class="size-5 !text-emerald-500" />
+                                </template>
+                            </div>
+                        </flux:tooltip>
+                        <flux:tooltip content="Open path in finder">
+                            <div class="hover:text-indigo-500 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                 wire:click="openFolder('{{ $show_class->full_proofs_path }}')">
+                                <flux:icon.arrow-top-right-on-square class="size-5" />
+                            </div>
+                        </flux:tooltip>
+                    </div>
+                </li>
+                <li>
+                    <div class="flex flex-row items-center gap-x-1">
+                        <div class="flex flex-row items-center gap-x-1">
+                            <div><flux:badge color="indigo">Web Images</flux:badge> generated for this classes imported photos are located in the</div>
+                            <span class="text-indigo-400 px-2 py-1 bg-gray-400/10 shadow-md">{{ $show_class->full_web_images_path }}</span>
+                            <div>directory</div>
+                        </div>
+                        <flux:tooltip content="Copy path to clipboard">
+                            <div
+                                class="hover:text-indigo-500 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                x-data="{ copied: false }"
+                                x-on:click="
+                                    const el = document.createElement('textarea');
+                                    el.value = '{{ $show_class->full_web_images_path }}';
+                                    el.setAttribute('readonly', '');
+                                    el.style.position = 'absolute';
+                                    el.style.left = '-9999px';
+                                    document.body.appendChild(el);
+                                    el.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(el);
+                                    copied = true;
+                                    setTimeout(() => copied = false, 2000);
+                                "
+                            >
+                                <template x-if="!copied">
+                                    <flux:icon.document-duplicate class="size-5" />
+                                </template>
+                                <template x-if="copied">
+                                    <flux:icon.check class="size-5 !text-emerald-500" />
+                                </template>
+                            </div>
+                        </flux:tooltip>
+                        <flux:tooltip content="Open path in finder">
+                            <div class="hover:text-indigo-500 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                 wire:click="openFolder('{{ $show_class->full_web_images_path }}')">
+                                <flux:icon.arrow-top-right-on-square class="size-5" />
+                            </div>
+                        </flux:tooltip>
+                    </div>
+                </li>
             </ul>
         </flux:card>
 

@@ -51,12 +51,22 @@ class ShowClass extends Model
 
     public function getFullPathAttribute(): string
     {
-        return config('proofgen.fullsize_home_dir') . '/' . $this->id;
+        return config('proofgen.fullsize_home_dir') . '/' . $this->relative_path;
     }
 
     public function getRelativePathAttribute(): string
     {
         return str_replace('_', '/', $this->id);
+    }
+
+    public function getOriginalsPathAttribute()
+    {
+        return $this->relative_path . '/originals';
+    }
+
+    public function getFullOriginalsPathAttribute()
+    {
+        return config('proofgen.fullsize_home_dir') . '/' . $this->originals_path;
     }
 
     public function getRemoteWebImagesPathAttribute()
@@ -73,11 +83,25 @@ class ShowClass extends Model
         return $path_resolver->normalizePath($web_images_path);
     }
 
+    public function getFullWebImagesPathAttribute()
+    {
+        $path_resolver = app(PathResolver::class);
+        $web_images_path = $this->web_images_path;
+        return $path_resolver->getAbsolutePath($web_images_path, config('proofgen.fullsize_home_dir'));
+    }
+
     public function getProofsPathAttribute()
     {
         $path_resolver = app(PathResolver::class);
         $proofs_path = $path_resolver->getProofsPath($this->show->name, $this->name);
         return $path_resolver->normalizePath($proofs_path);
+    }
+
+    public function getFullProofsPathAttribute()
+    {
+        $proofs_path = $this->proofs_path;
+        $path_resolver = app(PathResolver::class);
+        return $path_resolver->getAbsolutePath($proofs_path, config('proofgen.fullsize_home_dir'));
     }
 
     public function getRemoteProofsPathAttribute()
