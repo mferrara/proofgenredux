@@ -1,5 +1,19 @@
 # Proofgen Redux Project Notes
 
+## Development Environment Access Information
+
+### File System Access
+- Base filesystem path: `/Users/mikeferrara/Herd/proofgenredux`
+- SQLite database path: `/Users/mikeferrara/Herd/proofgenredux/database/database.sqlite`
+
+### Tool Access
+- SQLite MCP Server: Available through the following functions:
+  - `list_tables`: Lists all tables in the SQLite database
+  - `describe_table`: Gets schema information for a specific table
+  - `read_query`: Executes SELECT queries on the database
+  - `write_query`: Executes INSERT, UPDATE, or DELETE queries
+  - `create_table`: Creates new tables in the database
+
 ## Application Overview
 This is a Laravel application that processes event photography images for a photography sales platform. Key functionality:
 

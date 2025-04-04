@@ -4,19 +4,24 @@ namespace App\Models;
 
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
+use App\Jobs\Photo\ImportPhoto;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
+use App\Traits\HasPhotosTrait;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
 use League\Flysystem\FileAttributes;
 
 class ShowClass extends Model
 {
+    use HasPhotosTrait;
+
     protected $table = 'show_classes';
     protected $primaryKey = 'id';
     public $incrementing = false;
@@ -121,46 +126,6 @@ class ShowClass extends Model
         return $this->hasMany(Photo::class, 'show_class_id', 'id');
     }
 
-    public function photosProofed(): HasMany
-    {
-        return $this->photos()->whereNotNull('proofs_generated_at');
-    }
-
-    public function photosNotProofed(): HasMany
-    {
-        return $this->photos()->whereNull('proofs_generated_at');
-    }
-
-    public function photosProofsUploaded(): HasMany
-    {
-        return $this->photos()->whereNotNull('proofs_uploaded_at');
-    }
-
-    public function photosProofedNotUploaded(): HasMany
-    {
-        return $this->photos()->whereNotNull('proofs_generated_at')->whereNull('proofs_uploaded_at');
-    }
-
-    public function photosWebImaged(): HasMany
-    {
-        return $this->photos()->whereNotNull('web_image_generated_at');
-    }
-
-    public function photosNotWebImaged(): HasMany
-    {
-        return $this->photos()->whereNull('web_image_generated_at');
-    }
-
-    public function photosWebImagesUploaded(): HasMany
-    {
-        return $this->photos()->whereNotNull('web_image_uploaded_at');
-    }
-
-    public function photosWebImagedNotUploaded(): HasMany
-    {
-        return $this->photos()->whereNotNull('web_image_generated_at')->whereNull('web_image_uploaded_at');
-    }
-
     public function processingCounts(): array
     {
         $return['photos_imported'] = $this->photos()->get();
@@ -192,17 +157,17 @@ class ShowClass extends Model
     public function importPendingImages(): array
     {
         $images = $this->getImagesPendingImport();
-        $imported = [];
+        $queued = [];
+        /** @var FileAttributes $image */
         foreach($images as $image) {
-            /** @var FileAttributes $image */
-            $file_path = $image->path();
-            $photo = $this->importPhotoFromPath($file_path);
+            ImportPhoto::dispatch($image->path(), $this->show->getNextProofNumber())->onQueue('processing');
+
             if(isset($photo->is_new) && $photo->is_new === true) {
-                $imported[] = $photo;
+                $queued[] = $photo;
             }
         }
 
-        return $imported;
+        return $queued;
     }
 
     /**
@@ -213,7 +178,7 @@ class ShowClass extends Model
      * @param string $file_path
      * @return Photo
      */
-    public function importPhotoFromPath(string $file_path): Photo
+    public function importPreviouslyProcessedImagesFromOriginalsPath(string $file_path): Photo
     {
         $proof_number = $this->proofNumberFromPath($file_path);
         $photo_id = $this->photoIdFromProofNumber($proof_number);
@@ -274,7 +239,7 @@ class ShowClass extends Model
         foreach($originals_images as $image) {
             /** @var FileAttributes $image */
             $file_path = $image->path();
-            $photo = $this->importPhotoFromPath($file_path);
+            $photo = $this->importPreviouslyProcessedImagesFromOriginalsPath($file_path);
             if(isset($photo->is_new) && $photo->is_new === true) {
                 $new_records++;
             }
@@ -288,6 +253,72 @@ class ShowClass extends Model
         $photos = $this->photosNotProofed()->get();
 
         return $this->queueThumbnailGeneration($photos);
+    }
+
+    public function resetPhotos(): void
+    {
+        // Delete any web images in the web images folder, but keep the folder
+        $web_images_path = $this->web_images_path;
+        if(Storage::disk('fullsize')->exists($web_images_path)) {
+            $contents = Utility::getContentsOfPath($web_images_path);
+            $photos = $contents['images'] ?? [];
+            Log::debug('Found '.count($photos).' web images to delete');
+            foreach($photos as $photo) {
+                /** @var FileAttributes $photo */
+                $file_path = $photo->path();
+                Storage::disk('fullsize')->delete($file_path);
+                Log::debug(' -> Deleted web image: '.$file_path);
+            }
+        }
+
+        // Delete any proofs in the proofs folder, but keep the folder
+        $proofs_path = $this->proofs_path;
+        if(Storage::disk('fullsize')->exists($proofs_path)) {
+            $contents = Utility::getContentsOfPath($proofs_path);
+            $photos = $contents['images'] ?? [];
+            Log::debug('Found '.count($photos).' proofs to delete');
+            foreach($photos as $photo) {
+                /** @var FileAttributes $photo */
+                $file_path = $photo->path();
+                Storage::disk('fullsize')->delete($file_path);
+                Log::debug(' -> Deleted proof: '.$file_path);
+            }
+        }
+
+        // Copy any images that are in the originals folder to the base class folder
+        $originals_path = $this->originals_path;
+        if(Storage::disk('fullsize')->exists($originals_path)) {
+            $contents = Utility::getContentsOfPath($originals_path);
+            $photos = $contents['images'] ?? [];
+            Log::debug('Found '.count($photos).' originals to copy');
+            foreach($photos as $photo) {
+                /** @var FileAttributes $photo */
+                $file_path = $photo->path();
+                $dest_path = str_replace('/originals', '', $file_path);
+                // Move the file
+                Storage::disk('fullsize')->move($file_path, $dest_path);
+                Log::debug(' -> Moved original: '.$file_path.' to '.$dest_path);
+
+                // Rename the file to remove/release the proof number
+                $filename = pathinfo($dest_path, PATHINFO_FILENAME);
+                // Generate a random filename
+                $new_filename = sha1($filename . time());
+                $new_file_path = str_replace($filename, $new_filename, $dest_path);
+                // Rename the file
+                Storage::disk('fullsize')->move($dest_path, $new_file_path);
+                Log::debug(' -> Renamed original: '.$dest_path.' to '.$new_file_path);
+            }
+        }
+
+        // Delete database records for photos
+        $photos = $this->photos()->get();
+        foreach($photos as $photo) {
+            /** @var Photo $photo */
+            Log::debug(' -> Deleting photo: '.$photo->id);
+            $photo->delete();
+        }
+
+        Log::debug(' Reset '.count($photos).' photos');
     }
 
     /**
@@ -337,6 +368,17 @@ class ShowClass extends Model
         }
 
         return $this->queueThumbnailGeneration($this->photos()->get());
+    }
+
+    public function regenerateWebImages(): int
+    {
+        // Remove the local web images for this class and reset the web_image_generated_at
+        foreach($this->photosWebImaged()->get() as $photo) {
+            /** @var Photo $photo */
+            $photo->deleteLocalWebImage();
+        }
+
+        return $this->queueWebImageGeneration($this->photos()->get());
     }
 
     public function webImagePendingPhotos(): int
@@ -665,7 +707,11 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (!empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+            if(empty($line) || str_contains($line, 'deleting')) {
+                continue;
+            }
+
+            if (str_starts_with(strtolower($line), strtolower($this->show_folder))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 

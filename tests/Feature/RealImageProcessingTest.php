@@ -6,7 +6,7 @@ use App\Exceptions\SampleImagesNotFoundException;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
-use App\Jobs\ShowClass\ImportPhotos;
+use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
@@ -33,53 +33,53 @@ class RealImageProcessingTest extends TestCase
     protected PhotoService $photoService;
     protected PathResolver $pathResolver;
     protected SampleImagesService $sampleImagesService;
-    
+
     /**
      * Create a valid test image that meets our size requirements using GD
-     * 
+     *
      * @return string The binary content of the test image
      */
     protected function createValidTestImage(): string
     {
         // Create a 1200x800 image (larger than our minimum size requirement)
         $image = imagecreatetruecolor(1200, 800);
-        
+
         // Set background to a light gray
         $bgColor = imagecolorallocate($image, 240, 240, 240);
         imagefill($image, 0, 0, $bgColor);
-        
+
         // Draw some random shapes to make it more like a real image
         for ($i = 0; $i < 20; $i++) {
             $color = imagecolorallocate(
-                $image, 
-                rand(0, 255), 
-                rand(0, 255), 
+                $image,
+                rand(0, 255),
+                rand(0, 255),
                 rand(0, 255)
             );
-            
+
             // Random rectangles
             imagefilledrectangle(
                 $image,
-                rand(0, 1100), 
+                rand(0, 1100),
                 rand(0, 700),
                 rand(100, 1200),
                 rand(100, 800),
                 $color
             );
         }
-        
+
         // Add some text
         $textColor = imagecolorallocate($image, 0, 0, 0);
         imagestring($image, 5, 600, 400, 'Test Image for Proofgen', $textColor);
-        
+
         // Get the binary data
         ob_start();
         imagejpeg($image, null, 90); // 90% quality - creates a larger file
         $imageData = ob_get_clean();
-        
+
         // Free up memory
         imagedestroy($image);
-        
+
         return $imageData;
     }
 
@@ -111,7 +111,7 @@ class RealImageProcessingTest extends TestCase
             'root' => storage_path('sample_images'),
             'throw' => false,
         ];
-        
+
         // Mock the sample_images_bucket disk for testing
         $sampleImagesBucketDisk = [
             'driver' => 'local',
@@ -207,12 +207,12 @@ class RealImageProcessingTest extends TestCase
                     return $file->getFilename() !== '.gitkeep';
                 }
             );
-            
+
             // Delete each file
             foreach ($files as $file) {
                 File::delete($file->getPathname());
             }
-            
+
             // Delete all directories within fake_bucket
             foreach (File::directories($fakeBucketPath) as $directory) {
                 File::deleteDirectory($directory);
@@ -226,7 +226,7 @@ class RealImageProcessingTest extends TestCase
         if (File::exists($this->tempPath)) {
             File::deleteDirectory($this->tempPath);
         }
-        
+
         // Clean up the fake_bucket directory
         $this->cleanFakeBucket();
 
@@ -243,17 +243,17 @@ class RealImageProcessingTest extends TestCase
         try {
             // Ensure we have sample images, will auto-download if needed
             $this->sampleImagesService->ensureSampleImagesAvailable();
-            
+
             // Create a valid test image for the bucket
             $testImage = $this->createValidTestImage();
-            
+
             // For testing, we'll pre-populate the sample_images disk with a valid test image
             Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/{$this->photo_name}", $testImage);
             $this->sampleImagesService->downloadSampleImages();
         } catch (SampleImagesNotFoundException $e) {
             $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: ' . $e->getMessage());
         }
-        
+
         // Find a sample image to use
         $sampleImagePath = "{$this->show}/{$this->class}/{$this->photo_name}";
         $sampleImage = Storage::disk('sample_images')->get($sampleImagePath);
@@ -338,10 +338,10 @@ class RealImageProcessingTest extends TestCase
         try {
             // Ensure we have sample images, will auto-download if needed
             $this->sampleImagesService->ensureSampleImagesAvailable();
-            
+
             // Create a valid test image for the bucket
             $testImage = $this->createValidTestImage();
-            
+
             // For testing, we'll pre-populate the sample_images disk with test images
             Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/image1.jpg", $testImage);
             Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/image2.jpg", $testImage);
@@ -350,7 +350,7 @@ class RealImageProcessingTest extends TestCase
         } catch (SampleImagesNotFoundException $e) {
             $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: ' . $e->getMessage());
         }
-        
+
         $fullsize_path = $this->pathResolver->getFullsizePath($this->show, $this->class);
         $originals_path = $this->pathResolver->getOriginalsPath($this->show, $this->class);
         $proofs_path = $this->pathResolver->getProofsPath($this->show, $this->class);
@@ -424,17 +424,17 @@ class RealImageProcessingTest extends TestCase
         try {
             // Ensure we have sample images, will auto-download if needed
             $this->sampleImagesService->ensureSampleImagesAvailable();
-            
+
             // Create a valid test image for the bucket
             $testImage = $this->createValidTestImage();
-            
+
             // For testing, we'll pre-populate the sample_images disk with a test image
             Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/job_test.jpg", $testImage);
             $this->sampleImagesService->downloadSampleImages();
         } catch (SampleImagesNotFoundException $e) {
             $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: ' . $e->getMessage());
         }
-        
+
         Queue::fake();
 
         // Find a sample image to use
@@ -535,17 +535,17 @@ class RealImageProcessingTest extends TestCase
         try {
             // Ensure we have sample images, will auto-download if needed
             $this->sampleImagesService->ensureSampleImagesAvailable();
-            
+
             // Create a valid test image for the bucket
             $testImage = $this->createValidTestImage();
-            
+
             // For testing, we'll pre-populate the sample_images disk with a test image
             Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/watermark_test.jpg", $testImage);
             $this->sampleImagesService->downloadSampleImages();
         } catch (SampleImagesNotFoundException $e) {
             $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: ' . $e->getMessage());
         }
-        
+
         // Enable watermarking for this test
         Config::set('proofgen.watermark_proofs', true);
 

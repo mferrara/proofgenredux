@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
+use App\Jobs\ShowClass\ResetClassPhotos;
 use App\Jobs\ShowClass\UploadProofs;
 use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Photo;
@@ -13,6 +14,7 @@ use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
 use App\Services\PhotoService;
+use Exception;
 use Flux\Flux;
 use Illuminate\Support\Facades\Log;
 use League\Flysystem\FileAttributes;
@@ -33,6 +35,8 @@ class ClassViewComponent extends Component
     public string $proofs_path = '';
     public string $web_images_path = '';
     public string $flash_message = '';
+    public int $flash_message_set_at = 0;
+    protected int $flash_message_max_length = 10;
     public bool $local_web_image_sync_performed = false;
     public bool $local_proofs_sync_performed = false;
     public bool $show_delete = false;
@@ -52,6 +56,11 @@ class ClassViewComponent extends Component
     {
         $this->showModel = Show::find($this->show);
         $this->loadShowClass();
+
+        // Check if the flash message is set and if it has expired
+        if ($this->flash_message_set_at > 0 && (time() - $this->flash_message_set_at) > $this->flash_message_max_length) {
+            $this->setFlashMessage('');
+        }
     }
 
     public function loadShowClass(): void
@@ -107,12 +116,41 @@ class ClassViewComponent extends Component
             ->title($this->show.' '.$this->class.' - Proofgen');
     }
 
+    public function setFlashMessage(string $message): void
+    {
+        if($message === ''){
+            $this->flash_message = '';
+            $this->flash_message_set_at = 0;
+            return;
+        }
+
+        $this->flash_message = $message;
+        $this->flash_message_set_at = time();
+    }
+
     public function checkProofAndWebImageUploads(): void
     {
-        $images_pending_upload = $this->showClass->pendingProofUploads();
+        $images_pending_upload = count($this->showClass->pendingProofUploads());
         // Log::debug('Images pending proof uploads', ['images_pending_upload' => $images_pending_upload]);
-        $web_images_pending_upload = $this->showClass->pendingWebImageUploads();
+        $web_images_pending_upload = count($this->showClass->pendingWebImageUploads());
         // Log::debug('Images pending web image uploads', ['web_images_pending_upload' => $web_images_pending_upload]);
+
+        if($images_pending_upload > 0 || $web_images_pending_upload > 0) {
+            $flash_message = 'Pending uploads: ';
+            if($images_pending_upload > 0) {
+                $flash_message .= $images_pending_upload.' Images';
+            }
+            if($web_images_pending_upload > 0) {
+                if($images_pending_upload > 0) {
+                    $flash_message .= ' and ';
+                }
+                $flash_message .= $web_images_pending_upload.' Web Images';
+            }
+        } else {
+            $flash_message = 'No uploads pending';
+        }
+
+        $this->setFlashMessage($flash_message);
     }
 
     public function fixMissingMetadataOnPhoto(string $photo_id): void
@@ -146,34 +184,37 @@ class ClassViewComponent extends Component
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
         $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $count = $show_class->processPendingImages();
-        $this->flash_message = $count.' Images queued for import.';
+        $this->setFlashMessage($count.' Images queued for import.');
     }
 
+    /**
+     * @throws Exception
+     */
     public function processImage($image_path): void
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
         $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $show_class->processImage($image_path);
-        $this->flash_message = $image_path.' Processed.';
+        $this->setFlashMessage($image_path.' Processed.');
     }
 
     public function proofPendingPhotos(): void
     {
         $count = $this->showClass->proofPendingPhotos();
-        $this->flash_message = $count.' Photos queued.';
+        $this->setFlashMessage($count.' Photos queued.');
     }
 
     public function webImagePendingPhotos(): void
     {
         $count = $this->showClass->webImagePendingPhotos();
-        $this->flash_message = $count.' Photos queued.';
+        $this->setFlashMessage($count.' Photos queued.');
     }
 
     public function proofPhoto(string $photo_id): void
     {
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
         if( ! $photo) {
-            $this->flash_message = 'Photo not found';
+            $this->setFlashMessage('Photo not found');
             return;
         }
 
@@ -191,7 +232,7 @@ class ClassViewComponent extends Component
     {
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
         if( ! $photo) {
-            $this->flash_message = 'Photo not found';
+            $this->setFlashMessage('Photo not found');
             return;
         }
 
@@ -219,9 +260,9 @@ class ClassViewComponent extends Component
                     position: 'top right'
                 );
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error generating web image: '.$e->getMessage());
-            $this->flash_message = 'Error generating web image: '.$e->getMessage();
+            $this->setFlashMessage('Error generating web image: '.$e->getMessage());
             return;
         }
     }
@@ -238,24 +279,44 @@ class ClassViewComponent extends Component
         );
     }
 
+    public function regenerateWebImages(): void
+    {
+        $photos_queued = $this->showClass->regenerateWebImages();
+
+        Flux::toast(
+            text: number_format($photos_queued).' photos queued to regenerate web images for '.$this->show.' '.$this->class,
+            heading: 'Info',
+            variant: 'success',
+            position: 'top right'
+        );
+    }
+
+    public function resetPhotos(): void
+    {
+        ResetClassPhotos::dispatch($this->showClass->show_id, $this->class);
+
+        Flux::toast(
+            text: 'Photos queued to reset for '.$this->show.' '.$this->class,
+            heading: 'Info',
+            variant: 'success',
+            position: 'top right'
+        );
+    }
+
     public function uploadPendingProofsAndWebImages(): void
     {
         // Photos pending proof uploads
         $photos_proofed_not_uploaded = $this->showClass->photosProofedNotUploaded()->get();
-        Log::debug('uploadPendingProofsAndWebImages() '.$photos_proofed_not_uploaded->count().' photos proofed not uploaded');
         $photos_queued_for_upload = 0;
         if($photos_proofed_not_uploaded->count()) {
-            Log::debug('Queuing proofs for upload');
             UploadProofs::dispatch($this->show, $this->class);
             $photos_queued_for_upload = $photos_proofed_not_uploaded->count();
         }
 
         // Photos pending web image uploads
         $photos_web_images_not_uploaded = $this->showClass->photosWebImagedNotUploaded()->get();
-        Log::debug('uploadPendingProofsAndWebImages() '.$photos_web_images_not_uploaded->count().' photos web images not uploaded');
         $web_images_queued_for_upload = 0;
         if($photos_web_images_not_uploaded->count()) {
-            Log::debug('Queuing web images for upload');
             UploadWebImages::dispatch($this->show, $this->class);
             $web_images_queued_for_upload += $photos_web_images_not_uploaded->count();
         }

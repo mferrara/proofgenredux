@@ -113,6 +113,22 @@ class Photo extends Model
         return str_replace('_', '/', $this->show_class_id) . '/originals/' . $this->proof_number . '.' . $this->file_type;
     }
 
+    public function getProofsPathAttribute(): string
+    {
+        $path_resolver = app(PathResolver::class);
+        $show_name = explode('_', $this->show_class_id)[0];
+        $class_name = explode('_', $this->show_class_id)[1];
+
+        return $path_resolver->getProofsPath($show_name, $class_name);
+    }
+
+    public function getAbsoluteProofsPathAttribute(): string
+    {
+        $path_resolver = app(PathResolver::class);
+
+        return config('proofgen.fullsize_home_dir') . '/' . $path_resolver->normalizePath($this->proofs_path);
+    }
+
     public function showClass(): BelongsTo
     {
         return $this->belongsTo(ShowClass::class, 'show_class_id', 'id');
@@ -142,9 +158,7 @@ class Photo extends Model
 
     public function deleteLocalProofs(): void
     {
-        $path_resolver = app(PathResolver::class);
-        $proofs_path = $path_resolver->getProofsPath($this->showClass->show->name, $this->showClass->name);
-        $proofs_path = config('proofgen.fullsize_home_dir') . '/' . $path_resolver->normalizePath($proofs_path);
+        $proofs_path = $this->absolute_proofs_path;
 
         foreach($this->expectedThumbnailFilenames() as $filename) {
             $expected_proof_path = $proofs_path . '/' . $filename;
@@ -157,18 +171,39 @@ class Photo extends Model
         $check = $this->checkPathForProofs();
         if( ! $check) {
             $this->proofs_generated_at = null;
+            $this->proofs_uploaded_at = null;
             $this->save();
         }
     }
 
-    public function checkPathForWebImage(): bool
+    public function deleteLocalWebImage(): void
+    {
+        $expected_web_image_path = $this->expectedWebImageFilePath();
+        if ($this->checkPathForWebImage()) {
+            \Log::debug('Deleting web image: ' . $expected_web_image_path);
+            unlink($expected_web_image_path);
+        }
+
+        if ($this->web_image_generated_at !== null) {
+            $this->web_image_generated_at = null;
+            $this->web_image_uploaded_at = null;
+            $this->save();
+        }
+    }
+
+    public function expectedWebImageFilePath(): string
     {
         $path_resolver = app(PathResolver::class);
         $web_images_path = $path_resolver->getWebImagesPath($this->showClass->show->name, $this->showClass->name);
-        $web_images_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($web_images_path);
+        $web_images_path = config('proofgen.fullsize_home_dir') . '/' . $path_resolver->normalizePath($web_images_path);
 
-        $expected_filename = $this->proof_number.'_web.'.$this->file_type;
-        $expected_web_image_path = $web_images_path.'/'.$expected_filename;
+        $expected_filename = $this->proof_number . '_web.' . $this->file_type;
+        return $web_images_path . '/' . $expected_filename;
+    }
+
+    public function checkPathForWebImage(): bool
+    {
+        $expected_web_image_path = $this->expectedWebImageFilePath();
 
         if (file_exists($expected_web_image_path)) {
 
@@ -205,9 +240,11 @@ class Photo extends Model
         }
 
         if($expected_proof_count === count($proofs_found)) {
+            // If we have all the proofs, set the proofs_generated_at to the earliest modified time
             if($this->proofs_generated_at === null) {
-                \Log::debug('Making proofs_generated_at for photo: '.$this->id.' from '.$proofs_found[array_key_first($proofs_found)]);
-                $this->proofs_generated_at = Carbon::createFromTimestamp($proofs_found[array_key_first($proofs_found)]);
+                $existing_timestamp = Carbon::createFromTimestamp($proofs_found[array_key_first($proofs_found)]);
+                \Log::debug('Making proofs_generated_at for photo: '.$this->id.' from '.$existing_timestamp);
+                $this->proofs_generated_at = $existing_timestamp;
                 $this->save();
             }
         }

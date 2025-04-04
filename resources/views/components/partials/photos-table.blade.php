@@ -21,6 +21,13 @@
                 /** @var App\Models\Photo $photo */
                 $filename = explode('/', $image_path);
                 $filename = end($filename);
+                $file_modified = null;
+                $file_not_found = false;
+                try{
+                    $file_modified = \Carbon\Carbon::createFromTimestamp(filemtime($photo->full_path))->format('m/d/Y H:i:s');
+                }catch(\Exception $e) {
+                    $file_not_found = true;
+                }
                 $modified = $photo->updated_at;
                 $shot_at = $photo->metadata?->exif_timestamp;
                 $thumbnail_path = '';
@@ -56,7 +63,7 @@
                     $thumbnail_base64 = null;
                 }
             @endphp
-            <tr wire:key="{{ 'image-row-'.$photo->id }}" class="@if( ! $photo->metadata) bg-red-800/40 @endif">
+            <tr wire:key="{{ 'image-row-'.$photo->id }}" class="@if( ! $photo->metadata || $file_not_found) bg-red-800/40 @endif">
                 <td>
                     @if(isset($display_thumbnail) && $display_thumbnail && $thumbnail_base64 !== null)
                         <div class="p-1 w-48">
@@ -69,6 +76,11 @@
                 <td>
                     <div class="ml-2 text-indigo-400 font-medium">
                         {{ $photo->proof_number }}
+                        @if($file_not_found)
+                            <flux:badge color="rose" size="sm">
+                                File Not Found
+                            </flux:badge>
+                        @endif
                     </div>
                 </td>
                 <td class="text-right pr-1 text-sm">
@@ -85,9 +97,11 @@
                                 <flux:badge color="rose" size="sm">
                                     No Metadata
                                 </flux:badge>
-                                <flux:button wire:click="fixMissingMetadataOnPhoto('{{ $photo->id }}')" size="xs" class="ml-3 hover:cursor-pointer">
-                                    Fix Metadata
-                                </flux:button>
+                                @if($file_not_found === false)
+                                    <flux:button wire:click="fixMissingMetadataOnPhoto('{{ $photo->id }}')" size="xs" class="ml-3 hover:cursor-pointer">
+                                        Fix Metadata
+                                    </flux:button>
+                                @endif
                             @endif
                         </div>
                         <div>
@@ -185,7 +199,9 @@
                             @if( ! str_contains($photo->full_path, '.jpg'))
                                 No ext on file
                             @else
-                                Modified: {{ \Carbon\Carbon::createFromTimestamp(filemtime($photo->full_path))->format('m/d/Y H:i:s') }}
+                                @if($file_modified)
+                                    Modified: {{ $file_modified }}
+                                @endif
                             @endif
                         </div>
                         @if($photo->proofs_generated_at)
@@ -224,7 +240,7 @@
                                     </flux:button>
                                 </div>
                             @endif
-                            @if(is_array($actions) && in_array('deleteLocalProofs', $actions) && (isset($show_delete) && $show_delete))
+                            @if(is_array($actions) && in_array('deleteLocalProofs', $actions) && (isset($show_delete) && $show_delete && $photo->proofs_generated_at))
                                 <div>
                                     <flux:button
                                         variant="danger"

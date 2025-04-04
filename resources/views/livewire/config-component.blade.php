@@ -12,9 +12,9 @@
                         {{ $categoryLabels[$category] ?? ucfirst($category) }}
                     </div>
 
-                    <div class="bg-gray-700 rounded-md overflow-hidden">
-                        <table class="min-w-full divide-y divide-gray-600">
-                            <thead class="bg-gray-800">
+                    <div class="bg-zinc-700 rounded-md overflow-hidden">
+                        <table class="min-w-full divide-y divide-zinc-600">
+                            <thead class="bg-zinc-800">
                             <tr>
                                 <th scope="col" class="w-80 px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                                     Setting
@@ -27,7 +27,7 @@
                                 </th>
                             </tr>
                             </thead>
-                            <tbody class="bg-gray-700 divide-y divide-gray-600">
+                            <tbody class="bg-zinc-700 divide-y divide-zinc-600">
                             @foreach($configurations as $config)
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap">
@@ -76,25 +76,25 @@
                                     <td class="px-6 py-4">
                                         <div class="text-sm text-gray-300">
                                             {{ $config->description }} ({{ $config->type }})
-                                            
+
                                             @if(isset($configSources[$config->id]))
                                                 <div class="mt-1 text-xs">
                                                     @if($configSources[$config->id] === 'database_override')
-                                                        <span class="text-blue-400">
+                                                        <span class="text-indigo-400">
                                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                                                             </svg>
                                                             Database value overrides .env value
                                                         </span>
                                                     @elseif($configSources[$config->id] === 'same_in_both')
-                                                        <span class="text-green-400">
+                                                        <span class="text-emerald-400">
                                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                                             </svg>
                                                             Same in database and .env
                                                         </span>
                                                     @elseif($configSources[$config->id] === 'database_only')
-                                                        <span class="text-yellow-400">
+                                                        <span class="text-amber-400">
                                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                                             </svg>
@@ -112,7 +112,7 @@
                     </div>
                 </div>
             @endforeach
-                <div class="fixed bottom-0 left-0 right-0 bg-gray-800/90 shadow-lg border-t border-gray-700 p-4 z-50 transition-all duration-300 ease-in-out transform translate-y-0">
+                <div class="fixed bottom-0 left-0 right-0 bg-zinc-800/90 shadow-lg border-t border-zinc-700 p-4 z-50 transition-all duration-300 ease-in-out transform translate-y-0">
                     <div class="max-w-7xl mx-auto flex justify-between items-center">
                         <div>
                             <!-- Horizon Start/Restart Button -->
@@ -139,7 +139,7 @@
                                     Start Horizon
                                 </flux:button>
                             @endif
-                            
+
                             <div class="inline-flex items-center gap-2 ml-4">
                                 <!-- Auto-restart Horizon checkbox -->
                                 <flux:checkbox
@@ -150,13 +150,13 @@
                                 <label for="auto_restart_horizon" class="text-sm text-gray-300">Auto-restart Horizon when settings change</label>
                             </div>
                         </div>
-                        
+
                         <div class="flex items-center gap-x-4">
                             <flux:button
                                 variant="ghost"
                                 wire:click="cancel"
                                 wire:target="configValues"
-                                wire:dirty.class="!bg-gray-50/10 hover:!bg-warning/20 !text-white"
+                                wire:dirty.class="!bg-zinc-50/10 hover:!bg-warning/20 !text-white"
                                 wire:dirty.attr.remove="disabled"
                                 disabled
                             >

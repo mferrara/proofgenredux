@@ -1,4 +1,5 @@
-<div class="w-full bg-gray-700 border border-gray-600 px-3 py-2 flex flex-row justify-end items-center gap-x-4">
+<div class="w-full bg-zinc-800 border border-zinc-800/50 px-3 py-2">
+    <div class="max-w-6xl mx-auto flex flex-row justify-end items-center gap-x-4">
     <div class="text-sm flex items-center gap-2">
         <span>Backups:</span>
         @if(config('proofgen.archive_enabled'))
@@ -69,5 +70,6 @@
                 </flux:tooltip>
             </div>
         @endif
+    </div>
     </div>
 </div>

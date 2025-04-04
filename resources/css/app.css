@@ -60,8 +60,8 @@
     --color-accent-foreground: var(--color-white);
 
     --color-info: var(--color-blue-500);
-    --color-success: #00c950;
-    --color-error: #ff6467;
+    --color-success: var(--color-emerald-500);
+    --color-error: var(--color-rose-500);
     --color-warning: var(--color-yellow-400);
     --color-warning-border: var(--color-yellow-300);
 }
