@@ -42,9 +42,9 @@ class PhotoService
         $webImagesPath = $show_class->web_images_path;
 
         // Dispatch jobs for generating thumbnails and web images
-        \Log::debug('Queueing GenerateThumbnails job for photo_id: '.$photo->id);
+        // \Log::debug('Queueing GenerateThumbnails job for photo_id: '.$photo->id);
         GenerateThumbnails::dispatch($photo->id, $proofDestPath);
-        \Log::debug('Queueing GenerateWebImage job for photo_id: '.$photo->id);
+        // \Log::debug('Queueing GenerateWebImage job for photo_id: '.$photo->id);
         GenerateWebImage::dispatch($photo->id, $webImagesPath);
 
         return [
@@ -65,7 +65,6 @@ class PhotoService
     public function generateThumbnails(string $photo_id, string $proofsDestinationPath, bool $checkForUpload = true): string
     {
         // Normalize paths to ensure consistency
-        \Log::debug('Photo_id: '.$photo_id);
         $photo = Photo::find($photo_id);
         $photoPath = $photo->relative_path;
         $photoPath = $this->pathResolver->normalizePath($photoPath);
@@ -98,8 +97,11 @@ class PhotoService
     public function generateWebImage(string $photo_id, string $webDestinationPath, bool $checkForUpload = true): string
     {
         // Normalize paths to ensure consistency
-        \Log::debug('generateWebImage() for photo_id: '.$photo_id);
+        /** @var Photo $photo */
         $photo = Photo::find($photo_id);
+        if( ! $photo) {
+            throw new Exception('Photo not found for id: '.$photo_id.' on PhotoService::generateWebImage');
+        }
         $photoPath = $photo->relative_path;
         $photoPath = $this->pathResolver->normalizePath($photoPath);
         $webDestinationPath = $this->pathResolver->normalizePath($webDestinationPath);

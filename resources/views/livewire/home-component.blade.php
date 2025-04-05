@@ -56,6 +56,12 @@
                 @php
                     $folder_name = explode('/', $directory);
                     $folder_name = end($folder_name);
+                    $show = null;
+                    $show_pending_images = 0;
+                    if(isset($shows[$folder_name])) {
+                        $show = $shows[$folder_name];
+                        $show_pending_images = collect($show->getImagesPendingImport());
+                    }
                 @endphp
 
                 <div class="pl-2 flex flex-row justify-between items-center py-2 px-3
@@ -77,9 +83,16 @@
                             <flux:badge color="cyan" size="sm">
                                 {{ $shows[$folder_name]->classes()->count() }} {{ str('Class')->plural($shows[$folder_name]->classes()->count()) }}
                             </flux:badge>
-                            <flux:badge color="sky" size="sm">
-                                {{ $shows[$folder_name]->photos()->count() }} {{ str('Photo')->plural($shows[$folder_name]->photos()->count()) }}
-                            </flux:badge>
+                            @if($show && $show->photos->count() > 0)
+                                <flux:badge color="sky" size="sm">
+                                    {{ $show->photos->count() }} {{ str('Photo')->plural($show->photos->count()) }}
+                                </flux:badge>
+                            @endif
+                            @if($show && $show_pending_images->count())
+                                <flux:badge color="amber" size="sm">
+                                    {{ $show_pending_images->count() }} {{ str('Image')->plural($show_pending_images->count()) }} to import
+                                </flux:badge>
+                            @endif
                         @endif
                         @if( !isset($shows[$folder_name]))
                             <flux:badge color="cyan" size="sm">

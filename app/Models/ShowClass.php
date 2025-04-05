@@ -630,7 +630,6 @@ class ShowClass extends Model
         // Anything that is in the $uploaded_web_images array should have its web_image_uploaded_at set
         // to now()
         foreach($uploaded_web_images as $uploaded_web_image) {
-            Log::debug('Uploaded web image: '.$uploaded_web_image);
             $proof_number = pathinfo($uploaded_web_image, PATHINFO_FILENAME);
             $file_extension = pathinfo($uploaded_web_image, PATHINFO_EXTENSION);
             $proof_number = str_replace('_web', '', $proof_number);
@@ -721,7 +720,7 @@ class ShowClass extends Model
             }
         }
 
-        Log::debug('Uploaded proofs: '.count($uploaded_proofs), [$uploaded_proofs]);
+        // Log::debug('Uploaded proofs: '.count($uploaded_proofs), [$uploaded_proofs]);
 
         // First let's loop through and grab the proof numbers of the uploaded proofs
         $proof_numbers_uploaded = [];

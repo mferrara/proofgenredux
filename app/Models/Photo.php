@@ -97,7 +97,10 @@ class Photo extends Model
             'photo_id' => $this->id,
             'file_size' => strlen($file_contents),
         ]);
-        $metadata->fillFromExifDataArray($exif_data);
+        if($exif_data !== false) {
+            $metadata->fillFromExifDataArray($exif_data);
+            \Log::debug('Exif data not found for photo: '.$this->id.'/'.$this->proof_number);
+        }
         $metadata->save();
 
         return $metadata;

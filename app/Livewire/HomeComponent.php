@@ -37,7 +37,7 @@ class HomeComponent extends Component
         // Loop through the top level directories determining which are imported as Shows
         $shows = [];
         foreach($top_level_directories as $directory_path) {
-            $show = Show::find($directory_path);
+            $show = Show::with('photos')->find($directory_path);
             if($show) {
                 $shows[$directory_path] = $show;
             }
