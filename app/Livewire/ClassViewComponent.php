@@ -262,6 +262,7 @@ class ClassViewComponent extends Component
             }
         } catch (Exception $e) {
             Log::error('Error generating web image: '.$e->getMessage());
+            Log::debug('Web Image generation attempted with photo_id: '.$photo->id.' and web_images_path: '.$web_images_path);
             $this->setFlashMessage('Error generating web image: '.$e->getMessage());
             return;
         }
