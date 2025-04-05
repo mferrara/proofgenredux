@@ -5,6 +5,7 @@
 /public/storage
 /storage/*.key
 /storage/sample_images/*
+/storage/class-card-samples
 !/storage/sample_images/.gitkeep
 /storage/fake_bucket/*
 !/storage/fake_bucket/.gitkeep
