@@ -2,6 +2,11 @@
     <div class="flex flex-col justify-start gap-y-2">
         <div class="flex flex-row justify-start items-center gap-x-4">
             <div class="text-4xl font-semibold">Application Settings</div>
+            <flux:radio.group x-data variant="segmented" x-model="$flux.appearance">
+                <flux:radio value="light" icon="sun" />
+                <flux:radio value="dark" icon="moon" />
+                <flux:radio value="system" icon="computer-desktop" />
+            </flux:radio.group>
         </div>
 
         <div class="mt-6 mb-24">
