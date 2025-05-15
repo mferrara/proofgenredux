@@ -18,6 +18,7 @@ class Image
     public bool $is_proofed = false;
     public array $missing_proofs = [];
     public bool $rename_files = true;
+    public bool $archive_enabled = true;
     public string $filename = '';
 
     protected PathResolver $pathResolver;
@@ -34,6 +35,7 @@ class Image
         $this->is_original = isset($path_parts[2]) && $path_parts[2] === 'originals';
         $this->filename = end($path_parts);
         $this->rename_files = config('proofgen.rename_files');
+        $this->archive_enabled = config('proofgen.archive_enabled');
     }
 
     public function checkForProofs(): bool
@@ -146,36 +148,38 @@ class Image
             $path_to_originals_file = $new_original_path;
         }
 
-        // Next we'll copy this file to the archive directory
-        // Note: If we re-named the file, the new name will already be included in $this->filename
-        $archive_path = $this->pathResolver->getArchivePath($this->show, $this->class).'/'.$this->filename;
-        $archive_path = $this->pathResolver->normalizePath($archive_path);
+        if($this->archive_enabled) {
+            // Next we'll copy this file to the archive directory
+            // Note: If we re-named the file, the new name will already be included in $this->filename
+            $archive_path = $this->pathResolver->getArchivePath($this->show, $this->class).'/'.$this->filename;
+            $archive_path = $this->pathResolver->normalizePath($archive_path);
 
-        // First, we'll see if it already exists in the archive from a previous failed run...
-        $exists = Storage::disk('archive')->exists($archive_path);
-        if($exists){
-            if($debug) {
-                Log::debug('File already exists in archive directory; '.$archive_path.' - Deleting...');
+            // First, we'll see if it already exists in the archive from a previous failed run...
+            $exists = Storage::disk('archive')->exists($archive_path);
+            if($exists){
+                if($debug) {
+                    Log::debug('File already exists in archive directory; '.$archive_path.' - Deleting...');
+                }
+                // TODO: Should we have some sort of directory in the /show/class directory, like /deleted that we move
+                // these files to and add something like _deleted01 to the filename (where 01 increments when there's
+                // a filename conflict rather than overwriting)? Seems better in the case where something goes wrong
+                // and we need to recover the original file.
+                Storage::disk('archive')->delete($archive_path);
             }
-            // TODO: Should we have some sort of directory in the /show/class directory, like /deleted that we move
-            // these files to and add something like _deleted01 to the filename (where 01 increments when there's
-            // a filename conflict rather than overwriting)? Seems better in the case where something goes wrong
-            // and we need to recover the original file.
-            Storage::disk('archive')->delete($archive_path);
-        }
 
-        Storage::disk('archive')->put($archive_path, $image);
-        if($debug) {
-            Log::debug('Copied file to archive directory; '.$archive_path);
-        }
+            Storage::disk('archive')->put($archive_path, $image);
+            if($debug) {
+                Log::debug('Copied file to archive directory; '.$archive_path);
+            }
 
-        // Next we'll confirm this copy of the file
-        $exists = Storage::disk('archive')->exists($archive_path);
-        if( ! $exists) {
-            throw new \Exception('File not copied to archive directory; Tried to write file to: '.$archive_path);
-        }
-        if($debug) {
-            Log::debug('File exists in archive directory; '.$archive_path);
+            // Next we'll confirm this copy of the file
+            $exists = Storage::disk('archive')->exists($archive_path);
+            if( ! $exists) {
+                throw new \Exception('File not copied to archive directory; Tried to write file to: '.$archive_path);
+            }
+            if($debug) {
+                Log::debug('File exists in archive directory; '.$archive_path);
+            }
         }
 
         // Finally, we'll delete the original file
