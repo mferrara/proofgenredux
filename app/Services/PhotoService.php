@@ -43,9 +43,9 @@ class PhotoService
 
         // Dispatch jobs for generating thumbnails and web images
         // \Log::debug('Queueing GenerateThumbnails job for photo_id: '.$photo->id);
-        GenerateThumbnails::dispatch($photo->id, $proofDestPath);
+        GenerateThumbnails::dispatch($photo->id, $proofDestPath)->onQueue('thumbnails');
         // \Log::debug('Queueing GenerateWebImage job for photo_id: '.$photo->id);
-        GenerateWebImage::dispatch($photo->id, $webImagesPath);
+        GenerateWebImage::dispatch($photo->id, $webImagesPath)->onQueue('thumbnails');
 
         return [
             'photo' => $photo,
