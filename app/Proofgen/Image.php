@@ -399,7 +399,7 @@ class Image
         // Save large thumbnail
         $image = $manager->read($full_system_path);
         $image->scale(config('proofgen.thumbnails.large.width'), config('proofgen.thumbnails.large.height'))
-            ->save($large_thumb_path, getenv('LARGE_THUMBNAIL_QUALITY'));
+            ->save($large_thumb_path, config('proofgen.thumbnails.large.quality'));
         unset($image);
 
         // If WATERMARK_PROOFS is true..
@@ -494,7 +494,7 @@ class Image
  */
 function imagettfJustifytext($text, $font = 'CENTURY.TTF', $justify = 2, $W = 0, $H = 0, $X = 0, $Y = 0, $fsize = 12, $color = [0x0, 0x0, 0x0, 1], $bgcolor = [0xFF, 0xFF, 0xFF, 1])
 {
-    $font = getenv('WATERMARK_FONT');
+    $font = config('proofgen.watermark_font');
 
     $angle = 0;
     $L_R_C = $justify;
