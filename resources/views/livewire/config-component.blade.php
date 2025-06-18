@@ -10,11 +10,11 @@
         </div>
 
         <div class="mt-6 mb-24">
-            <form wire:submit.prevent="save">
+            <form wire:submit="save">
             @foreach($configurationsByCategory as $category => $configurations)
                 @if($category === 'thumbnails')
                     {{-- Special handling for thumbnails with live preview --}}
-                    <div class="mb-8">
+                    <div class="mb-8" x-data="{ activeTab: 'large' }">
                         <div class="text-2xl font-semibold mb-2">
                             {{ $categoryLabels[$category] ?? ucfirst($category) }}
                         </div>
@@ -28,249 +28,216 @@
                             </div>
                         @endif
                         
+                        {{-- Tab Navigation --}}
+                        <div class="mb-6">
+                            <flux:tabs variant="segmented">
+                                <flux:tab 
+                                    name="large"
+                                    x-on:click="activeTab = 'large'"
+                                    x-bind:selected="activeTab === 'large'"
+                                >
+                                    Large Thumbnails
+                                </flux:tab>
+                                <flux:tab 
+                                    name="small"
+                                    x-on:click="activeTab = 'small'"
+                                    x-bind:selected="activeTab === 'small'"
+                                >
+                                    Small Thumbnails
+                                </flux:tab>
+                            </flux:tabs>
+                        </div>
+                        
                         <div class="space-y-6">
-                            {{-- Large Thumbnail Settings --}}
-                            <div class="bg-zinc-700 rounded-md overflow-hidden">
-                                <div class="bg-zinc-800 px-6 py-3">
-                                    <h3 class="text-lg font-medium text-gray-200">Large Thumbnails</h3>
-                                </div>
-                                <div class="p-6">
-                                    @if($sampleImagePath && $largeThumbnailPreview)
-                                        <div class="mb-6 text-center relative">
-                                            <img src="{{ $largeThumbnailPreview }}" 
-                                                 alt="Large thumbnail preview" 
-                                                 class="inline-block border border-zinc-600 rounded"
-                                                 wire:loading.class="opacity-50"
-                                                 wire:target="updateThumbnailPreview">
-                                            <div wire:loading wire:target="updateThumbnailPreview" class="absolute inset-0 flex items-center justify-center">
-                                                <flux:icon.loading class="w-8 h-8 text-blue-500" />
+                            @php
+                                $largeConfigs = collect($configurations)->filter(fn($c) => str_starts_with($c->key, 'thumbnails.large.'))->keyBy('key');
+                                $smallConfigs = collect($configurations)->filter(fn($c) => str_starts_with($c->key, 'thumbnails.small.'))->keyBy('key');
+                            @endphp
+                            
+                            {{-- Large Thumbnail Tab Content --}}
+                            <div x-show="activeTab === 'large'" x-transition>
+                                {{-- Large Preview Section --}}
+                                @if($sampleImagePath)
+                                    <div class="bg-zinc-800 rounded-md p-6 mb-6">
+                                        <h3 class="text-lg font-medium text-gray-200 mb-4">Large Thumbnail Preview</h3>
+                                        @if($largeThumbnailPreview)
+                                            <div class="relative inline-block">
+                                                <img src="{{ $largeThumbnailPreview }}" 
+                                                     alt="Large thumbnail preview" 
+                                                     class="border border-zinc-600 rounded"
+                                                     wire:loading.class="opacity-50"
+                                                     wire:target="updatePreview">
+                                                <div wire:loading.delay wire:target="updatePreview" 
+                                                     class="absolute inset-0 flex items-center justify-center">
+                                                    <flux:icon.loading class="w-8 h-8 text-blue-500" />
+                                                </div>
                                             </div>
-                                            <div class="mt-2 text-xs text-gray-400">
-                                                @php
-                                                    $largeWidth = $tempThumbnailValues['thumbnails.large.width'] ?? config('proofgen.thumbnails.large.width');
-                                                    $largeHeight = $tempThumbnailValues['thumbnails.large.height'] ?? config('proofgen.thumbnails.large.height');
-                                                    $largeQuality = $tempThumbnailValues['thumbnails.large.quality'] ?? config('proofgen.thumbnails.large.quality');
-                                                @endphp
-                                                Settings: {{ $largeWidth }}×{{ $largeHeight }}px @ {{ $largeQuality }}% quality
-                                                @if($largeThumbnailInfo)
-                                                    <div class="mt-1">
-                                                        Output: {{ $largeThumbnailInfo['dimensions'] }} • {{ $largeThumbnailInfo['size'] }}
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    @endif
-                                    
-                                    <div class="space-y-4">
-                                        @php
-                                            $largeConfigs = collect($configurations)->filter(fn($c) => str_starts_with($c->key, 'thumbnails.large.'))->keyBy('key');
-                                        @endphp
-                                        
-                                        {{-- Width and Height on same row --}}
-                                        <div class="grid grid-cols-2 gap-4">
-                                            @if(isset($largeConfigs['thumbnails.large.width']))
-                                                @php $config = $largeConfigs['thumbnails.large.width']; @endphp
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-300 mb-1">
-                                                        {{ $config->label ?? $config->key }}
-                                                    </label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model.lazy="configValues.{{ $config->id }}"
-                                                        x-on:input.debounce.500ms="$wire.updateThumbnailPreview('{{ $config->key }}', $event.target.value)"
-                                                        wire:key="{{ $config->key }}-input"
-                                                        class="w-full"
-                                                        placeholder="e.g. 950"
-                                                    />
-                                                    @error('configValues.'.$config->id) <div class="text-error text-xs mt-1">{{ $message }}</div> @enderror
+                                            @if($largeThumbnailInfo)
+                                                <div class="mt-2 text-xs text-gray-400">
+                                                    Output: {{ $largeThumbnailInfo['dimensions'] }} • {{ $largeThumbnailInfo['size'] }}
                                                 </div>
                                             @endif
-                                            
-                                            @if(isset($largeConfigs['thumbnails.large.height']))
-                                                @php $config = $largeConfigs['thumbnails.large.height']; @endphp
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-300 mb-1">
-                                                        {{ $config->label ?? $config->key }}
-                                                    </label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model.lazy="configValues.{{ $config->id }}"
-                                                        x-on:input.debounce.500ms="$wire.updateThumbnailPreview('{{ $config->key }}', $event.target.value)"
-                                                        wire:key="{{ $config->key }}-input"
-                                                        class="w-full"
-                                                        placeholder="e.g. 950"
-                                                    />
-                                                    @error('configValues.'.$config->id) <div class="text-error text-xs mt-1">{{ $message }}</div> @enderror
-                                                </div>
-                                            @endif
-                                        </div>
-                                        
-                                        {{-- Quality --}}
-                                        @if(isset($largeConfigs['thumbnails.large.quality']))
-                                            @php $config = $largeConfigs['thumbnails.large.quality']; @endphp
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-300 mb-1">
-                                                    {{ $config->label ?? $config->key }}
-                                                </label>
-                                                <flux:input
-                                                    type="text"
-                                                    wire:model.lazy="configValues.{{ $config->id }}"
-                                                    x-on:input.debounce.500ms="$wire.updateThumbnailPreview('{{ $config->key }}', $event.target.value)"
-                                                    wire:key="{{ $config->key }}-input"
-                                                    class="w-full"
-                                                    placeholder="10-100"
-                                                />
-                                                <div class="mt-1 text-xs text-gray-500">
-                                                    {{ $config->description }} (10-100)
-                                                </div>
-                                                @error('configValues.'.$config->id) <div class="text-error text-xs mt-1">{{ $message }}</div> @enderror
+                                        @else
+                                            <div class="w-[950px] h-[950px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
+                                                <flux:icon.loading class="w-8 h-8 text-gray-500" />
                                             </div>
                                         @endif
                                         
-                                        {{-- Other settings (suffix, font_size, bg_size) --}}
-                                        @foreach(['thumbnails.large.suffix', 'thumbnails.large.font_size', 'thumbnails.large.bg_size'] as $key)
-                                            @if(isset($largeConfigs[$key]))
-                                                @php $config = $largeConfigs[$key]; @endphp
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-300 mb-1">
-                                                        {{ $config->label ?? $config->key }}
-                                                    </label>
+                                        {{-- Large Preview Controls --}}
+                                        <div class="mt-4 flex items-end gap-4">
+                                            <div>
+                                                <label class="block text-xs text-gray-400 mb-1">Width</label>
+                                                <flux:input
+                                                    type="text"
+                                                    wire:model="tempThumbnailValues.thumbnails.large.width"
+                                                    wire:change="updatePreview"
+                                                    class="w-24"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-gray-400 mb-1">Height</label>
+                                                <flux:input
+                                                    type="text"
+                                                    wire:model="tempThumbnailValues.thumbnails.large.height"
+                                                    wire:change="updatePreview"
+                                                    class="w-24"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-gray-400 mb-1">Quality (10-100)</label>
+                                                <flux:input
+                                                    type="text"
+                                                    wire:model="tempThumbnailValues.thumbnails.large.quality"
+                                                    wire:change="updatePreview"
+                                                    class="w-24"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endif
+                                
+                                {{-- Large Thumbnail Settings --}}
+                                <div class="bg-zinc-700 rounded-md overflow-hidden">
+                                    <div class="bg-zinc-800 px-6 py-3">
+                                        <h3 class="text-lg font-medium text-gray-200">Large Thumbnail Settings</h3>
+                                    </div>
+                                    <div class="p-6">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            @foreach($largeConfigs as $config)
+                                                <flux:field>
+                                                    <flux:label>{{ $config->label ?? $config->key }}</flux:label>
                                                     <flux:input
                                                         type="text"
-                                                        wire:model.lazy="configValues.{{ $config->id }}"
+                                                        wire:model.defer="configValues.{{ $config->id }}"
                                                         wire:key="{{ $config->key }}-input"
-                                                        class="w-full"
+                                                        placeholder="{{ str_contains($config->key, 'width') || str_contains($config->key, 'height') ? 'e.g. 950' : (str_contains($config->key, 'quality') ? '10-100' : '') }}"
                                                     />
-                                                    <div class="mt-1 text-xs text-gray-500">
-                                                        {{ $config->description }}
-                                                    </div>
-                                                    @error('configValues.'.$config->id) <div class="text-error text-xs mt-1">{{ $message }}</div> @enderror
-                                                </div>
-                                            @endif
-                                        @endforeach
+                                                    @if($config->description)
+                                                        <flux:description>
+                                                            {{ $config->description }}
+                                                            @if(str_contains($config->key, 'quality')) (10-100) @endif
+                                                        </flux:description>
+                                                    @endif
+                                                    @error('configValues.'.$config->id) 
+                                                        <flux:error>{{ $message }}</flux:error>
+                                                    @enderror
+                                                </flux:field>
+                                            @endforeach
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                             
-                            {{-- Small Thumbnail Settings --}}
-                            <div class="bg-zinc-700 rounded-md overflow-hidden">
-                                <div class="bg-zinc-800 px-6 py-3">
-                                    <h3 class="text-lg font-medium text-gray-200">Small Thumbnails</h3>
-                                </div>
-                                <div class="p-6">
-                                    @if($sampleImagePath && $smallThumbnailPreview)
-                                        <div class="mb-6 text-center relative">
-                                            <img src="{{ $smallThumbnailPreview }}" 
-                                                 alt="Small thumbnail preview" 
-                                                 class="inline-block border border-zinc-600 rounded"
-                                                 wire:loading.class="opacity-50"
-                                                 wire:target="updateThumbnailPreview">
-                                            <div wire:loading wire:target="updateThumbnailPreview" class="absolute inset-0 flex items-center justify-center">
-                                                <flux:icon.loading class="w-8 h-8 text-blue-500" />
+                            {{-- Small Thumbnail Tab Content --}}
+                            <div x-show="activeTab === 'small'" x-transition>
+                                {{-- Small Preview Section --}}
+                                @if($sampleImagePath)
+                                    <div class="bg-zinc-800 rounded-md p-6 mb-6">
+                                        <h3 class="text-lg font-medium text-gray-200 mb-4">Small Thumbnail Preview</h3>
+                                        @if($smallThumbnailPreview)
+                                            <div class="relative inline-block">
+                                                <img src="{{ $smallThumbnailPreview }}" 
+                                                     alt="Small thumbnail preview" 
+                                                     class="border border-zinc-600 rounded"
+                                                     wire:loading.class="opacity-50"
+                                                     wire:target="updatePreview">
+                                                <div wire:loading.delay wire:target="updatePreview"
+                                                     class="absolute inset-0 flex items-center justify-center">
+                                                    <flux:icon.loading class="w-8 h-8 text-blue-500" />
+                                                </div>
                                             </div>
-                                            <div class="mt-2 text-xs text-gray-400">
-                                                @php
-                                                    $smallWidth = $tempThumbnailValues['thumbnails.small.width'] ?? config('proofgen.thumbnails.small.width');
-                                                    $smallHeight = $tempThumbnailValues['thumbnails.small.height'] ?? config('proofgen.thumbnails.small.height');
-                                                    $smallQuality = $tempThumbnailValues['thumbnails.small.quality'] ?? config('proofgen.thumbnails.small.quality');
-                                                @endphp
-                                                Settings: {{ $smallWidth }}×{{ $smallHeight }}px @ {{ $smallQuality }}% quality
-                                                @if($smallThumbnailInfo)
-                                                    <div class="mt-1">
-                                                        Output: {{ $smallThumbnailInfo['dimensions'] }} • {{ $smallThumbnailInfo['size'] }}
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    @endif
-                                    
-                                    <div class="space-y-4">
-                                        @php
-                                            $smallConfigs = collect($configurations)->filter(fn($c) => str_starts_with($c->key, 'thumbnails.small.'))->keyBy('key');
-                                        @endphp
-                                        
-                                        {{-- Width and Height on same row --}}
-                                        <div class="grid grid-cols-2 gap-4">
-                                            @if(isset($smallConfigs['thumbnails.small.width']))
-                                                @php $config = $smallConfigs['thumbnails.small.width']; @endphp
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-300 mb-1">
-                                                        {{ $config->label ?? $config->key }}
-                                                    </label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model.lazy="configValues.{{ $config->id }}"
-                                                        x-on:input.debounce.500ms="$wire.updateThumbnailPreview('{{ $config->key }}', $event.target.value)"
-                                                        wire:key="{{ $config->key }}-input"
-                                                        class="w-full"
-                                                        placeholder="e.g. 250"
-                                                    />
-                                                    @error('configValues.'.$config->id) <div class="text-error text-xs mt-1">{{ $message }}</div> @enderror
+                                            @if($smallThumbnailInfo)
+                                                <div class="mt-2 text-xs text-gray-400">
+                                                    Output: {{ $smallThumbnailInfo['dimensions'] }} • {{ $smallThumbnailInfo['size'] }}
                                                 </div>
                                             @endif
-                                            
-                                            @if(isset($smallConfigs['thumbnails.small.height']))
-                                                @php $config = $smallConfigs['thumbnails.small.height']; @endphp
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-300 mb-1">
-                                                        {{ $config->label ?? $config->key }}
-                                                    </label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model.lazy="configValues.{{ $config->id }}"
-                                                        x-on:input.debounce.500ms="$wire.updateThumbnailPreview('{{ $config->key }}', $event.target.value)"
-                                                        wire:key="{{ $config->key }}-input"
-                                                        class="w-full"
-                                                        placeholder="e.g. 250"
-                                                    />
-                                                    @error('configValues.'.$config->id) <div class="text-error text-xs mt-1">{{ $message }}</div> @enderror
-                                                </div>
-                                            @endif
-                                        </div>
-                                        
-                                        {{-- Quality --}}
-                                        @if(isset($smallConfigs['thumbnails.small.quality']))
-                                            @php $config = $smallConfigs['thumbnails.small.quality']; @endphp
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-300 mb-1">
-                                                    {{ $config->label ?? $config->key }}
-                                                </label>
-                                                <flux:input
-                                                    type="text"
-                                                    wire:model.lazy="configValues.{{ $config->id }}"
-                                                    x-on:input.debounce.500ms="$wire.updateThumbnailPreview('{{ $config->key }}', $event.target.value)"
-                                                    wire:key="{{ $config->key }}-input"
-                                                    class="w-full"
-                                                    placeholder="10-100"
-                                                />
-                                                <div class="mt-1 text-xs text-gray-500">
-                                                    {{ $config->description }} (10-100)
-                                                </div>
-                                                @error('configValues.'.$config->id) <div class="text-error text-xs mt-1">{{ $message }}</div> @enderror
+                                        @else
+                                            <div class="w-[250px] h-[250px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
+                                                <flux:icon.loading class="w-8 h-8 text-gray-500" />
                                             </div>
                                         @endif
                                         
-                                        {{-- Other settings (suffix, font_size, bg_size) --}}
-                                        @foreach(['thumbnails.small.suffix', 'thumbnails.small.font_size', 'thumbnails.small.bg_size'] as $key)
-                                            @if(isset($smallConfigs[$key]))
-                                                @php $config = $smallConfigs[$key]; @endphp
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-300 mb-1">
-                                                        {{ $config->label ?? $config->key }}
-                                                    </label>
+                                        {{-- Small Preview Controls --}}
+                                        <div class="mt-4 flex items-end gap-4">
+                                            <div>
+                                                <label class="block text-xs text-gray-400 mb-1">Width</label>
+                                                <flux:input
+                                                    type="text"
+                                                    wire:model="tempThumbnailValues.thumbnails.small.width"
+                                                    wire:change="updatePreview"
+                                                    class="w-24"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-gray-400 mb-1">Height</label>
+                                                <flux:input
+                                                    type="text"
+                                                    wire:model="tempThumbnailValues.thumbnails.small.height"
+                                                    wire:change="updatePreview"
+                                                    class="w-24"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-gray-400 mb-1">Quality (10-100)</label>
+                                                <flux:input
+                                                    type="text"
+                                                    wire:model="tempThumbnailValues.thumbnails.small.quality"
+                                                    wire:change="updatePreview"
+                                                    class="w-24"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endif
+                                
+                                {{-- Small Thumbnail Settings --}}
+                                <div class="bg-zinc-700 rounded-md overflow-hidden">
+                                    <div class="bg-zinc-800 px-6 py-3">
+                                        <h3 class="text-lg font-medium text-gray-200">Small Thumbnail Settings</h3>
+                                    </div>
+                                    <div class="p-6">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            @foreach($smallConfigs as $config)
+                                                <flux:field>
+                                                    <flux:label>{{ $config->label ?? $config->key }}</flux:label>
                                                     <flux:input
                                                         type="text"
-                                                        wire:model.lazy="configValues.{{ $config->id }}"
+                                                        wire:model.defer="configValues.{{ $config->id }}"
                                                         wire:key="{{ $config->key }}-input"
-                                                        class="w-full"
+                                                        placeholder="{{ str_contains($config->key, 'width') || str_contains($config->key, 'height') ? 'e.g. 250' : (str_contains($config->key, 'quality') ? '10-100' : '') }}"
                                                     />
-                                                    <div class="mt-1 text-xs text-gray-500">
-                                                        {{ $config->description }}
-                                                    </div>
-                                                    @error('configValues.'.$config->id) <div class="text-error text-xs mt-1">{{ $message }}</div> @enderror
-                                                </div>
-                                            @endif
-                                        @endforeach
+                                                    @if($config->description)
+                                                        <flux:description>
+                                                            {{ $config->description }}
+                                                            @if(str_contains($config->key, 'quality')) (10-100) @endif
+                                                        </flux:description>
+                                                    @endif
+                                                    @error('configValues.'.$config->id) 
+                                                        <flux:error>{{ $message }}</flux:error>
+                                                    @enderror
+                                                </flux:field>
+                                            @endforeach
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -334,7 +301,7 @@
                                                     <flux:input
                                                         type="text"
                                                         class:input="{{ $config->type === 'integer' ? '!w-18 !text-right' : ''  }} {{ $config->type === 'string' ? '!w-32' : '' }}"
-                                                        wire:model="configValues.{{ $config->id }}"
+                                                        wire:model.defer="configValues.{{ $config->id }}"
                                                         wire:key="{{ $config->key }}-input"
                                                         wire:dirty.class="!border-warning-border !text-warning"
                                                     />
