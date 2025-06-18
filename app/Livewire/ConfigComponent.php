@@ -2,21 +2,48 @@
 
 namespace App\Livewire;
 
-use Flux\Flux;
-use Livewire\Component;
 use App\Models\Configuration;
+use App\Proofgen\Image;
+use Flux\Flux;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Intervention\Image\ImageManager;
+use Livewire\Component;
 
 class ConfigComponent extends Component
 {
     public array $configurationsByCategory = [];
+
     public array $categoryLabels = [];
+
     public array $configValues = [];
+
     public array $configSources = [];
+
+    // Thumbnail preview properties
+    public array $tempThumbnailValues = [];
+
+    public ?string $sampleImagePath = null;
+
+    public ?string $largeThumbnailPreview = null;
+
+    public ?string $smallThumbnailPreview = null;
+
+    public ?array $largeThumbnailInfo = null;
+
+    public ?array $smallThumbnailInfo = null;
+
+    public bool $previewLoading = false;
 
     protected $rules = [
         'configValues.*' => 'nullable|max:250',
+    ];
+
+    protected $messages = [
+        'configValues.*.integer' => 'This field must be a number.',
+        'configValues.*.between' => 'Quality must be between 10 and 100.',
     ];
 
     public function mount(): void
@@ -26,6 +53,7 @@ class ConfigComponent extends Component
 
         $this->loadConfigurations();
         $this->initializeConfigValues();
+        $this->initializeThumbnailPreview();
     }
 
     /**
@@ -36,7 +64,7 @@ class ConfigComponent extends Component
         // Check if we already have this configuration
         $config = Configuration::where('key', 'auto_restart_horizon')->first();
 
-        if (!$config) {
+        if (! $config) {
             // Create the configuration if it doesn't exist
             Configuration::setConfig(
                 'auto_restart_horizon',
@@ -51,7 +79,7 @@ class ConfigComponent extends Component
         // Check if we have the PHP binary path configuration
         $phpBinaryConfig = Configuration::where('key', 'php_binary_path')->first();
 
-        if (!$phpBinaryConfig) {
+        if (! $phpBinaryConfig) {
             // Create the configuration with the current PHP binary path
             Configuration::setConfig(
                 'php_binary_path',
@@ -84,14 +112,14 @@ class ConfigComponent extends Component
                 $this->configValues[$config->id] = Configuration::castValue($config->value, $config->type);
 
                 // Determine the source of the configuration value
-                $envValue = config('proofgen.' . $config->key);
+                $envValue = config('proofgen.'.$config->key);
                 if ($envValue !== null) {
                     // If the database value and env value are different, it's overridden
                     $dbValue = Configuration::castValue($config->value, $config->type);
 
                     // Need to normalize types for comparison
                     if (is_string($envValue) && is_numeric($envValue)) {
-                        $envValue = (is_int((float)$envValue)) ? (int)$envValue : (float)$envValue;
+                        $envValue = (is_int((float) $envValue)) ? (int) $envValue : (float) $envValue;
                     }
                     if (is_string($envValue) && in_array(strtolower($envValue), ['true', 'false'])) {
                         $envValue = filter_var($envValue, FILTER_VALIDATE_BOOLEAN);
@@ -121,7 +149,7 @@ class ConfigComponent extends Component
             $config = Configuration::where('key', $key)->first();
         }
 
-        if (!$config) {
+        if (! $config) {
 
             $this->returnError('Configuration '.$key.' not found.');
 
@@ -129,7 +157,7 @@ class ConfigComponent extends Component
         }
         // Validate the updated value
         $this->validateOnly($config->id, [
-            'configValues.' . $config->id => 'nullable|string|max:255',
+            'configValues.'.$config->id => 'nullable|string|max:255',
         ]);
 
         // Log::debug('Update passed validation');
@@ -149,7 +177,7 @@ class ConfigComponent extends Component
 
     public function returnError(?string $message = null): void
     {
-        if( !$message ) {
+        if (! $message) {
             $message = 'An error occurred while saving the configuration.';
         }
 
@@ -165,7 +193,7 @@ class ConfigComponent extends Component
         foreach ($configurations as $config) {
             $category = $config->category ?? 'null';
 
-            if (!isset($this->configurationsByCategory[$category])) {
+            if (! isset($this->configurationsByCategory[$category])) {
                 $this->configurationsByCategory[$category] = [];
             }
 
@@ -185,7 +213,7 @@ class ConfigComponent extends Component
 
         ksort($this->configurationsByCategory);
 
-        if (!empty($nullCategory)) {
+        if (! empty($nullCategory)) {
             $this->configurationsByCategory = ['null' => $nullCategory] + $this->configurationsByCategory;
         }
     }
@@ -208,7 +236,7 @@ class ConfigComponent extends Component
     /**
      * Get the configuration ID for a specific key
      *
-     * @param string $key The configuration key
+     * @param  string  $key  The configuration key
      * @return int|null The configuration ID
      */
     public function getConfigId(string $key): ?int
@@ -243,7 +271,26 @@ class ConfigComponent extends Component
 
     public function save()
     {
-        $this->validate();
+        // Build dynamic validation rules based on config types
+        $rules = [];
+        foreach ($this->configurationsByCategory as $category => $configs) {
+            foreach ($configs as $config) {
+                $rule = ['nullable', 'max:250'];
+
+                if ($config->type === 'integer') {
+                    $rule[] = 'integer';
+
+                    // Special validation for quality fields
+                    if (str_contains($config->key, '.quality')) {
+                        $rule[] = 'between:10,100';
+                    }
+                }
+
+                $rules['configValues.'.$config->id] = $rule;
+            }
+        }
+
+        $this->validate($rules);
 
         foreach ($this->configValues as $key => $value) {
             $config = Configuration::find($key);
@@ -251,11 +298,11 @@ class ConfigComponent extends Component
             if ($config) {
                 $current_value = Configuration::castValue($config->value, $config->type);
                 $passed_value = Configuration::castValue($value, $config->type);
-                if($current_value === $passed_value ) {
+                if ($current_value === $passed_value) {
                     continue;
                 }
                 $config->value = Configuration::castValue($value, $config->type);
-                if($config->isDirty()) {
+                if ($config->isDirty()) {
                     $config->save();
                 }
             }
@@ -295,12 +342,13 @@ class ConfigComponent extends Component
             $horizonService = app(\App\Services\HorizonService::class);
 
             // Confirm Horizon is running before scheduling restart
-            if (!$horizonService->isRunning()) {
+            if (! $horizonService->isRunning()) {
                 Log::warning('Horizon is not running, cannot schedule restart');
                 Flux::toast(text: 'Horizon not running, no restart required.',
                     heading: 'Horizon Not Running',
                     variant: 'warning',
                     position: 'top right');
+
                 return;
             }
 
@@ -314,7 +362,7 @@ class ConfigComponent extends Component
                 position: 'top right');
 
         } catch (\Exception $e) {
-            Log::error('Failed to schedule Horizon restart: ' . $e->getMessage());
+            Log::error('Failed to schedule Horizon restart: '.$e->getMessage());
 
             Flux::toast(text: 'Failed to schedule Horizon restart. Please restart it manually.',
                 heading: 'Horizon Restart Failed',
@@ -332,7 +380,7 @@ class ConfigComponent extends Component
     {
         $this->scheduleHorizonRestart();
     }
-    
+
     /**
      * Start Horizon directly
      * This is used when Horizon is not running and needs to be started
@@ -340,11 +388,11 @@ class ConfigComponent extends Component
     public function startHorizon(): void
     {
         Log::info('Starting Horizon from ConfigComponent');
-        
+
         try {
             // Get the HorizonService
             $horizonService = app(\App\Services\HorizonService::class);
-            
+
             // Start Horizon directly
             if ($horizonService->start()) {
                 Flux::toast(
@@ -357,15 +405,15 @@ class ConfigComponent extends Component
                 Flux::toast(
                     text: 'Failed to start Horizon. Check logs for details.',
                     heading: 'Start Failed',
-                    variant: 'danger', 
+                    variant: 'danger',
                     position: 'top right'
                 );
             }
         } catch (\Exception $e) {
-            Log::error('Error starting Horizon: ' . $e->getMessage());
-            
+            Log::error('Error starting Horizon: '.$e->getMessage());
+
             Flux::toast(
-                text: 'Error starting Horizon: ' . $e->getMessage(),
+                text: 'Error starting Horizon: '.$e->getMessage(),
                 heading: 'Start Failed',
                 variant: 'danger',
                 position: 'top right'
@@ -379,6 +427,241 @@ class ConfigComponent extends Component
         $this->loadConfigurations();
         // Reset the configValues array to the original values
         $this->initializeConfigValues();
+        // Reset thumbnail preview values
+        $this->initializeTempThumbnailValues();
+        // Regenerate previews with original values
+        if ($this->sampleImagePath) {
+            $this->generateThumbnailPreviews();
+        }
+    }
+
+    /**
+     * Initialize thumbnail preview functionality
+     */
+    private function initializeThumbnailPreview(): void
+    {
+        // Find a sample image
+        $this->findSampleImage();
+
+        // Initialize temp values with current thumbnail settings
+        $this->initializeTempThumbnailValues();
+
+        // Generate initial previews if we have a sample image
+        if ($this->sampleImagePath) {
+            $this->generateThumbnailPreviews();
+        }
+    }
+
+    /**
+     * Initialize temporary thumbnail values from current config values
+     */
+    private function initializeTempThumbnailValues(): void
+    {
+        $thumbnailConfigs = $this->configurationsByCategory['thumbnails'] ?? [];
+
+        foreach ($thumbnailConfigs as $config) {
+            $this->tempThumbnailValues[$config->key] = $this->configValues[$config->id];
+        }
+    }
+
+    /**
+     * Find a suitable sample image for preview
+     */
+    private function findSampleImage(): void
+    {
+        // First try storage/sample_images
+        $sampleImagesPath = storage_path('sample_images');
+
+        if (File::exists($sampleImagesPath)) {
+            $images = File::allFiles($sampleImagesPath);
+
+            foreach ($images as $image) {
+                if (in_array(strtolower($image->getExtension()), ['jpg', 'jpeg', 'png'])) {
+                    $this->sampleImagePath = $image->getPathname();
+
+                    return;
+                }
+            }
+        }
+
+        // If no sample images, try to find an image in FULLSIZE_HOME_DIR
+        $fullsizeDir = config('proofgen.fullsize_home_dir');
+        if ($fullsizeDir && Storage::disk('fullsize')->exists('/')) {
+            try {
+                // Look for any image that's not a thumbnail, limit search for performance
+                $directories = Storage::disk('fullsize')->directories();
+                $found = false;
+
+                foreach ($directories as $dir) {
+                    if ($found) {
+                        break;
+                    }
+
+                    $files = Storage::disk('fullsize')->files($dir);
+
+                    foreach ($files as $file) {
+                        // Skip thumbnails (files with _std or _thm suffix)
+                        if (preg_match('/_(?:std|thm)\.[^.]+$/', $file)) {
+                            continue;
+                        }
+
+                        $extension = pathinfo($file, PATHINFO_EXTENSION);
+                        if (in_array(strtolower($extension), ['jpg', 'jpeg', 'png'])) {
+                            $this->sampleImagePath = Storage::disk('fullsize')->path($file);
+                            $found = true;
+                            break;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Error searching for sample images: '.$e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Update thumbnail preview when values change
+     */
+    public function updateThumbnailPreview($key, $value): void
+    {
+        Log::debug('updateThumbnailPreview called', ['key' => $key, 'value' => $value]);
+
+        // Validate quality values
+        if (str_contains($key, '.quality')) {
+            if (! is_numeric($value) || $value < 10 || $value > 100) {
+                return; // Don't update if invalid
+            }
+        } elseif (str_contains($key, '.width') || str_contains($key, '.height')) {
+            if (! is_numeric($value) || $value < 1) {
+                return; // Don't update if invalid
+            }
+        }
+
+        // Update the temporary value
+        $this->tempThumbnailValues[$key] = $value;
+
+        // Also update the actual config value for the corresponding ID
+        foreach ($this->configurationsByCategory['thumbnails'] ?? [] as $config) {
+            if ($config->key === $key) {
+                $this->configValues[$config->id] = $value;
+                break;
+            }
+        }
+
+        // Regenerate previews
+        $this->generateThumbnailPreviews();
+    }
+
+    /**
+     * Generate thumbnail previews with current temporary settings
+     */
+    public function generateThumbnailPreviews(): void
+    {
+        if (! $this->sampleImagePath) {
+            return;
+        }
+
+        $this->previewLoading = true;
+
+        try {
+            // Create temp directory for previews
+            $tempDir = storage_path('app/temp/thumbnail-previews');
+            if (! File::exists($tempDir)) {
+                File::makeDirectory($tempDir, 0755, true);
+            }
+
+            // Clean up old previews
+            $this->cleanupOldPreviews($tempDir);
+
+            // Generate previews with temporary config values
+            $timestamp = now()->timestamp;
+            $largePreviewPath = $tempDir.'/large_preview_'.$timestamp.'.jpg';
+            $smallPreviewPath = $tempDir.'/small_preview_'.$timestamp.'.jpg';
+
+            // Create thumbnails with custom settings
+            $this->createPreviewThumbnail($this->sampleImagePath, $largePreviewPath, 'large');
+            $this->createPreviewThumbnail($this->sampleImagePath, $smallPreviewPath, 'small');
+
+            // Set preview URLs (these will be served via a route)
+            $this->largeThumbnailPreview = '/temp/thumbnail-preview/large_preview_'.$timestamp.'.jpg';
+            $this->smallThumbnailPreview = '/temp/thumbnail-preview/small_preview_'.$timestamp.'.jpg';
+
+            // Get file info
+            $this->largeThumbnailInfo = $this->getFileInfo($largePreviewPath);
+            $this->smallThumbnailInfo = $this->getFileInfo($smallPreviewPath);
+
+        } catch (\Exception $e) {
+            Log::error('Error generating thumbnail previews: '.$e->getMessage());
+        } finally {
+            $this->previewLoading = false;
+        }
+    }
+
+    /**
+     * Create a preview thumbnail with temporary settings
+     */
+    private function createPreviewThumbnail(string $sourcePath, string $destPath, string $size): void
+    {
+        $manager = ImageManager::gd();
+        $image = $manager->read($sourcePath);
+
+        // Get the temporary values for this size
+        $width = (int) ($this->tempThumbnailValues["thumbnails.{$size}.width"] ?? config("proofgen.thumbnails.{$size}.width"));
+        $height = (int) ($this->tempThumbnailValues["thumbnails.{$size}.height"] ?? config("proofgen.thumbnails.{$size}.height"));
+        $quality = (int) ($this->tempThumbnailValues["thumbnails.{$size}.quality"] ?? config("proofgen.thumbnails.{$size}.quality"));
+
+        Log::debug("Creating {$size} preview", ['width' => $width, 'height' => $height, 'quality' => $quality]);
+
+        // Scale and save as JPEG with quality
+        $image->scale($width, $height)
+            ->toJpeg($quality)
+            ->save($destPath);
+    }
+
+    /**
+     * Clean up old preview files
+     */
+    private function cleanupOldPreviews(string $tempDir): void
+    {
+        $files = File::glob($tempDir.'/*_preview_*.jpg');
+        foreach ($files as $file) {
+            // Delete files older than 1 hour
+            if (File::lastModified($file) < now()->subHour()->timestamp) {
+                File::delete($file);
+            }
+        }
+    }
+
+    /**
+     * Get file information for a preview image
+     */
+    private function getFileInfo(string $path): array
+    {
+        if (! File::exists($path)) {
+            return [];
+        }
+
+        $size = File::size($path);
+        [$width, $height] = getimagesize($path);
+
+        return [
+            'size' => $this->formatBytes($size),
+            'dimensions' => $width.' × '.$height.' px',
+        ];
+    }
+
+    /**
+     * Format bytes into human readable format
+     */
+    private function formatBytes(int $bytes, int $precision = 2): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB'];
+
+        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+            $bytes /= 1024;
+        }
+
+        return round($bytes, $precision).' '.$units[$i];
     }
 
     public function render()
@@ -386,9 +669,9 @@ class ConfigComponent extends Component
         // Pass the Horizon status to the view
         $horizonService = app(\App\Services\HorizonService::class);
         $isHorizonRunning = $horizonService->isRunning();
-        
+
         return view('livewire.config-component', [
-            'isHorizonRunning' => $isHorizonRunning
+            'isHorizonRunning' => $isHorizonRunning,
         ]);
     }
 }

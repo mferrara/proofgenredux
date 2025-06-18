@@ -2,6 +2,7 @@
 
 use App\Livewire\HomeComponent;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\File;
 
 Route::get('/test', function () {
     return 'Hello World';
@@ -24,4 +25,15 @@ Route::middleware([
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
+    
+    // Route to serve temporary thumbnail previews
+    Route::get('/temp/thumbnail-preview/{filename}', function ($filename) {
+        $path = storage_path('app/temp/thumbnail-previews/' . $filename);
+        
+        if (!File::exists($path)) {
+            abort(404);
+        }
+        
+        return response()->file($path);
+    })->name('thumbnail-preview');
 });
