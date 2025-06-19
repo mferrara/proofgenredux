@@ -44,6 +44,10 @@ return [
         'bg_size' => getenv('WEB_BG_SIZE'),
     ],
 
+    'generate_web_images' => [
+        'enabled' => getenv('GENERATE_WEB_IMAGES_ENABLED') !== 'FALSE',
+    ],
+
     'highres_images' => [
         'suffix' => getenv('HIGHRES_SUFFIX') ?: '_highres',
         'width' => getenv('HIGHRES_WIDTH'),
@@ -51,6 +55,10 @@ return [
         'quality' => getenv('HIGHRES_QUALITY'),
         'font_size' => getenv('HIGHRES_FONT_SIZE'),
         'bg_size' => getenv('HIGHRES_BG_SIZE'),
+    ],
+
+    'generate_highres_images' => [
+        'enabled' => getenv('GENERATE_HIGHRES_IMAGES_ENABLED') !== 'FALSE',
     ],
 
     'sftp' => [

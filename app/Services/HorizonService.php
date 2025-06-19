@@ -53,23 +53,25 @@ class HorizonService
     {
         try {
             $phpBinary = Configuration::getPhpBinary();
-            
+
             // Get main Horizon process
             $mainProcess = shell_exec("ps aux | grep '[p]hp.*artisan horizon$' | grep -v 'horizon:work' | grep -v 'horizon:supervisor'");
-            
+
             if (empty($mainProcess)) {
                 return [
                     'running' => false,
-                    'processes' => []
+                    'processes' => [],
                 ];
             }
 
             $processes = [];
             $lines = explode("\n", trim($mainProcess));
-            
+
             foreach ($lines as $line) {
-                if (empty($line)) continue;
-                
+                if (empty($line)) {
+                    continue;
+                }
+
                 // Parse ps output
                 $parts = preg_split('/\s+/', $line, 11);
                 if (count($parts) >= 11) {
@@ -79,7 +81,7 @@ class HorizonService
                         'cpu' => $parts[2],
                         'memory' => $parts[3],
                         'start_time' => $parts[8],
-                        'command' => $parts[10]
+                        'command' => $parts[10],
                     ];
                 }
             }
@@ -93,14 +95,15 @@ class HorizonService
                 'main_process' => $processes[0] ?? null,
                 'supervisor_count' => $supervisorCount,
                 'worker_count' => $workerCount,
-                'total_processes' => 1 + $supervisorCount + $workerCount
+                'total_processes' => 1 + $supervisorCount + $workerCount,
             ];
 
         } catch (\Exception $e) {
             Log::error('Error getting Horizon process info: '.$e->getMessage());
+
             return [
                 'running' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
@@ -238,6 +241,7 @@ class HorizonService
 
         } catch (\Exception $e) {
             Log::error('Error during direct Horizon restart: '.$e->getMessage());
+
             return false;
         }
     }
@@ -253,16 +257,17 @@ class HorizonService
 
             // Get all Horizon process PIDs
             $pids = shell_exec("ps aux | grep '[p]hp.*artisan horizon' | awk '{print $2}'");
-            
+
             if (empty($pids)) {
                 Log::info('No Horizon processes found to kill');
+
                 return true;
             }
 
             $pidArray = array_filter(explode("\n", trim($pids)));
-            
+
             foreach ($pidArray as $pid) {
-                if (!empty($pid) && is_numeric($pid)) {
+                if (! empty($pid) && is_numeric($pid)) {
                     Log::debug("Killing Horizon process: $pid");
                     exec("kill -9 $pid");
                 }
@@ -273,17 +278,20 @@ class HorizonService
 
             // Verify they're gone
             $remainingPids = shell_exec("ps aux | grep '[p]hp.*artisan horizon' | awk '{print $2}'");
-            
+
             if (empty(trim($remainingPids))) {
                 Log::info('All Horizon processes killed successfully');
+
                 return true;
             } else {
                 Log::error('Some Horizon processes may still be running');
+
                 return false;
             }
 
         } catch (\Exception $e) {
             Log::error('Error force killing Horizon: '.$e->getMessage());
+
             return false;
         }
     }

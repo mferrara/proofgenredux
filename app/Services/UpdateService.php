@@ -2,15 +2,17 @@
 
 namespace App\Services;
 
+use Carbon\Carbon;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
-use Illuminate\Support\Facades\File;
-use Carbon\Carbon;
 
 class UpdateService
 {
     protected string $backupPath;
+
     protected int $maxBackups = 5;
+
     protected array $excludeFromBackup = [
         'vendor',
         'node_modules',
@@ -37,13 +39,14 @@ class UpdateService
     {
         $result = Process::run('git describe --tags --abbrev=0 2>/dev/null');
 
-        if ($result->successful() && !empty($result->output())) {
+        if ($result->successful() && ! empty($result->output())) {
             return trim($result->output());
         }
 
         // If no tags, get current commit hash
         $result = Process::run('git rev-parse --short HEAD');
-        return $result->successful() ? 'commit-' . trim($result->output()) : null;
+
+        return $result->successful() ? 'commit-'.trim($result->output()) : null;
     }
 
     /**
@@ -71,13 +74,14 @@ class UpdateService
     {
         $result = Process::run('git describe --tags --abbrev=0 $(git rev-list --tags --max-count=1) 2>/dev/null');
 
-        if ($result->successful() && !empty($result->output())) {
+        if ($result->successful() && ! empty($result->output())) {
             return trim($result->output());
         }
 
         // If no tags, get latest remote commit
         $result = Process::run('git rev-parse --short origin/main');
-        return $result->successful() ? 'commit-' . trim($result->output()) : null;
+
+        return $result->successful() ? 'commit-'.trim($result->output()) : null;
     }
 
     /**
@@ -85,7 +89,7 @@ class UpdateService
      */
     protected function isUpdateAvailable(?string $current, ?string $latest): bool
     {
-        if (!$current || !$latest) {
+        if (! $current || ! $latest) {
             return false;
         }
 
@@ -125,39 +129,39 @@ class UpdateService
             // Step 3: Pull latest changes
             $steps[] = 'Pulling latest changes...';
             $pullResult = Process::timeout(120)->run('git pull origin main --tags');
-            if (!$pullResult->successful()) {
-                throw new \Exception('Git pull failed: ' . $pullResult->errorOutput());
+            if (! $pullResult->successful()) {
+                throw new \Exception('Git pull failed: '.$pullResult->errorOutput());
             }
 
             // Step 4: Checkout latest tag if available
             $latestTag = $this->getLatestRemoteVersion();
-            if ($latestTag && !str_starts_with($latestTag, 'commit-')) {
+            if ($latestTag && ! str_starts_with($latestTag, 'commit-')) {
                 $steps[] = "Checking out version {$latestTag}...";
                 $checkoutResult = Process::run("git checkout {$latestTag}");
-                if (!$checkoutResult->successful()) {
-                    throw new \Exception('Git checkout failed: ' . $checkoutResult->errorOutput());
+                if (! $checkoutResult->successful()) {
+                    throw new \Exception('Git checkout failed: '.$checkoutResult->errorOutput());
                 }
             }
 
             // Step 5: Install composer dependencies
             $steps[] = 'Installing composer dependencies...';
             $composerResult = Process::timeout(300)->run('composer install --no-dev --optimize-autoloader');
-            if (!$composerResult->successful()) {
-                throw new \Exception('Composer install failed: ' . $composerResult->errorOutput());
+            if (! $composerResult->successful()) {
+                throw new \Exception('Composer install failed: '.$composerResult->errorOutput());
             }
 
             // Step 6: Run migrations
             $steps[] = 'Running migrations...';
             $migrateResult = Process::run('php artisan migrate --force');
-            if (!$migrateResult->successful()) {
-                throw new \Exception('Migrations failed: ' . $migrateResult->errorOutput());
+            if (! $migrateResult->successful()) {
+                throw new \Exception('Migrations failed: '.$migrateResult->errorOutput());
             }
 
             // Step 7: Build frontend assets
             $steps[] = 'Building frontend assets...';
             $npmResult = Process::timeout(300)->run('npm ci && npm run build');
-            if (!$npmResult->successful()) {
-                throw new \Exception('NPM build failed: ' . $npmResult->errorOutput());
+            if (! $npmResult->successful()) {
+                throw new \Exception('NPM build failed: '.$npmResult->errorOutput());
             }
 
             // Step 8: Clear caches
@@ -182,7 +186,7 @@ class UpdateService
         } catch (\Exception $e) {
             $success = false;
             $error = $e->getMessage();
-            $steps[] = 'Error: ' . $error;
+            $steps[] = 'Error: '.$error;
             Log::error('Update failed', ['error' => $error]);
         }
 
@@ -204,16 +208,16 @@ class UpdateService
     {
         $timestamp = Carbon::now()->format('Y-m-d_H-i-s');
         $currentVersion = $this->getCurrentVersion() ?: 'unknown';
-        $backupDir = $this->backupPath . '/' . $timestamp . '_' . $currentVersion;
+        $backupDir = $this->backupPath.'/'.$timestamp.'_'.$currentVersion;
 
         // Create backup directory
         File::makeDirectory($backupDir, 0755, true, true);
 
         // Use rsync to copy files, excluding certain directories
-        $excludes = array_map(fn($dir) => "--exclude='{$dir}'", $this->excludeFromBackup);
+        $excludes = array_map(fn ($dir) => "--exclude='{$dir}'", $this->excludeFromBackup);
         $excludeString = implode(' ', $excludes);
 
-        $rsyncCommand = "rsync -a {$excludeString} " . base_path() . '/ ' . $backupDir . '/';
+        $rsyncCommand = "rsync -a {$excludeString} ".base_path().'/ '.$backupDir.'/';
         Process::timeout(300)->run($rsyncCommand);
 
         return $backupDir;
@@ -224,18 +228,18 @@ class UpdateService
      */
     protected function cleanupOldBackups(): void
     {
-        if (!File::exists($this->backupPath)) {
+        if (! File::exists($this->backupPath)) {
             return;
         }
 
         $backups = collect(File::directories($this->backupPath))
-            ->sortByDesc(fn($path) => File::lastModified($path))
+            ->sortByDesc(fn ($path) => File::lastModified($path))
             ->values();
 
         // Remove old backups beyond the limit
         $backups->slice($this->maxBackups)->each(function ($backup) {
             File::deleteDirectory($backup);
-            Log::info('Deleted old backup: ' . $backup);
+            Log::info('Deleted old backup: '.$backup);
         });
     }
 
@@ -262,7 +266,7 @@ class UpdateService
      */
     public function getBackups(): array
     {
-        if (!File::exists($this->backupPath)) {
+        if (! File::exists($this->backupPath)) {
             return [];
         }
 
@@ -274,7 +278,7 @@ class UpdateService
                 return [
                     'path' => $path,
                     'name' => $name,
-                    'date' => Carbon::parse($parts[0] . ' ' . str_replace('-', ':', $parts[1]))->format('Y-m-d H:i:s'),
+                    'date' => Carbon::parse($parts[0].' '.str_replace('-', ':', $parts[1]))->format('Y-m-d H:i:s'),
                     'version' => $parts[2] ?? 'unknown',
                     'size' => $this->getDirectorySize($path),
                 ];
@@ -290,6 +294,7 @@ class UpdateService
     protected function getDirectorySize(string $path): string
     {
         $result = Process::run("du -sh '{$path}' | cut -f1");
+
         return $result->successful() ? trim($result->output()) : 'Unknown';
     }
 }

@@ -397,6 +397,11 @@ class ShowClass extends Model
      */
     public function queueWebImageGeneration(array|Collection $photos): int
     {
+        // Check if web images generation is enabled
+        if (! config('proofgen.generate_web_images.enabled', true)) {
+            return 0;
+        }
+
         $queued = 0;
         foreach ($photos as $photo) {
             GenerateWebImage::dispatch($photo->id, $this->web_images_path)->onQueue('thumbnails');
@@ -411,6 +416,11 @@ class ShowClass extends Model
      */
     public function queueHighresImageGeneration(array|Collection $photos): int
     {
+        // Check if highres images generation is enabled
+        if (! config('proofgen.generate_highres_images.enabled', true)) {
+            return 0;
+        }
+
         $queued = 0;
         foreach ($photos as $photo) {
             GenerateHighresImage::dispatch($photo->id, $this->highres_images_path)->onQueue('thumbnails');

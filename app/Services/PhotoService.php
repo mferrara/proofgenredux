@@ -75,7 +75,7 @@ class PhotoService
     {
         // Normalize paths to ensure consistency
         $photo = Photo::find($photo_id);
-        if (!$photo) {
+        if (! $photo) {
             throw new \Exception("Photo not found with ID: {$photo_id}");
         }
         $photoPath = $photo->relative_path;

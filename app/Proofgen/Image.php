@@ -247,7 +247,7 @@ class Image
         $web_dest_system_path = $pathResolver->getAbsolutePath($web_dest_path, $base_path);
 
         // Check if the file exists
-        if (!file_exists($full_system_path)) {
+        if (! file_exists($full_system_path)) {
             throw new \Exception("Image file not found at: {$full_system_path}");
         }
 
@@ -440,12 +440,12 @@ class Image
 
         // Use PathResolver.getAbsolutePath to get the correct full system path
         $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
-        
+
         // Check if the file exists
-        if (!file_exists($full_system_path)) {
+        if (! file_exists($full_system_path)) {
             throw new \Exception("Image file not found at: {$full_system_path}");
         }
-        
+
         $image = $manager->read($full_system_path);
 
         $lrg_suf = config('proofgen.thumbnails.large.suffix');

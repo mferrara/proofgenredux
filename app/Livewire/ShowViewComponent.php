@@ -130,6 +130,8 @@ class ShowViewComponent extends Component
             ->with('photos_pending_highres_images', $photos_pending_highres_images)
             ->with('photos_highres_images_uploaded', $photos_highres_images_uploaded)
             ->with('photos_pending_highres_image_uploads', $photos_pending_highres_image_uploads)
+            ->with('web_images_enabled', config('proofgen.generate_web_images.enabled', true))
+            ->with('highres_images_enabled', config('proofgen.generate_highres_images.enabled', true))
             ->title($this->show->id.' - Proofgen');
     }
 

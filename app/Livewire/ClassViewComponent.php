@@ -147,6 +147,8 @@ class ClassViewComponent extends Component
             ->with('photos_pending_highres_images', $photos_pending_highres_images)
             ->with('photos_highres_images_uploaded', $photos_highres_images_uploaded)
             ->with('photos_pending_highres_image_uploads', $photos_pending_highres_image_uploads)
+            ->with('web_images_enabled', config('proofgen.generate_web_images.enabled', true))
+            ->with('highres_images_enabled', config('proofgen.generate_highres_images.enabled', true))
             ->title($this->show.' '.$this->class.' - Proofgen');
     }
 
@@ -247,12 +249,36 @@ class ClassViewComponent extends Component
 
     public function webImagePendingPhotos(): void
     {
+        // Check if web images generation is enabled
+        if (! config('proofgen.generate_web_images.enabled', true)) {
+            Flux::toast(
+                text: 'Web images generation is disabled in settings',
+                heading: 'Feature Disabled',
+                variant: 'warning',
+                position: 'top right'
+            );
+
+            return;
+        }
+
         $count = $this->showClass->webImagePendingPhotos();
         $this->setFlashMessage($count.' Photos queued.');
     }
 
     public function highresImagePendingPhotos(): void
     {
+        // Check if highres images generation is enabled
+        if (! config('proofgen.generate_highres_images.enabled', true)) {
+            Flux::toast(
+                text: 'High resolution images generation is disabled in settings',
+                heading: 'Feature Disabled',
+                variant: 'warning',
+                position: 'top right'
+            );
+
+            return;
+        }
+
         $count = $this->showClass->highresImagePendingPhotos();
         $this->setFlashMessage($count.' Photos queued.');
     }
@@ -278,6 +304,18 @@ class ClassViewComponent extends Component
 
     public function generateWebImage(string $photo_id): void
     {
+        // Check if web images generation is enabled
+        if (! config('proofgen.generate_web_images.enabled', true)) {
+            Flux::toast(
+                text: 'Web images generation is disabled in settings',
+                heading: 'Feature Disabled',
+                variant: 'warning',
+                position: 'top right'
+            );
+
+            return;
+        }
+
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
         if (! $photo) {
             $this->setFlashMessage('Photo not found');
@@ -320,6 +358,18 @@ class ClassViewComponent extends Component
 
     public function generateHighresImage(string $photo_id): void
     {
+        // Check if highres images generation is enabled
+        if (! config('proofgen.generate_highres_images.enabled', true)) {
+            Flux::toast(
+                text: 'High resolution images generation is disabled in settings',
+                heading: 'Feature Disabled',
+                variant: 'warning',
+                position: 'top right'
+            );
+
+            return;
+        }
+
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
         if (! $photo) {
             $this->setFlashMessage('Photo not found');
@@ -374,6 +424,18 @@ class ClassViewComponent extends Component
 
     public function regenerateWebImages(): void
     {
+        // Check if web images generation is enabled
+        if (! config('proofgen.generate_web_images.enabled', true)) {
+            Flux::toast(
+                text: 'Web images generation is disabled in settings',
+                heading: 'Feature Disabled',
+                variant: 'warning',
+                position: 'top right'
+            );
+
+            return;
+        }
+
         $photos_queued = $this->showClass->regenerateWebImages();
 
         Flux::toast(
@@ -386,6 +448,18 @@ class ClassViewComponent extends Component
 
     public function regenerateHighresImages(): void
     {
+        // Check if highres images generation is enabled
+        if (! config('proofgen.generate_highres_images.enabled', true)) {
+            Flux::toast(
+                text: 'High resolution images generation is disabled in settings',
+                heading: 'Feature Disabled',
+                variant: 'warning',
+                position: 'top right'
+            );
+
+            return;
+        }
+
         $photos_queued = $this->showClass->regenerateHighresImages();
 
         Flux::toast(

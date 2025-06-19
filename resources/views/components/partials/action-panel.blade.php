@@ -58,7 +58,14 @@
 
                 <div class="flex flex-col gap-3 text-gray-400">
 
-                    @if($photos_pending_web_images->count())
+                    @if(!$web_images_enabled)
+                        <div class="p-4 bg-amber-500/10 rounded-md border border-amber-500/20">
+                            <div class="flex items-center gap-2 text-amber-400">
+                                <flux:icon name="exclamation-triangle" size="sm" />
+                                <span class="text-sm font-medium">Disabled in settings</span>
+                            </div>
+                        </div>
+                    @elseif($photos_pending_web_images->count())
                         <div class="flex flex-col justify-start gap-y-4">
                             <div class="p-4 bg-gray-500/10 rounded-md">
                                 <div class="flex flex-row items-center justify-between">
@@ -84,7 +91,14 @@
 
                 <div class="flex flex-col gap-3 text-gray-400">
 
-                    @if($photos_pending_highres_images->count())
+                    @if(!$highres_images_enabled)
+                        <div class="p-4 bg-amber-500/10 rounded-md border border-amber-500/20">
+                            <div class="flex items-center gap-2 text-amber-400">
+                                <flux:icon name="exclamation-triangle" size="sm" />
+                                <span class="text-sm font-medium">Disabled in settings</span>
+                            </div>
+                        </div>
+                    @elseif($photos_pending_highres_images->count())
                         <div class="flex flex-col justify-start gap-y-4">
                             <div class="p-4 bg-gray-500/10 rounded-md">
                                 <div class="flex flex-row items-center justify-between">
@@ -187,21 +201,39 @@
                 </div>
                 <div class="flex justify-between items-center">
                     <span>Regenerate web images on <flux:badge color="orange" size="sm" inset="top bottom">{{ $photos_imported->count() }}</flux:badge> photos</span>
-                    <flux:button
-                        wire:click="regenerateWebImages"
-                        size="sm"
-                    >
-                        Regenerate
-                    </flux:button>
+                    @if($web_images_enabled)
+                        <flux:button
+                            wire:click="regenerateWebImages"
+                            size="sm"
+                        >
+                            Regenerate
+                        </flux:button>
+                    @else
+                        <div class="px-3 py-1 bg-amber-500/10 rounded-md border border-amber-500/20">
+                            <div class="flex items-center gap-2 text-amber-400">
+                                <flux:icon name="exclamation-triangle" size="sm" />
+                                <span class="text-sm font-medium">Disabled in settings</span>
+                            </div>
+                        </div>
+                    @endif
                 </div>
                 <div class="flex justify-between items-center">
                     <span>Regenerate highres images on <flux:badge color="orange" size="sm" inset="top bottom">{{ $photos_imported->count() }}</flux:badge> photos</span>
-                    <flux:button
-                        wire:click="regenerateHighresImages"
-                        size="sm"
-                    >
-                        Regenerate
-                    </flux:button>
+                    @if($highres_images_enabled)
+                        <flux:button
+                            wire:click="regenerateHighresImages"
+                            size="sm"
+                        >
+                            Regenerate
+                        </flux:button>
+                    @else
+                        <div class="px-3 py-1 bg-amber-500/10 rounded-md border border-amber-500/20">
+                            <div class="flex items-center gap-2 text-amber-400">
+                                <flux:icon name="exclamation-triangle" size="sm" />
+                                <span class="text-sm font-medium">Disabled in settings</span>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             @endif
 

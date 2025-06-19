@@ -50,8 +50,11 @@ class ConfigComponent extends Component
 
     // Update system properties
     public ?array $updateInfo = null;
+
     public bool $checkingForUpdates = false;
+
     public bool $performingUpdate = false;
+
     public array $updateSteps = [];
 
     protected $rules = [
@@ -682,7 +685,7 @@ class ConfigComponent extends Component
     private function findSampleImage(): void
     {
         Log::debug('ConfigComponent: Starting findSampleImage()');
-        
+
         // First try storage/sample_images
         $sampleImagesPath = storage_path('sample_images');
 
@@ -695,8 +698,9 @@ class ConfigComponent extends Component
                 if (in_array(strtolower($image->getExtension()), ['jpg', 'jpeg', 'png'])) {
                     $this->sampleImagePath = $image->getPathname();
                     Log::debug('ConfigComponent: Using sample image from sample_images directory', [
-                        'path' => $this->sampleImagePath
+                        'path' => $this->sampleImagePath,
                     ]);
+
                     return;
                 }
             }
@@ -728,7 +732,7 @@ class ConfigComponent extends Component
                             $this->sampleImagePath = Storage::disk('fullsize')->path($file);
                             Log::debug('ConfigComponent: Using sample image from fullsize disk', [
                                 'path' => $this->sampleImagePath,
-                                'file' => $file
+                                'file' => $file,
                             ]);
                             $found = true;
                             break;
@@ -739,7 +743,7 @@ class ConfigComponent extends Component
                 Log::warning('Error searching for sample images: '.$e->getMessage());
             }
         }
-        
+
         Log::warning('ConfigComponent: No sample image found in either sample_images directory or fullsize disk');
     }
 
@@ -807,9 +811,9 @@ class ConfigComponent extends Component
             'type' => $type,
             'size' => $size,
             'file_exists' => file_exists($sourcePath),
-            'file_size' => file_exists($sourcePath) ? filesize($sourcePath) : 0
+            'file_size' => file_exists($sourcePath) ? filesize($sourcePath) : 0,
         ]);
-        
+
         $manager = ImageManager::gd();
         $image = $manager->read($sourcePath);
 
@@ -826,7 +830,7 @@ class ConfigComponent extends Component
             $quality = (int) ($this->tempThumbnailValues[$type]['quality'] ?? config("proofgen.{$type}.quality"));
         }
 
-        Log::debug("Creating {$type}" . ($size ? " {$size}" : "") . " preview", ['width' => $width, 'height' => $height, 'quality' => $quality]);
+        Log::debug("Creating {$type}".($size ? " {$size}" : '').' preview', ['width' => $width, 'height' => $height, 'quality' => $quality]);
 
         // Scale and save as JPEG with quality
         $image->scale($width, $height)
@@ -888,10 +892,10 @@ class ConfigComponent extends Component
         $this->checkingForUpdates = true;
 
         try {
-            $updateService = new UpdateService();
+            $updateService = new UpdateService;
             $this->updateInfo = $updateService->checkForUpdates();
         } catch (\Exception $e) {
-            Log::error('Error checking for updates: ' . $e->getMessage());
+            Log::error('Error checking for updates: '.$e->getMessage());
             $this->updateInfo = [
                 'current_version' => 'Unknown',
                 'latest_version' => 'Unknown',
@@ -914,7 +918,7 @@ class ConfigComponent extends Component
         Flux::modal('update-progress')->show();
 
         try {
-            $updateService = new UpdateService();
+            $updateService = new UpdateService;
             $result = $updateService->performUpdate();
 
             $this->updateSteps = $result['steps'];
@@ -931,7 +935,7 @@ class ConfigComponent extends Component
                 $this->dispatch('reload-page-delayed');
             } else {
                 Flux::toast(
-                    text: 'Update failed: ' . ($result['error'] ?? 'Unknown error'),
+                    text: 'Update failed: '.($result['error'] ?? 'Unknown error'),
                     heading: 'Update Failed',
                     variant: 'danger',
                     position: 'top right'
@@ -946,12 +950,12 @@ class ConfigComponent extends Component
             $this->checkForUpdates();
 
         } catch (\Exception $e) {
-            Log::error('Error performing update: ' . $e->getMessage());
+            Log::error('Error performing update: '.$e->getMessage());
 
-            $this->updateSteps[] = 'Fatal error: ' . $e->getMessage();
+            $this->updateSteps[] = 'Fatal error: '.$e->getMessage();
 
             Flux::toast(
-                text: 'Fatal error during update: ' . $e->getMessage(),
+                text: 'Fatal error during update: '.$e->getMessage(),
                 heading: 'Update Failed',
                 variant: 'danger',
                 position: 'top right'
@@ -967,10 +971,12 @@ class ConfigComponent extends Component
     public function getBackups(): array
     {
         try {
-            $updateService = new UpdateService();
+            $updateService = new UpdateService;
+
             return $updateService->getBackups();
         } catch (\Exception $e) {
-            Log::error('Error getting backups: ' . $e->getMessage());
+            Log::error('Error getting backups: '.$e->getMessage());
+
             return [];
         }
     }

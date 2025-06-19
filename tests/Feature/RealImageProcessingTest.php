@@ -42,7 +42,7 @@ class RealImageProcessingTest extends TestCase
      * Get or create a sample image for testing
      * Prefers to use existing real sample images, falls back to creating test images
      *
-     * @param string $testFilename The filename to use if creating a test image
+     * @param  string  $testFilename  The filename to use if creating a test image
      * @return array ['path' => string, 'content' => string]
      */
     protected function getOrCreateSampleImage(string $testFilename = 'test_image.jpg'): array
@@ -51,9 +51,9 @@ class RealImageProcessingTest extends TestCase
         $realSampleDirs = [
             '22Buck/007',
             '23R41/121',
-            '2023R41/121'
+            '2023R41/121',
         ];
-        
+
         foreach ($realSampleDirs as $dir) {
             if (Storage::disk('sample_images')->exists($dir)) {
                 $files = Storage::disk('sample_images')->files($dir);
@@ -62,23 +62,23 @@ class RealImageProcessingTest extends TestCase
                     if (basename($file) !== 'IMG_02593.jpg' && preg_match('/\.(jpg|jpeg|png)$/i', $file)) {
                         return [
                             'path' => $file,
-                            'content' => Storage::disk('sample_images')->get($file)
+                            'content' => Storage::disk('sample_images')->get($file),
                         ];
                     }
                 }
             }
         }
-        
+
         // If no real sample found, create a test image
         $testImage = $this->createValidTestImage();
         $testPath = "{$this->show}/{$this->class}/{$testFilename}";
-        
+
         // Store in bucket for download
         Storage::disk('sample_images_bucket')->put($testPath, $testImage);
-        
+
         return [
             'path' => $testPath,
-            'content' => $testImage
+            'content' => $testImage,
         ];
     }
 
@@ -135,21 +135,24 @@ class RealImageProcessingTest extends TestCase
     {
         parent::setUp();
 
+        // Ensure we're in testing environment
+        if (app()->environment() !== 'testing') {
+            $this->markTestSkipped('Test can only run in testing environment');
+        }
+
         $this->pathResolver = new PathResolver;
 
         // Create the Show and ShowClass records in the database
-        $show = Show::firstOrCreate(
-            ['id' => $this->show],
-            ['name' => $this->show]
-        );
+        $show = Show::create([
+            'id' => $this->show,
+            'name' => $this->show
+        ]);
 
-        ShowClass::firstOrCreate(
-            ['id' => $this->show.'_'.$this->class],
-            [
-                'show_id' => $show->id,
-                'name' => $this->class,
-            ]
-        );
+        ShowClass::create([
+            'id' => $this->show.'_'.$this->class,
+            'show_id' => $show->id,
+            'name' => $this->class,
+        ]);
 
         // Create a temp directory for our test images
         $this->tempPath = storage_path('app/temp_test_'.uniqid());
@@ -186,7 +189,7 @@ class RealImageProcessingTest extends TestCase
         config(['filesystems.disks.archive' => $archiveDisk]);
         config(['filesystems.disks.sample_images' => $sampleImagesDisk]);
         config(['filesystems.disks.sample_images_bucket' => $sampleImagesBucketDisk]);
-        
+
         // Force Storage to forget cached disk instances
         app()->forgetInstance('filesystem.disk');
         Storage::forgetDisk('fullsize');
@@ -240,7 +243,7 @@ class RealImageProcessingTest extends TestCase
             'font_size' => 20,
             'bg_size' => 40,
         ]);
-        
+
         // Configure highres image settings
         Config::set('proofgen.highres_images', [
             'suffix' => '_highres',
@@ -323,7 +326,7 @@ class RealImageProcessingTest extends TestCase
     {
         // Clean up between tests
         $this->cleanFakeBucket();
-        
+
         // First, try to use an existing real sample image
         $existingSamplePath = null;
         if (Storage::disk('sample_images')->exists('22Buck/007/22BUCK_00093.jpg')) {
@@ -338,7 +341,7 @@ class RealImageProcessingTest extends TestCase
                 }
             }
         }
-        
+
         if ($existingSamplePath) {
             // Use the existing sample image
             $sampleImagePath = $existingSamplePath;
@@ -357,7 +360,7 @@ class RealImageProcessingTest extends TestCase
             } catch (SampleImagesNotFoundException $e) {
                 $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: '.$e->getMessage());
             }
-            
+
             $sampleImagePath = "{$this->show}/{$this->class}/{$this->photo_name}";
         }
         $sampleImage = Storage::disk('sample_images')->get($sampleImagePath);
@@ -413,7 +416,7 @@ class RealImageProcessingTest extends TestCase
             Storage::disk('fullsize')->exists($fullsizeImagePath),
             "File not found at relative path in fullsize disk: {$fullsizeImagePath}"
         );
-        
+
         // Use PhotoService for creating thumbnails and web images
         $this->photoService->generateThumbnails($photo->id, $proofDestPath, false);
         $this->photoService->generateWebImage($photo->id, $webImagesPath);
@@ -448,9 +451,9 @@ class RealImageProcessingTest extends TestCase
     {
         // Clean up between tests
         $this->cleanFakeBucket();
-        
+
         $sampleImages = [];
-        
+
         // First, try to use existing real sample images
         if (Storage::disk('sample_images')->exists('22Buck/007')) {
             $files = Storage::disk('sample_images')->files('22Buck/007');
@@ -460,7 +463,7 @@ class RealImageProcessingTest extends TestCase
                 }
             }
         }
-        
+
         // If we don't have enough real samples, create test images
         if (count($sampleImages) < 3) {
             try {

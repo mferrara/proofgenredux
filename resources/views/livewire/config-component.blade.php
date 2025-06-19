@@ -332,12 +332,28 @@
 
                                 {{-- Web Images Settings --}}
                                 <div class="bg-zinc-700 rounded-md overflow-hidden">
-                                    <div class="bg-zinc-800 px-6 py-3">
+                                    <div class="bg-zinc-800 px-6 py-3 flex items-center justify-between">
                                         <h3 class="text-lg font-medium text-gray-200">Web Image Settings</h3>
+                                        @php
+                                            $webEnabledConfig = collect($webConfigs)->firstWhere('key', 'generate_web_images.enabled');
+                                        @endphp
+                                        @if($webEnabledConfig)
+                                            <div class="flex items-center gap-3">
+                                                <flux:label for="web-images-enabled-toggle" class="text-sm text-gray-300">
+                                                    {{ $webEnabledConfig->label ?? 'Enable Web Images' }}
+                                                </flux:label>
+                                                <flux:switch
+                                                    id="web-images-enabled-toggle"
+                                                    wire:model.defer="configValues.{{ $webEnabledConfig->id }}"
+                                                    wire:key="{{ $webEnabledConfig->key }}-switch"
+                                                />
+                                            </div>
+                                        @endif
                                     </div>
                                     <div class="p-6">
                                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             @foreach($webConfigs as $config)
+                                                @if($config->key !== 'generate_web_images.enabled')
                                                     <flux:field>
                                                         <flux:label>{{ $config->label ?? $config->key }}</flux:label>
                                                         <flux:input
@@ -356,10 +372,11 @@
                                                             <flux:error>{{ $message }}</flux:error>
                                                         @enderror
                                                     </flux:field>
-                                                @endforeach
-                                            </div>
+                                                @endif
+                                            @endforeach
                                         </div>
                                     </div>
+                                </div>
                         </div>
 
                         {{-- High Resolution Images Tab Content --}}
@@ -426,12 +443,28 @@
 
                                 {{-- High Resolution Images Settings --}}
                                 <div class="bg-zinc-700 rounded-md overflow-hidden">
-                                    <div class="bg-zinc-800 px-6 py-3">
+                                    <div class="bg-zinc-800 px-6 py-3 flex items-center justify-between">
                                         <h3 class="text-lg font-medium text-gray-200">High Resolution Image Settings</h3>
+                                        @php
+                                            $highresEnabledConfig = collect($highresConfigs)->firstWhere('key', 'generate_highres_images.enabled');
+                                        @endphp
+                                        @if($highresEnabledConfig)
+                                            <div class="flex items-center gap-3">
+                                                <flux:label for="highres-images-enabled-toggle" class="text-sm text-gray-300">
+                                                    {{ $highresEnabledConfig->label ?? 'Enable High Resolution Images' }}
+                                                </flux:label>
+                                                <flux:switch
+                                                    id="highres-images-enabled-toggle"
+                                                    wire:model.defer="configValues.{{ $highresEnabledConfig->id }}"
+                                                    wire:key="{{ $highresEnabledConfig->key }}-switch"
+                                                />
+                                            </div>
+                                        @endif
                                     </div>
                                     <div class="p-6">
                                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             @foreach($highresConfigs as $config)
+                                                @if($config->key !== 'generate_highres_images.enabled')
                                                     <flux:field>
                                                         <flux:label>{{ $config->label ?? $config->key }}</flux:label>
                                                         <flux:input
@@ -450,10 +483,11 @@
                                                             <flux:error>{{ $message }}</flux:error>
                                                         @enderror
                                                     </flux:field>
-                                                @endforeach
-                                            </div>
+                                                @endif
+                                            @endforeach
                                         </div>
                                     </div>
+                                </div>
                                 </div>
                         </div>
                     </div>
