@@ -5,8 +5,8 @@ namespace App\Providers;
 use App\Models\Configuration;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\ServiceProvider;
 
 class ConfigurationServiceProvider extends ServiceProvider
 {
@@ -24,8 +24,9 @@ class ConfigurationServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Only run if the configurations table exists
-        if (!$this->canLoadConfigFromDatabase()) {
+        if (! $this->canLoadConfigFromDatabase()) {
             Log::debug('Configuration table does not exist or is empty. Skipping loading configurations.');
+
             return;
         }
 
@@ -37,14 +38,12 @@ class ConfigurationServiceProvider extends ServiceProvider
         } catch (QueryException $e) {
             // Handle database connection failures gracefully
             // Just use the default configurations from files
-            Log::debug('Error loading configurations: ' . $e->getMessage());
+            Log::debug('Error loading configurations: '.$e->getMessage());
         }
     }
 
     /**
      * Check if we can load configurations from the database
-     *
-     * @return bool
      */
     private function canLoadConfigFromDatabase(): bool
     {
@@ -54,7 +53,8 @@ class ConfigurationServiceProvider extends ServiceProvider
         } catch (QueryException $e) {
             // Handle database connection failures gracefully
             // Just use the default configurations from files
-            Log::debug('Error checking configurations table: ' . $e->getMessage());
+            Log::debug('Error checking configurations table: '.$e->getMessage());
+
             return false;
         }
     }

@@ -47,7 +47,7 @@ class ProofSearchComponent extends Component
         ]);
 
         if (strlen($this->query) >= 3) {
-            $this->results = Photo::where('proof_number', 'like', '%'.$this->query . '%')
+            $this->results = Photo::where('proof_number', 'like', '%'.$this->query.'%')
                 ->select('id', 'proof_number', 'show_class_id')
                 ->limit(10)
                 ->get()
@@ -63,7 +63,7 @@ class ProofSearchComponent extends Component
     /**
      * Select a proof number from the results.
      *
-     * @param string $id
+     * @param  string  $id
      * @return void
      */
     public function selectProof($id)
@@ -77,7 +77,7 @@ class ProofSearchComponent extends Component
             // Redirect to the class view page containing this proof
             $showParts = explode('_', $photo->show_class_id);
             if (count($showParts) === 2) {
-                return redirect()->to('/show/' . $showParts[0] . '/class/' . $showParts[1]);
+                return redirect()->to('/show/'.$showParts[0].'/class/'.$showParts[1]);
             }
         }
 

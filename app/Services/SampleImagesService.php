@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Exceptions\SampleImagesNotFoundException;
+use Exception;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Exception;
 
 class SampleImagesService
 {
@@ -23,8 +23,9 @@ class SampleImagesService
         $allFiles = $sampleDisk->allFiles();
 
         // Filter to keep only image files
-        $imageFiles = array_filter($allFiles, function($file) {
+        $imageFiles = array_filter($allFiles, function ($file) {
             $extension = pathinfo($file, PATHINFO_EXTENSION);
+
             return in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif']);
         });
 
@@ -35,6 +36,7 @@ class SampleImagesService
      * Download sample images from S3 bucket
      *
      * @return bool Success status
+     *
      * @throws Exception If download fails
      */
     public function downloadSampleImages(): bool
@@ -58,7 +60,7 @@ class SampleImagesService
             foreach ($files as $file) {
                 // Create the directory if it doesn't exist
                 $directory = dirname($file);
-                if (!empty($directory) && $directory !== '.') {
+                if (! empty($directory) && $directory !== '.') {
                     $localDisk->makeDirectory($directory);
                 }
 
@@ -73,7 +75,7 @@ class SampleImagesService
             return true;
         } catch (Exception $e) {
             Log::error('Failed to download sample images', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             throw new Exception("Failed to download sample images: {$e->getMessage()}", 0, $e);
@@ -83,9 +85,10 @@ class SampleImagesService
     /**
      * Upload sample images to S3 bucket from local directory
      *
-     * @param string|null $sourcePath Optional custom source path (defaults to sample_images disk)
-     * @param bool $overwrite Whether to overwrite existing files in the bucket
+     * @param  string|null  $sourcePath  Optional custom source path (defaults to sample_images disk)
+     * @param  bool  $overwrite  Whether to overwrite existing files in the bucket
      * @return array Statistics about the upload operation
+     *
      * @throws Exception If upload fails
      */
     public function uploadSampleImages(?string $sourcePath = null, bool $overwrite = true): array
@@ -98,7 +101,7 @@ class SampleImagesService
         $localDisk = $useLocalDisk ? Storage::disk('sample_images') : null;
 
         // Ensure source path exists if provided
-        if (!$useLocalDisk && !File::exists($sourcePath)) {
+        if (! $useLocalDisk && ! File::exists($sourcePath)) {
             throw new Exception("Source directory not found: $sourcePath");
         }
 
@@ -107,7 +110,7 @@ class SampleImagesService
             'uploaded' => 0,
             'skipped' => 0,
             'failed' => 0,
-            'total' => 0
+            'total' => 0,
         ];
 
         try {
@@ -130,8 +133,9 @@ class SampleImagesService
                 $relativePath = $useLocalDisk ? $file : $this->getRelativePath($sourcePath, $file);
 
                 // Skip if file exists and we're not overwriting
-                if (!$overwrite && in_array($relativePath, $existingFiles)) {
+                if (! $overwrite && in_array($relativePath, $existingFiles)) {
                     $stats['skipped']++;
+
                     continue;
                 }
 
@@ -144,19 +148,19 @@ class SampleImagesService
                     $stats['uploaded']++;
                 } catch (Exception $e) {
                     Log::error("Failed to upload file: $file", [
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
                     ]);
                     $stats['failed']++;
                 }
             }
 
-            Log::info("Sample images upload completed", $stats);
+            Log::info('Sample images upload completed', $stats);
 
             return $stats;
         } catch (Exception $e) {
             Log::error('Failed to upload sample images', [
                 'error' => $e->getMessage(),
-                'stats' => $stats
+                'stats' => $stats,
             ]);
 
             throw new Exception("Failed to upload sample images: {$e->getMessage()}", 0, $e);
@@ -166,7 +170,7 @@ class SampleImagesService
     /**
      * Get all files recursively from a directory
      *
-     * @param string $directory The directory to scan
+     * @param  string  $directory  The directory to scan
      * @return array An array of file paths
      */
     protected function getAllFiles(string $directory): array
@@ -185,13 +189,14 @@ class SampleImagesService
     /**
      * Filter array of files returned from filesystem to only include image files
      *
-     * @param array $files An array of file paths
+     * @param  array  $files  An array of file paths
      * @return array An array of image file paths
      */
     protected function filterImageFiles(array $files): array
     {
-        return array_filter($files, function($file) {
+        return array_filter($files, function ($file) {
             $extension = pathinfo($file, PATHINFO_EXTENSION);
+
             return in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif']);
         });
     }
@@ -199,13 +204,13 @@ class SampleImagesService
     /**
      * Get the relative path for a file from a base directory
      *
-     * @param string $basePath The base directory
-     * @param string $filePath The full file path
+     * @param  string  $basePath  The base directory
+     * @param  string  $filePath  The full file path
      * @return string The relative path
      */
     protected function getRelativePath(string $basePath, string $filePath): string
     {
-        $basePath = rtrim($basePath, '/') . '/';
+        $basePath = rtrim($basePath, '/').'/';
 
         if (strpos($filePath, $basePath) === 0) {
             return substr($filePath, strlen($basePath));
@@ -218,12 +223,13 @@ class SampleImagesService
      * Ensure sample images are available, downloading them if needed
      *
      * @return bool Success status
+     *
      * @throws Exception If download fails
      */
     public function ensureSampleImagesAvailable(): bool
     {
         try {
-            if (!$this->hasSampleImages()) {
+            if (! $this->hasSampleImages()) {
                 // If we're missing sample images, try to download them
                 if (config('proofgen.auto_download_sample_images', false)) {
                     return $this->downloadSampleImages();
@@ -239,7 +245,7 @@ class SampleImagesService
         } catch (Exception $e) {
             // Log and wrap other exceptions
             Log::error('Error checking or downloading sample images', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             throw new Exception("Failed to ensure sample images are available: {$e->getMessage()}", 0, $e);

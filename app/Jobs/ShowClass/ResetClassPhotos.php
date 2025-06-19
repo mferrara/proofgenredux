@@ -16,7 +16,9 @@ class ResetClassPhotos implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public string $show_id;
+
     public string $class;
+
     public int $tries = 1;
 
     /**
@@ -34,13 +36,15 @@ class ResetClassPhotos implements ShouldQueue
     public function handle(): void
     {
         $show = Show::find($this->show_id);
-        if (!$show) {
+        if (! $show) {
             Log::error(self::class.': Show not found: '.$this->show_id);
+
             return;
         }
         $show_class = $show->classes()->where('id', $show->name.'_'.$this->class)->first();
-        if (!$show_class) {
+        if (! $show_class) {
             Log::error(self::class.': ShowClass not found: '.$this->show_id.'_'.$this->class);
+
             return;
         }
 

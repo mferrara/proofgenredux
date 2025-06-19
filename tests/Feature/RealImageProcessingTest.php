@@ -6,10 +6,7 @@ use App\Exceptions\SampleImagesNotFoundException;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
-use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Proofgen\Image;
-use App\Proofgen\ShowClass;
-use App\Proofgen\Utility;
 use App\Services\PathResolver;
 use App\Services\PhotoService;
 use App\Services\SampleImagesService;
@@ -19,7 +16,6 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
-use Mockery;
 use Tests\TestCase;
 
 class RealImageProcessingTest extends TestCase
@@ -27,11 +23,17 @@ class RealImageProcessingTest extends TestCase
     use RefreshDatabase;
 
     protected $tempPath;
+
     protected string $show = '2023R41';
+
     protected string $class = '121';
+
     protected string $photo_name = 'IMG_02593.jpg';
+
     protected PhotoService $photoService;
+
     protected PathResolver $pathResolver;
+
     protected SampleImagesService $sampleImagesService;
 
     /**
@@ -87,22 +89,22 @@ class RealImageProcessingTest extends TestCase
     {
         parent::setUp();
 
-        $this->pathResolver = new PathResolver();
+        $this->pathResolver = new PathResolver;
 
         // Create a temp directory for our test images
-        $this->tempPath = storage_path('app/temp_test_' . uniqid());
+        $this->tempPath = storage_path('app/temp_test_'.uniqid());
         File::makeDirectory($this->tempPath, 0755, true);
 
         // Override the default disk configs with our test ones
         $fullsizeDisk = [
             'driver' => 'local',
-            'root' => $this->tempPath . '/fullsize',
+            'root' => $this->tempPath.'/fullsize',
             'throw' => true,
         ];
 
         $archiveDisk = [
             'driver' => 'local',
-            'root' => $this->tempPath . '/archive',
+            'root' => $this->tempPath.'/archive',
             'throw' => true,
         ];
 
@@ -134,8 +136,8 @@ class RealImageProcessingTest extends TestCase
         Storage::disk('fullsize')->makeDirectory($this->pathResolver->getWebImagesPath($this->show, $this->class));
 
         // Set up configuration for testing with actual files
-        Config::set('proofgen.fullsize_home_dir', $this->tempPath . '/fullsize');
-        Config::set('proofgen.archive_home_dir', $this->tempPath . '/archive');
+        Config::set('proofgen.fullsize_home_dir', $this->tempPath.'/fullsize');
+        Config::set('proofgen.archive_home_dir', $this->tempPath.'/archive');
         Config::set('proofgen.rename_files', true);
         Config::set('proofgen.watermark_proofs', false); // Disable watermarking for tests
         Config::set('proofgen.watermark_font', storage_path('watermark_fonts/Georgia.ttf'));
@@ -159,7 +161,7 @@ class RealImageProcessingTest extends TestCase
                 'quality' => 90,
                 'font_size' => 20,
                 'bg_size' => 40,
-            ]
+            ],
         ]);
 
         // Configure web image settings
@@ -173,7 +175,7 @@ class RealImageProcessingTest extends TestCase
         ]);
 
         // Set environment variables that some parts of the code expect
-        putenv('WATERMARK_FONT=' . storage_path('watermark_fonts/Georgia.ttf'));
+        putenv('WATERMARK_FONT='.storage_path('watermark_fonts/Georgia.ttf'));
         putenv('LARGE_THUMBNAIL_QUALITY=90');
 
         // Mock Redis for proof numbers
@@ -181,14 +183,15 @@ class RealImageProcessingTest extends TestCase
         $mock->shouldReceive('client')->andReturn($mock);
         $mock->shouldReceive('exists')->andReturn(false);
         $mock->shouldReceive('rpush')->andReturn(true);
-        $mock->shouldReceive('lpop')->andReturnUsing(function() {
+        $mock->shouldReceive('lpop')->andReturnUsing(function () {
             static $proofNum = 1;
-            return 'TEST' . str_pad($proofNum++, 3, '0', STR_PAD_LEFT);
+
+            return 'TEST'.str_pad($proofNum++, 3, '0', STR_PAD_LEFT);
         });
         $mock->shouldReceive('llen')->andReturn(0);
 
         // Create service instances
-        $this->pathResolver = new PathResolver();
+        $this->pathResolver = new PathResolver;
         $this->photoService = new PhotoService($this->pathResolver);
         $this->sampleImagesService = new SampleImagesService($this->pathResolver);
     }
@@ -251,7 +254,7 @@ class RealImageProcessingTest extends TestCase
             Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/{$this->photo_name}", $testImage);
             $this->sampleImagesService->downloadSampleImages();
         } catch (SampleImagesNotFoundException $e) {
-            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: ' . $e->getMessage());
+            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: '.$e->getMessage());
         }
 
         // Find a sample image to use
@@ -330,7 +333,7 @@ class RealImageProcessingTest extends TestCase
 
     /**
      * Test processing multiple real images in bulk from sample directory
-    */
+     */
     public function test_process_multiple_sample_images()
     {
         // Clean up between tests
@@ -348,7 +351,7 @@ class RealImageProcessingTest extends TestCase
             Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/image3.jpg", $testImage);
             $this->sampleImagesService->downloadSampleImages();
         } catch (SampleImagesNotFoundException $e) {
-            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: ' . $e->getMessage());
+            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: '.$e->getMessage());
         }
 
         $fullsize_path = $this->pathResolver->getFullsizePath($this->show, $this->class);
@@ -358,7 +361,7 @@ class RealImageProcessingTest extends TestCase
 
         // Get sample images to use, filtering for jpgs, limit to 3
         $sampleImages = Storage::disk('sample_images')->files("{$this->show}/{$this->class}");
-        $sampleImages = array_filter($sampleImages, function($image) {
+        $sampleImages = array_filter($sampleImages, function ($image) {
             // If the filename ends with .jpg, keep it
             return str_ends_with($image, '.jpg');
         });
@@ -379,7 +382,7 @@ class RealImageProcessingTest extends TestCase
         // Process each image using PhotoService
         $processedImages = [];
         foreach ($testFiles as $index => $file) {
-            $proofNumber = 'TEST' . str_pad($index + 1, 3, '0', STR_PAD_LEFT);
+            $proofNumber = 'TEST'.str_pad($index + 1, 3, '0', STR_PAD_LEFT);
 
             // Use PhotoService to process this image (no job dispatching)
             $result = $this->photoService->processPhoto($file, $proofNumber, false, false);
@@ -416,7 +419,7 @@ class RealImageProcessingTest extends TestCase
 
     /**
      * Test with real job dispatching but using PhotoService inside the jobs
-    */
+     */
     public function test_job_integration_with_photo_service()
     {
         // Clean up between tests
@@ -432,7 +435,7 @@ class RealImageProcessingTest extends TestCase
             Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/job_test.jpg", $testImage);
             $this->sampleImagesService->downloadSampleImages();
         } catch (SampleImagesNotFoundException $e) {
-            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: ' . $e->getMessage());
+            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: '.$e->getMessage());
         }
 
         Queue::fake();
@@ -442,7 +445,7 @@ class RealImageProcessingTest extends TestCase
         $this->assertNotEmpty($sampleImages, 'No sample images found to test with');
 
         // Filter entries in $sampleImages for those that end with .jpg
-        $sampleImages = array_filter($sampleImages, function($image) {
+        $sampleImages = array_filter($sampleImages, function ($image) {
             return str_ends_with($image, '.jpg');
         });
 
@@ -450,7 +453,7 @@ class RealImageProcessingTest extends TestCase
         $sampleImage = array_shift($sampleImages);
         $imageContent = Storage::disk('sample_images')->get($sampleImage);
         $sampleFilename = basename($sampleImage).'.jpg';
-        $imagePath = $this->pathResolver->getFullsizePath($this->show, $this->class) . "/{$sampleFilename}";
+        $imagePath = $this->pathResolver->getFullsizePath($this->show, $this->class)."/{$sampleFilename}";
         Storage::disk('fullsize')->put($imagePath, $imageContent);
 
         // Dispatch the job
@@ -527,7 +530,7 @@ class RealImageProcessingTest extends TestCase
      * Test the actual watermarking and image manipulation functionality
      * This test uses real image processing to ensure watermark files and fonts
      * are correctly configured and working
-    */
+     */
     public function test_actual_image_processing_with_watermarking()
     {
         // Clean up between tests
@@ -543,7 +546,7 @@ class RealImageProcessingTest extends TestCase
             Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/watermark_test.jpg", $testImage);
             $this->sampleImagesService->downloadSampleImages();
         } catch (SampleImagesNotFoundException $e) {
-            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: ' . $e->getMessage());
+            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: '.$e->getMessage());
         }
 
         // Enable watermarking for this test
@@ -554,14 +557,14 @@ class RealImageProcessingTest extends TestCase
         $this->assertNotEmpty($sampleImages, 'No sample images found to test with');
 
         // Filter $sampleImages for those that end with .jpg
-        $sampleImages = array_filter($sampleImages, function($image) {
+        $sampleImages = array_filter($sampleImages, function ($image) {
             return str_ends_with($image, '.jpg');
         });
 
         // Copy a sample image to our test fullsize disk
         $sampleImage = array_shift($sampleImages);
         $imageContent = Storage::disk('sample_images')->get($sampleImage);
-        $imagePath = $this->pathResolver->getFullsizePath($this->show, $this->class) . "/test_watermark.jpg";
+        $imagePath = $this->pathResolver->getFullsizePath($this->show, $this->class).'/test_watermark.jpg';
         Storage::disk('fullsize')->put($imagePath, $imageContent);
 
         // Define proof number for the test

@@ -9,13 +9,18 @@ use Intervention\Image\Image;
 class PhotoMetadata extends Model
 {
     protected $table = 'photo_metadata';
+
     protected $primaryKey = 'photo_id';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     protected $guarded = [
         'created_at',
         'updated_at',
     ];
+
     protected $casts = [
         'photo_id' => 'string',
         'file_size' => 'integer',
@@ -41,12 +46,12 @@ class PhotoMetadata extends Model
         $camera_model = null;
         $camera_make = null;
         $artist = null;
-        if(isset($exif_data['IFD0'])) {
+        if (isset($exif_data['IFD0'])) {
             $ifd0 = $exif_data['IFD0'];
             $camera_model = $ifd0['Model'] ?? null;
             $camera_make = $ifd0['Make'] ?? null;
             $artist = $ifd0['Artist'] ?? null;
-            if( ! $artist) {
+            if (! $artist) {
                 $artist = $ifd0['Copyright'] ?? null;
             }
             $orientation_value = $ifd0['Orientation'] ?? null;
@@ -59,28 +64,28 @@ class PhotoMetadata extends Model
         $exposure_bias_value = null;
         $max_aperture_value = null;
         $focal_length = null;
-        if(isset($exif_data['EXIF'])) {
+        if (isset($exif_data['EXIF'])) {
             $exif = $exif_data['EXIF'];
             // ExposureTime is provided as a value similar to 10/3200 so we'll need to simplify the fraction
             $shutter_speed = $exif['ExposureTime'] ?? null;
-            if($shutter_speed) {
+            if ($shutter_speed) {
                 $shutter_speed = explode('/', $shutter_speed);
-                if(count($shutter_speed) === 2) {
+                if (count($shutter_speed) === 2) {
                     // Nikon and canon give different values, the nikon provided 10/3200 for 1/320th of a second
                     // but the canon gave 1/80 for 1/80th of a second so we'll need simplify the fraction where the
                     // numerator is 10
-                    if( (int) $shutter_speed[0] === 10) {
+                    if ((int) $shutter_speed[0] === 10) {
                         $shutter_speed = ($shutter_speed[0] / 10).'/'.($shutter_speed[1] / 10);
                     } else {
-                        $shutter_speed = ($shutter_speed[0] . '/' . $shutter_speed[1]);
+                        $shutter_speed = ($shutter_speed[0].'/'.$shutter_speed[1]);
                     }
                 }
             }
             // FNumber is provided as a value similar to 56/10 so we'll need to simplify the fraction
             $fnumber = $exif['FNumber'] ?? null;
-            if($fnumber) {
+            if ($fnumber) {
                 $fnumber = explode('/', $fnumber);
-                if(count($fnumber) === 2) {
+                if (count($fnumber) === 2) {
                     $fnumber = ($fnumber[0] / $fnumber[1]);
                 }
             }
@@ -89,17 +94,17 @@ class PhotoMetadata extends Model
             $exposure_bias_value = $exif['ExposureBiasValue'] ?? null;
             // MaxApertureValue is provided as a value similar to 40/10 so we'll need to simplify the fraction
             $max_aperture_value = $exif['MaxApertureValue'] ?? null;
-            if($max_aperture_value) {
+            if ($max_aperture_value) {
                 $max_aperture_value = explode('/', $max_aperture_value);
-                if(count($max_aperture_value) === 2) {
+                if (count($max_aperture_value) === 2) {
                     $max_aperture_value = ($max_aperture_value[0] / $max_aperture_value[1]);
                 }
             }
             // FocalLength is provided as a value similar to 1100/10 so we'll need to simplify the fraction
             $focal_length = $exif['FocalLength'] ?? null;
-            if($focal_length) {
+            if ($focal_length) {
                 $focal_length = explode('/', $focal_length);
-                if(count($focal_length) === 2) {
+                if (count($focal_length) === 2) {
                     $focal_length = ($focal_length[0] / $focal_length[1]);
                 }
             }
@@ -107,7 +112,7 @@ class PhotoMetadata extends Model
 
         $height = null;
         $width = null;
-        if(isset($exif_data['COMPUTED'])) {
+        if (isset($exif_data['COMPUTED'])) {
             $computed = $exif_data['COMPUTED'];
             $height = $computed['Height'] ?? null;
             $width = $computed['Width'] ?? null;
@@ -137,12 +142,12 @@ class PhotoMetadata extends Model
             $this->height = $width;
         }
 
-        if(($this->width === $this->height) && ($this->width !== null && $this->height !== null)) {
+        if (($this->width === $this->height) && ($this->width !== null && $this->height !== null)) {
             $orientation = 'sq';
-            \Log::debug('somehow this is sq, make it make sense: ' . $this->width . 'x' . $this->height);
-        } elseif($this->width > $this->height) {
+            \Log::debug('somehow this is sq, make it make sense: '.$this->width.'x'.$this->height);
+        } elseif ($this->width > $this->height) {
             $orientation = 'la';
-        } elseif($this->width < $this->height) {
+        } elseif ($this->width < $this->height) {
             $orientation = 'po';
         }
         $this->orientation = $orientation;
@@ -177,7 +182,7 @@ class PhotoMetadata extends Model
                 $this->aspect_ratio = '5:4'; // Medium format
             } else {
                 // Fall back to the precise calculation if it doesn't match common ratios
-                $this->aspect_ratio = $w . ':' . $h;
+                $this->aspect_ratio = $w.':'.$h;
             }
 
             // Calculate megapixels

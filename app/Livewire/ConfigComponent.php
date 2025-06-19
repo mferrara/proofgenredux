@@ -36,7 +36,7 @@ class ConfigComponent extends Component
     public ?array $smallThumbnailInfo = null;
 
     public bool $previewLoading = false;
-    
+
     public bool $initialLoad = true;
 
     protected $rules = [
@@ -56,7 +56,7 @@ class ConfigComponent extends Component
         $this->loadConfigurations();
         $this->initializeConfigValues();
         $this->initializeThumbnailPreview();
-        
+
         // Set initial load to false after mount completes
         $this->initialLoad = false;
     }
@@ -146,26 +146,27 @@ class ConfigComponent extends Component
     {
         // This method is called when config values are being updated
         // We no longer save immediately - changes are only saved when the Save button is clicked
-        
+
         // Just validate the value
         $configId = str_replace('configValues.', '', $key);
         $config = Configuration::find($configId);
 
         if (! $config) {
             $this->returnError('Configuration '.$key.' not found.');
+
             return;
         }
 
         // Skip validation here - we'll validate on save with appropriate rules
     }
-    
+
     /**
      * Handle updates to temp thumbnail values for preview
      */
     public function updatingTempThumbnailValues($value, $key): void
     {
         Log::debug('updatingTempThumbnailValues called', ['key' => $key, 'value' => $value]);
-        
+
         // Validate thumbnail values before updating
         if (str_contains($key, '.quality')) {
             if (! is_numeric($value) || $value < 10 || $value > 100) {
@@ -176,12 +177,12 @@ class ConfigComponent extends Component
                 return; // Don't update if invalid
             }
         }
-        
+
         // The value will be automatically updated by Livewire
         // Generate new previews after the update
         $this->generateThumbnailPreviews();
     }
-    
+
     /**
      * Public method to update preview values and regenerate
      */
@@ -487,8 +488,8 @@ class ConfigComponent extends Component
         $this->tempThumbnailValues = [
             'thumbnails' => [
                 'large' => [],
-                'small' => []
-            ]
+                'small' => [],
+            ],
         ];
 
         foreach ($thumbnailConfigs as $config) {
@@ -501,11 +502,11 @@ class ConfigComponent extends Component
                 $this->tempThumbnailValues['thumbnails'][$size][$property] = $this->configValues[$config->id];
             }
         }
-        
+
         // Log for debugging
         Log::debug('Initialized tempThumbnailValues', $this->tempThumbnailValues);
     }
-    
+
     /**
      * Get thumbnail values mapped by key for Alpine.js
      */
@@ -513,11 +514,11 @@ class ConfigComponent extends Component
     {
         $values = [];
         $thumbnailConfigs = $this->configurationsByCategory['thumbnails'] ?? [];
-        
+
         foreach ($thumbnailConfigs as $config) {
             $values[$config->key] = $this->configValues[$config->id];
         }
-        
+
         return $values;
     }
 
@@ -687,7 +688,6 @@ class ConfigComponent extends Component
 
         return round($bytes, $precision).' '.$units[$i];
     }
-    
 
     public function render()
     {

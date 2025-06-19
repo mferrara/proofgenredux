@@ -3,7 +3,6 @@
 namespace App\Livewire;
 
 use App\Jobs\Photo\GenerateThumbnails;
-use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\ShowClass\ResetClassPhotos;
 use App\Jobs\ShowClass\UploadProofs;
 use App\Jobs\ShowClass\UploadWebImages;
@@ -11,35 +10,47 @@ use App\Models\Photo;
 use App\Models\Show;
 use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
-use App\Proofgen\Utility;
 use App\Services\PathResolver;
 use App\Services\PhotoService;
 use Exception;
 use Flux\Flux;
 use Illuminate\Support\Facades\Log;
-use League\Flysystem\FileAttributes;
 use Livewire\Component;
 
 class ClassViewComponent extends Component
 {
     public string $show = '';
+
     public string $class = '';
 
     protected Show $showModel;
+
     protected \App\Models\ShowClass $showClass;
 
     public string $working_path = '';
+
     public string $working_full_path = '';
+
     public string $fullsize_base_path = '';
+
     public string $archive_base_path = '';
+
     public string $proofs_path = '';
+
     public string $web_images_path = '';
+
     public string $flash_message = '';
+
     public int $flash_message_set_at = 0;
+
     protected int $flash_message_max_length = 10;
+
     public bool $local_web_image_sync_performed = false;
+
     public bool $local_proofs_sync_performed = false;
+
     public bool $show_delete = false;
+
     protected PathResolver $pathResolver;
 
     public function mount(PathResolver $pathResolver): void
@@ -66,11 +77,11 @@ class ClassViewComponent extends Component
     public function loadShowClass(): void
     {
         $this->showClass = \App\Models\ShowClass::with('photos')->find($this->show.'_'.$this->class);
-        if( ! $this->local_web_image_sync_performed) {
+        if (! $this->local_web_image_sync_performed) {
             $this->showClass->localWebImageSync();
             $this->local_web_image_sync_performed = true;
         }
-        if( ! $this->local_proofs_sync_performed) {
+        if (! $this->local_proofs_sync_performed) {
             $this->showClass->localProofsSync();
             $this->local_proofs_sync_performed = true;
         }
@@ -81,7 +92,7 @@ class ClassViewComponent extends Component
         $pre_existing_photos_imported = $this->showClass->importExistingPhotosFromOriginalsDirectory();
 
         // If we imported any photos, we need to load the show class again
-        if($pre_existing_photos_imported > 0) {
+        if ($pre_existing_photos_imported > 0) {
             $this->loadShowClass();
         }
 
@@ -118,9 +129,10 @@ class ClassViewComponent extends Component
 
     public function setFlashMessage(string $message): void
     {
-        if($message === ''){
+        if ($message === '') {
             $this->flash_message = '';
             $this->flash_message_set_at = 0;
+
             return;
         }
 
@@ -135,13 +147,13 @@ class ClassViewComponent extends Component
         $web_images_pending_upload = count($this->showClass->pendingWebImageUploads());
         // Log::debug('Images pending web image uploads', ['web_images_pending_upload' => $web_images_pending_upload]);
 
-        if($images_pending_upload > 0 || $web_images_pending_upload > 0) {
+        if ($images_pending_upload > 0 || $web_images_pending_upload > 0) {
             $flash_message = 'Pending uploads: ';
-            if($images_pending_upload > 0) {
+            if ($images_pending_upload > 0) {
                 $flash_message .= $images_pending_upload.' Images';
             }
-            if($web_images_pending_upload > 0) {
-                if($images_pending_upload > 0) {
+            if ($web_images_pending_upload > 0) {
+                if ($images_pending_upload > 0) {
                     $flash_message .= ' and ';
                 }
                 $flash_message .= $web_images_pending_upload.' Web Images';
@@ -158,7 +170,7 @@ class ClassViewComponent extends Component
         /** @var Photo $photo */
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
         Log::debug('Fixing metadata for photo: '.$photo_id);
-        if($photo) {
+        if ($photo) {
             Log::debug('Found Photo record: ', $photo->toArray());
         }
         if ($photo) {
@@ -213,8 +225,9 @@ class ClassViewComponent extends Component
     public function proofPhoto(string $photo_id): void
     {
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
-        if( ! $photo) {
+        if (! $photo) {
             $this->setFlashMessage('Photo not found');
+
             return;
         }
 
@@ -231,8 +244,9 @@ class ClassViewComponent extends Component
     public function generateWebImage(string $photo_id): void
     {
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
-        if( ! $photo) {
+        if (! $photo) {
             $this->setFlashMessage('Photo not found');
+
             return;
         }
 
@@ -240,10 +254,10 @@ class ClassViewComponent extends Component
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
         $web_images_path = $pathResolver->getWebImagesPath($this->showModel->name, $this->showClass->name);
         $photoService = app(PhotoService::class);
-        try{
+        try {
             $web_image_path = $photoService->generateWebImage($photo->id, $web_images_path);
             Log::debug('Generated web image: '.$web_image_path);
-            if($web_image_path) {
+            if ($web_image_path) {
                 $photo->web_image_generated_at = now();
                 $photo->save();
                 Flux::toast(
@@ -264,6 +278,7 @@ class ClassViewComponent extends Component
             Log::error('Error generating web image: '.$e->getMessage());
             Log::debug('Web Image generation attempted with photo_id: '.$photo->id.' and web_images_path: '.$web_images_path);
             $this->setFlashMessage('Error generating web image: '.$e->getMessage());
+
             return;
         }
     }
@@ -309,7 +324,7 @@ class ClassViewComponent extends Component
         // Photos pending proof uploads
         $photos_proofed_not_uploaded = $this->showClass->photosProofedNotUploaded()->get();
         $photos_queued_for_upload = 0;
-        if($photos_proofed_not_uploaded->count()) {
+        if ($photos_proofed_not_uploaded->count()) {
             UploadProofs::dispatch($this->show, $this->class);
             $photos_queued_for_upload = $photos_proofed_not_uploaded->count();
         }
@@ -317,29 +332,29 @@ class ClassViewComponent extends Component
         // Photos pending web image uploads
         $photos_web_images_not_uploaded = $this->showClass->photosWebImagedNotUploaded()->get();
         $web_images_queued_for_upload = 0;
-        if($photos_web_images_not_uploaded->count()) {
+        if ($photos_web_images_not_uploaded->count()) {
             UploadWebImages::dispatch($this->show, $this->class);
             $web_images_queued_for_upload += $photos_web_images_not_uploaded->count();
         }
 
         $message = '';
-        if($photos_queued_for_upload + $web_images_queued_for_upload === 0) {
+        if ($photos_queued_for_upload + $web_images_queued_for_upload === 0) {
             $message = 'Nothing to upload.';
         } else {
             $both = false;
-            if($photos_queued_for_upload > 0 && $web_images_queued_for_upload > 0) {
+            if ($photos_queued_for_upload > 0 && $web_images_queued_for_upload > 0) {
                 $both = true;
             }
 
-            if($photos_queued_for_upload > 0 && $both) {
+            if ($photos_queued_for_upload > 0 && $both) {
                 $message = $photos_queued_for_upload.' Photos and ';
-            } elseif($photos_queued_for_upload > 0) {
+            } elseif ($photos_queued_for_upload > 0) {
                 $message = $photos_queued_for_upload.' Photos queued for upload.';
             }
 
-            if($web_images_queued_for_upload > 0 && $both) {
+            if ($web_images_queued_for_upload > 0 && $both) {
                 $message .= $web_images_queued_for_upload.' Web Images queued for upload.';
-            } elseif($web_images_queued_for_upload > 0) {
+            } elseif ($web_images_queued_for_upload > 0) {
                 $message .= $web_images_queued_for_upload.' Web Images queued for upload.';
             }
         }
@@ -355,7 +370,7 @@ class ClassViewComponent extends Component
     public function deletePhotoRecord(string $photo_id): void
     {
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
-        if($photo) {
+        if ($photo) {
             $photo->delete();
 
             Flux::toast(
@@ -364,8 +379,7 @@ class ClassViewComponent extends Component
                 variant: 'success',
                 position: 'top right'
             );
-        }
-        else {
+        } else {
             Flux::toast(
                 text: 'Photo record not found with photo_id: '.$photo_id,
                 heading: 'Error',
@@ -378,7 +392,7 @@ class ClassViewComponent extends Component
     public function deleteLocalProofs(string $photo_id): void
     {
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
-        if($photo) {
+        if ($photo) {
             $photo->deleteLocalProofs();
             Flux::toast(
                 text: 'Local proofs deleted',
@@ -386,8 +400,7 @@ class ClassViewComponent extends Component
                 variant: 'success',
                 position: 'top right'
             );
-        }
-        else {
+        } else {
             Flux::toast(
                 text: 'Photo record not found with photo_id: '.$photo_id,
                 heading: 'Error',
@@ -399,19 +412,20 @@ class ClassViewComponent extends Component
 
     public function openFolder(string $path): void
     {
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             Flux::toast(
-                text: 'Folder not found: ' . $path,
+                text: 'Folder not found: '.$path,
                 heading: 'Error',
                 variant: 'error',
                 position: 'top right'
             );
+
             return;
         }
 
         // On Mac, use the 'open' command to open a folder in Finder
         if (PHP_OS === 'Darwin') { // Darwin is the core of macOS
-            exec('open "' . $path . '"');
+            exec('open "'.$path.'"');
 
             Flux::toast(
                 text: 'Opening folder in Finder',
@@ -433,8 +447,11 @@ class ClassViewComponent extends Component
     {
         if ($bytes > 0) {
             $base = floor(log($bytes) / log(1024));
-            $units = array("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"); //units of measurement
-            return number_format(($bytes / pow(1024, floor($base))), 2) . " $units[$base]";
-        } else return "0 bytes";
+            $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']; // units of measurement
+
+            return number_format(($bytes / pow(1024, floor($base))), 2)." $units[$base]";
+        } else {
+            return '0 bytes';
+        }
     }
 }

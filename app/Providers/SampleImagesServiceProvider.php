@@ -13,7 +13,7 @@ class SampleImagesServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(SampleImagesService::class, function ($app) {
-            return new SampleImagesService();
+            return new SampleImagesService;
         });
     }
 

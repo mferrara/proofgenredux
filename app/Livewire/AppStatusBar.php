@@ -4,9 +4,9 @@ namespace App\Livewire;
 
 use App\Services\HorizonService;
 use Flux\Flux;
+use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Component;
-use Illuminate\Support\Facades\Log;
 
 class AppStatusBar extends Component
 {
@@ -20,18 +20,18 @@ class AppStatusBar extends Component
     {
         Log::debug('AppStatusBar reload called');
     }
-    
+
     /**
      * Start Horizon
      */
     public function startHorizon()
     {
         Log::info('Starting Horizon from AppStatusBar');
-        
+
         try {
             // Get the HorizonService
             $horizonService = app(HorizonService::class);
-            
+
             // Start Horizon directly
             if ($horizonService->start()) {
                 Flux::toast(
@@ -49,10 +49,10 @@ class AppStatusBar extends Component
                 );
             }
         } catch (\Exception $e) {
-            Log::error('Error starting Horizon: ' . $e->getMessage());
-            
+            Log::error('Error starting Horizon: '.$e->getMessage());
+
             Flux::toast(
-                text: 'Error starting Horizon: ' . $e->getMessage(),
+                text: 'Error starting Horizon: '.$e->getMessage(),
                 heading: 'Start Failed',
                 variant: 'danger',
                 position: 'top right'
@@ -68,7 +68,7 @@ class AppStatusBar extends Component
 
         return view('livewire.app-status-bar', [
             'isHorizonRunning' => $isHorizonRunning,
-            'autoRestartEnabled' => config('proofgen.auto_restart_horizon', false)
+            'autoRestartEnabled' => config('proofgen.auto_restart_horizon', false),
         ]);
     }
 }

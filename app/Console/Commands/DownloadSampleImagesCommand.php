@@ -34,6 +34,7 @@ class DownloadSampleImagesCommand extends Command
                     $this->performDownload($sampleImagesService);
                 } else {
                     $this->info('Download skipped.');
+
                     return 0;
                 }
             } else {
@@ -42,7 +43,8 @@ class DownloadSampleImagesCommand extends Command
 
             return 0;
         } catch (\Exception $e) {
-            $this->error('Failed to download sample images: ' . $e->getMessage());
+            $this->error('Failed to download sample images: '.$e->getMessage());
+
             return 1;
         }
     }
@@ -52,14 +54,14 @@ class DownloadSampleImagesCommand extends Command
      */
     protected function performDownload(SampleImagesService $sampleImagesService): void
     {
-        $this->info("Downloading sample images from bucket...");
+        $this->info('Downloading sample images from bucket...');
 
         // Display S3 connection info
-        $this->comment("Using bucket: " . config('filesystems.disks.sample_images_bucket.bucket'));
-        $this->comment("Endpoint: " . config('filesystems.disks.sample_images_bucket.endpoint'));
+        $this->comment('Using bucket: '.config('filesystems.disks.sample_images_bucket.bucket'));
+        $this->comment('Endpoint: '.config('filesystems.disks.sample_images_bucket.endpoint'));
 
         // Start a progress bar with indeterminate progress
-        $this->output->write("Downloading... ");
+        $this->output->write('Downloading... ');
 
         try {
             // Perform the download
@@ -67,11 +69,11 @@ class DownloadSampleImagesCommand extends Command
             $result = $sampleImagesService->downloadSampleImages();
             $endTime = microtime(true);
 
-            $this->info("Done! (" . round($endTime - $startTime, 2) . " seconds)");
+            $this->info('Done! ('.round($endTime - $startTime, 2).' seconds)');
 
-            $this->info("Sample images successfully downloaded");
+            $this->info('Sample images successfully downloaded');
         } catch (\Exception $e) {
-            $this->error("Failed");
+            $this->error('Failed');
             throw $e;
         }
     }

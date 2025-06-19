@@ -8,13 +8,21 @@ use Livewire\Component;
 class ServerConnectionComponent extends Component
 {
     public string $host = '';
+
     public int $port = 22;
+
     public string $username = '';
+
     public string $key_path = '';
+
     public string $proofs_path = '';
+
     public string $debug_output = '';
+
     public array $paths_found = [];
+
     public bool $server_connection_test_result = false;
+
     public bool $horizon_is_running = false;
 
     public function mount(): void
@@ -30,11 +38,12 @@ class ServerConnectionComponent extends Component
     {
         $this->debug_output = '';
         // Try to get a directory listing from the base path
-        try{
+        try {
             $listing = Storage::disk('remote_proofs')->directories();
-        } catch(\Throwable $e) {
+        } catch (\Throwable $e) {
             $this->debug_output = 'Connection failed: '.$e->getMessage();
             $this->server_connection_test_result = false;
+
             return;
         }
         $this->server_connection_test_result = true;
@@ -44,7 +53,7 @@ class ServerConnectionComponent extends Component
         foreach ($listing as $item) {
             $paths_found[] = $item;
         }
-        if(count($paths_found)) {
+        if (count($paths_found)) {
             $this->debug_output = 'Connection successful';
         } else {
             $this->debug_output = 'Connection successful, but no items found in the remote directory.';

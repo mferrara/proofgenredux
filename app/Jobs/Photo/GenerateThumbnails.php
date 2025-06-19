@@ -2,10 +2,6 @@
 
 namespace App\Jobs\Photo;
 
-use App\Jobs\ShowClass\UploadProofs;
-use App\Models\Photo;
-use App\Proofgen\Image;
-use App\Proofgen\ShowClass;
 use App\Services\PhotoService;
 use Exception;
 use Illuminate\Bus\Queueable;
@@ -19,6 +15,7 @@ class GenerateThumbnails implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public string $photo_id;
+
     public string $proofs_destination_path;
 
     /**
@@ -32,14 +29,15 @@ class GenerateThumbnails implements ShouldQueue
 
     /**
      * Execute the job.
+     *
      * @throws Exception
      */
     public function handle(): void
     {
         $photoService = app(PhotoService::class);
-        try{
+        try {
             $photoService->generateThumbnails($this->photo_id, $this->proofs_destination_path, true);
-        } catch(Exception $e) {
+        } catch (Exception $e) {
             \Log::error('Error generating thumbnails: '.$e->getMessage());
             throw $e;
         }

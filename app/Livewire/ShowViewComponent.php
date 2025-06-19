@@ -4,7 +4,6 @@ namespace App\Livewire;
 
 use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Jobs\ShowClass\ResetClassPhotos;
-use App\Proofgen\Show;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
@@ -14,14 +13,23 @@ use Livewire\Component;
 class ShowViewComponent extends Component
 {
     public string $working_path = '';
+
     public string $show_id = '';
+
     protected \App\Models\Show $show;
+
     public string $fullsize_base_path = '';
+
     public string $archive_base_path = '';
+
     public string $working_full_path = '';
+
     public string $flash_message = '';
+
     public int $flash_message_set_at = 0;
+
     protected int $flash_message_max_length = 10;
+
     protected PathResolver $pathResolver;
 
     public function mount(PathResolver $pathResolver)
@@ -60,7 +68,7 @@ class ShowViewComponent extends Component
             $class = end($class);
 
             // Check if we have this database record
-            if( ! $this->show->hasClass($class)) {
+            if (! $this->show->hasClass($class)) {
                 $this->show->addClass($class);
             }
 
@@ -85,7 +93,7 @@ class ShowViewComponent extends Component
         }
 
         // Reorder the class folders by the path, alphabetically
-        usort($class_folders, function($a, $b) {
+        usort($class_folders, function ($a, $b) {
             return strcmp($a['path'], $b['path']);
         });
 
@@ -119,9 +127,10 @@ class ShowViewComponent extends Component
 
     public function setFlashMessage(string $message): void
     {
-        if($message === ''){
+        if ($message === '') {
             $this->flash_message = '';
             $this->flash_message_set_at = 0;
+
             return;
         }
 
@@ -147,13 +156,13 @@ class ShowViewComponent extends Component
         $images_pending_upload = count($response['images_pending_upload']);
         $web_images_pending_upload = count($response['web_images_pending_upload']);
 
-        if($images_pending_upload > 0 || $web_images_pending_upload > 0) {
+        if ($images_pending_upload > 0 || $web_images_pending_upload > 0) {
             $flash_message = 'Pending uploads: ';
-            if($images_pending_upload > 0) {
+            if ($images_pending_upload > 0) {
                 $flash_message .= $images_pending_upload.' Images';
             }
-            if($web_images_pending_upload > 0) {
-                if($images_pending_upload > 0) {
+            if ($web_images_pending_upload > 0) {
+                if ($images_pending_upload > 0) {
                     $flash_message .= ' and ';
                 }
                 $flash_message .= $web_images_pending_upload.' Web Images';
@@ -169,8 +178,7 @@ class ShowViewComponent extends Component
     {
         $uploaded = $this->show->proofUploads();
 
-        if(count($uploaded) === 0)
-        {
+        if (count($uploaded) === 0) {
             $flash_message = 'No images to upload.';
         } else {
             $flash_message = count($uploaded).' Images uploaded.';
@@ -185,21 +193,23 @@ class ShowViewComponent extends Component
         $web_images = $this->show->webImageUploads();
 
         $flash_message = '';
-        if(count($uploaded) === 0 && count($web_images) === 0)
-        {
+        if (count($uploaded) === 0 && count($web_images) === 0) {
             $flash_message = 'No images to upload.';
         } else {
-            if(count($uploaded) > 0)
+            if (count($uploaded) > 0) {
                 $flash_message = count($uploaded).' Images uploaded';
+            }
 
-            if(count($web_images) > 0) {
-                if(count($uploaded) > 0)
+            if (count($web_images) > 0) {
+                if (count($uploaded) > 0) {
                     $this->flash_message .= ' and ';
+                }
                 $flash_message .= count($web_images).' Web Images uploaded';
             }
 
-            if(strlen($this->flash_message) > 0)
+            if (strlen($this->flash_message) > 0) {
                 $flash_message .= '.';
+            }
         }
 
         $this->setFlashMessage($flash_message);
@@ -208,7 +218,7 @@ class ShowViewComponent extends Component
     public function regenerateProofs(): void
     {
         $count = 0;
-        foreach($this->show->classes as $showClass) {
+        foreach ($this->show->classes as $showClass) {
             $count += $showClass->regenerateProofs();
         }
         $this->setFlashMessage($count.' Proofs queued.');
@@ -217,7 +227,7 @@ class ShowViewComponent extends Component
     public function regenerateWebImages(): void
     {
         $count = 0;
-        foreach($this->show->classes as $showClass) {
+        foreach ($this->show->classes as $showClass) {
             $count += $showClass->regenerateWebImages();
         }
         $this->setFlashMessage($count.' Web Images queued.');
@@ -225,7 +235,7 @@ class ShowViewComponent extends Component
 
     public function resetPhotos(): void
     {
-        foreach($this->show->classes as $showClass) {
+        foreach ($this->show->classes as $showClass) {
             ResetClassPhotos::dispatch($this->show_id, $showClass->name);
         }
 
@@ -240,7 +250,7 @@ class ShowViewComponent extends Component
     public function webImagePendingPhotos(): void
     {
         $count = 0;
-        foreach($this->show->classes as $showClass) {
+        foreach ($this->show->classes as $showClass) {
             $count += $showClass->webImagePendingPhotos();
         }
         $this->setFlashMessage($count.' Photos queued.');
@@ -252,12 +262,13 @@ class ShowViewComponent extends Component
         $images = [];
         foreach ($files as $file) {
 
-            foreach(['jpg', 'jpeg'] as $ext) {
+            foreach (['jpg', 'jpeg'] as $ext) {
                 if (str_contains(strtolower($file), $ext)) {
                     $images[] = $file;
                 }
             }
         }
+
         return $images;
     }
 }

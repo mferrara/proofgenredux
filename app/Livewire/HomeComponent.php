@@ -10,9 +10,13 @@ use Livewire\Component;
 class HomeComponent extends Component
 {
     public string $working_path = '';
+
     public string $fullsize_base_path = '';
+
     public string $archive_base_path = '';
+
     public string $working_full_path = '';
+
     public string $newShowName = '';
 
     protected $queryString = [
@@ -27,7 +31,7 @@ class HomeComponent extends Component
 
     public function render()
     {
-        $this->working_full_path = $this->fullsize_base_path . '/' . $this->working_path;
+        $this->working_full_path = $this->fullsize_base_path.'/'.$this->working_path;
 
         $top_level_directories = $this->getDirectoriesOfPath($this->working_path);
 
@@ -36,9 +40,9 @@ class HomeComponent extends Component
 
         // Loop through the top level directories determining which are imported as Shows
         $shows = [];
-        foreach($top_level_directories as $directory_path) {
+        foreach ($top_level_directories as $directory_path) {
             $show = Show::with('photos')->find($directory_path);
-            if($show) {
+            if ($show) {
                 $shows[$directory_path] = $show;
             }
         }
@@ -49,10 +53,10 @@ class HomeComponent extends Component
             ->title('Proofgen Home');
     }
 
-    public function createShow(string $show_id = null): Show
+    public function createShow(?string $show_id = null): Show
     {
         // If called from the modal form submission, use the newShowName property
-        if (empty($show_id) && !empty($this->newShowName)) {
+        if (empty($show_id) && ! empty($this->newShowName)) {
             $show_id = $this->newShowName;
             // Close the modal after submission
             Flux::modal('create-show')->close();
@@ -66,18 +70,20 @@ class HomeComponent extends Component
                 variant: 'error',
                 position: 'top right'
             );
-            return new Show(); // Return empty show to avoid errors
+
+            return new Show; // Return empty show to avoid errors
         }
 
         // Validate show name to only allow alphanumeric characters, underscores and hyphens
-        if (!preg_match('/^[A-Za-z0-9_\-]+$/', $show_id)) {
+        if (! preg_match('/^[A-Za-z0-9_\-]+$/', $show_id)) {
             Flux::toast(
                 text: 'Show name can only contain letters, numbers, underscores and hyphens',
                 heading: 'Error',
                 variant: 'error',
                 position: 'top right'
             );
-            return new Show(); // Return empty show to avoid errors
+
+            return new Show; // Return empty show to avoid errors
         }
 
         // Check if show already exists
@@ -89,17 +95,18 @@ class HomeComponent extends Component
                 variant: 'warning',
                 position: 'top right'
             );
+
             return $show;
         }
 
         // Create the directory if it doesn't exist
-        $directory_path = rtrim($this->fullsize_base_path, '/') . '/' . $show_id;
-        if (!is_dir($directory_path)) {
+        $directory_path = rtrim($this->fullsize_base_path, '/').'/'.$show_id;
+        if (! is_dir($directory_path)) {
             mkdir($directory_path, 0755, true);
         }
 
         // Create a new show
-        $show = new Show();
+        $show = new Show;
         $show->id = $show_id;
         $show->name = $show_id;
         $show->save();
@@ -120,8 +127,9 @@ class HomeComponent extends Component
     public function backDirectory()
     {
         $path_array = explode('/', $this->working_path);
-        if (count($path_array) < 1)
+        if (count($path_array) < 1) {
             return;
+        }
 
         // Unset the last value
         unset($path_array[count($path_array) - 1]);
@@ -140,12 +148,13 @@ class HomeComponent extends Component
         $images = [];
         foreach ($files as $file) {
 
-            foreach(['jpg', 'jpeg'] as $ext) {
+            foreach (['jpg', 'jpeg'] as $ext) {
                 if (str_contains(strtolower($file), $ext)) {
                     $images[] = $file;
                 }
             }
         }
+
         return $images;
     }
 
@@ -159,4 +168,3 @@ class HomeComponent extends Component
         return Utility::getContentsOfPath($path, $recursive);
     }
 }
-

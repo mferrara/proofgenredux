@@ -29,7 +29,7 @@ class Utility
         $images = [];
         foreach ($contents as $key => $object) {
             /** @var FileAttributes $object */
-            switch($object->type()) {
+            switch ($object->type()) {
                 case 'dir':
                     $directories[] = $object;
                     break;
@@ -49,9 +49,8 @@ class Utility
 
                     $contains = ['jpg', 'jpeg'];
                     // If the $object->path contains any of the strings in $contains, add it to the images array
-                    foreach($contains as $ext)
-                    {
-                        if(str_contains(strtolower($object->path()), $ext)) {
+                    foreach ($contains as $ext) {
+                        if (str_contains(strtolower($object->path()), $ext)) {
                             $images[] = $object;
                         }
                     }
@@ -186,6 +185,4 @@ class Utility
             ])
         ));
     }
-
-
 }

@@ -25,7 +25,7 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
         // Horizon::routeMailNotificationsTo('example@example.com');
         // Horizon::routeSlackNotificationsTo('slack-webhook-url', '#channel');
     }
-    
+
     /**
      * Register Horizon commands for use in HTTP requests.
      * This allows using Artisan::call('horizon:status') and other Horizon commands

@@ -32,13 +32,15 @@ class ListSampleImagesCommand extends Command
         $source = $this->option('source');
         $format = $this->option('format');
 
-        if (!in_array($source, ['local', 'bucket', 'both'])) {
+        if (! in_array($source, ['local', 'bucket', 'both'])) {
             $this->error("Invalid source option. Must be 'local', 'bucket', or 'both'.");
+
             return 1;
         }
 
-        if (!in_array($format, ['table', 'json'])) {
+        if (! in_array($format, ['table', 'json'])) {
             $this->error("Invalid format option. Must be 'table' or 'json'.");
+
             return 1;
         }
 
@@ -64,7 +66,8 @@ class ListSampleImagesCommand extends Command
 
             return 0;
         } catch (\Exception $e) {
-            $this->error('Failed to list sample images: ' . $e->getMessage());
+            $this->error('Failed to list sample images: '.$e->getMessage());
+
             return 1;
         }
     }
@@ -82,8 +85,9 @@ class ListSampleImagesCommand extends Command
         $allFiles = $sampleDisk->allFiles();
 
         // Filter to keep only image files
-        $imageFiles = array_filter($allFiles, function($file) {
+        $imageFiles = array_filter($allFiles, function ($file) {
             $extension = pathinfo($file, PATHINFO_EXTENSION);
+
             return in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif']);
         });
 
@@ -94,7 +98,7 @@ class ListSampleImagesCommand extends Command
             'total_count' => count($imageFiles),
             'shows' => $groupedFiles['shows'],
             'ungrouped' => $groupedFiles['ungrouped'],
-            'storage_path' => storage_path('sample_images')
+            'storage_path' => storage_path('sample_images'),
         ];
     }
 
@@ -108,16 +112,17 @@ class ListSampleImagesCommand extends Command
         $this->info('Checking bucket sample images...');
 
         // Display S3 connection info
-        $this->comment("Using bucket: " . config('filesystems.disks.sample_images_bucket.bucket'));
-        $this->comment("Endpoint: " . config('filesystems.disks.sample_images_bucket.endpoint'));
+        $this->comment('Using bucket: '.config('filesystems.disks.sample_images_bucket.bucket'));
+        $this->comment('Endpoint: '.config('filesystems.disks.sample_images_bucket.endpoint'));
 
         $s3Disk = Storage::disk('sample_images_bucket');
 
         $allFiles = $s3Disk->allFiles();
 
         // Filter to keep only image files
-        $imageFiles = array_filter($allFiles, function($file) {
+        $imageFiles = array_filter($allFiles, function ($file) {
             $extension = pathinfo($file, PATHINFO_EXTENSION);
+
             return in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif']);
         });
 
@@ -128,14 +133,14 @@ class ListSampleImagesCommand extends Command
             'total_count' => count($imageFiles),
             'shows' => $groupedFiles['shows'],
             'ungrouped' => $groupedFiles['ungrouped'],
-            'bucket' => config('filesystems.disks.sample_images_bucket.bucket')
+            'bucket' => config('filesystems.disks.sample_images_bucket.bucket'),
         ];
     }
 
     /**
      * Group files by show/class
      *
-     * @param array $files List of file paths
+     * @param  array  $files  List of file paths
      * @return array Grouped files
      */
     protected function groupFilesByShowClass(array $files): array
@@ -151,11 +156,11 @@ class ListSampleImagesCommand extends Command
                 $showId = $pathParts[0];
                 $classId = $pathParts[1];
 
-                if (!isset($shows[$showId])) {
+                if (! isset($shows[$showId])) {
                     $shows[$showId] = ['classes' => []];
                 }
 
-                if (!isset($shows[$showId]['classes'][$classId])) {
+                if (! isset($shows[$showId]['classes'][$classId])) {
                     $shows[$showId]['classes'][$classId] = ['count' => 0, 'files' => []];
                 }
 
@@ -168,37 +173,37 @@ class ListSampleImagesCommand extends Command
 
         return [
             'shows' => $shows,
-            'ungrouped' => $ungrouped
+            'ungrouped' => $ungrouped,
         ];
     }
 
     /**
      * Display results in table format
      *
-     * @param array $result The result data
+     * @param  array  $result  The result data
      */
     protected function displayTableOutput(array $result): void
     {
         if (isset($result['local'])) {
-            $this->info("\nLocal Sample Images (" . $result['local']['storage_path'] . "):");
-            $this->info("Total images: " . $result['local']['total_count']);
+            $this->info("\nLocal Sample Images (".$result['local']['storage_path'].'):');
+            $this->info('Total images: '.$result['local']['total_count']);
 
             $this->displayShowsTable($result['local']['shows']);
 
-            if (!empty($result['local']['ungrouped'])) {
-                $this->warn("Ungrouped files: " . count($result['local']['ungrouped']));
+            if (! empty($result['local']['ungrouped'])) {
+                $this->warn('Ungrouped files: '.count($result['local']['ungrouped']));
                 $this->listing($result['local']['ungrouped']);
             }
         }
 
         if (isset($result['bucket'])) {
-            $this->info("\nBucket Sample Images (" . $result['bucket']['bucket'] . "):");
-            $this->info("Total images: " . $result['bucket']['total_count']);
+            $this->info("\nBucket Sample Images (".$result['bucket']['bucket'].'):');
+            $this->info('Total images: '.$result['bucket']['total_count']);
 
             $this->displayShowsTable($result['bucket']['shows']);
 
-            if (!empty($result['bucket']['ungrouped'])) {
-                $this->warn("Ungrouped files: " . count($result['bucket']['ungrouped']));
+            if (! empty($result['bucket']['ungrouped'])) {
+                $this->warn('Ungrouped files: '.count($result['bucket']['ungrouped']));
                 $this->listing($result['bucket']['ungrouped']);
             }
         }
@@ -207,12 +212,13 @@ class ListSampleImagesCommand extends Command
     /**
      * Display shows and classes in table format
      *
-     * @param array $shows The shows data
+     * @param  array  $shows  The shows data
      */
     protected function displayShowsTable(array $shows): void
     {
         if (empty($shows)) {
-            $this->warn("No shows found");
+            $this->warn('No shows found');
+
             return;
         }
 
@@ -225,7 +231,7 @@ class ListSampleImagesCommand extends Command
                 $tableRows[] = [
                     $isFirstShow ? $showId : '',
                     $classId,
-                    $classData['count']
+                    $classData['count'],
                 ];
 
                 $isFirstShow = false;

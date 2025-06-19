@@ -2,8 +2,6 @@
 
 namespace App\Jobs\ShowClass;
 
-use App\Proofgen\ShowClass;
-use App\Services\PathResolver;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -17,7 +15,9 @@ class UploadWebImages implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public string $show;
+
     public string $class;
+
     public int $tries = 5;
 
     /**
@@ -36,7 +36,7 @@ class UploadWebImages implements ShouldQueue
     {
         $showClass = \App\Models\ShowClass::find($this->show.'_'.$this->class);
         $web_uploaded = $showClass->webImageUploads();
-        if(count($web_uploaded)) {
+        if (count($web_uploaded)) {
             Log::info('Uploaded '.count($web_uploaded).' web images for '.$this->show.' '.$this->class);
         } else {
             Log::info('No web images to upload for '.$this->show.' '.$this->class);

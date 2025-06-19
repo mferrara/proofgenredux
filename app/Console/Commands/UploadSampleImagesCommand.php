@@ -29,29 +29,30 @@ class UploadSampleImagesCommand extends Command
     public function handle(SampleImagesService $sampleImagesService)
     {
         $sourcePath = $this->option('path');
-        $overwrite = !$this->option('no-overwrite');
+        $overwrite = ! $this->option('no-overwrite');
 
         // If no path is provided, use the sample_images disk path
-        if (!$sourcePath) {
+        if (! $sourcePath) {
             $sourcePath = null; // null means use the sample_images disk
-            $this->info('Using default sample_images directory: ' . storage_path('sample_images'));
+            $this->info('Using default sample_images directory: '.storage_path('sample_images'));
         } else {
-            $this->info('Using custom source directory: ' . $sourcePath);
+            $this->info('Using custom source directory: '.$sourcePath);
         }
 
         // Display S3 connection info
-        $this->comment("Using bucket: " . config('filesystems.disks.sample_images_bucket.bucket'));
-        $this->comment("Endpoint: " . config('filesystems.disks.sample_images_bucket.endpoint'));
-        $this->comment("Overwrite existing files: " . ($overwrite ? 'Yes' : 'No'));
+        $this->comment('Using bucket: '.config('filesystems.disks.sample_images_bucket.bucket'));
+        $this->comment('Endpoint: '.config('filesystems.disks.sample_images_bucket.endpoint'));
+        $this->comment('Overwrite existing files: '.($overwrite ? 'Yes' : 'No'));
 
         // Confirm the upload
-        if (!$this->confirm('Ready to upload sample images?', true)) {
+        if (! $this->confirm('Ready to upload sample images?', true)) {
             $this->info('Upload cancelled.');
+
             return 0;
         }
 
         try {
-            $this->output->write("Uploading... ");
+            $this->output->write('Uploading... ');
 
             // Start timing the operation
             $startTime = microtime(true);
@@ -60,7 +61,7 @@ class UploadSampleImagesCommand extends Command
             $result = $sampleImagesService->uploadSampleImages($sourcePath, $overwrite);
 
             $endTime = microtime(true);
-            $this->info("Done! (" . round($endTime - $startTime, 2) . " seconds)");
+            $this->info('Done! ('.round($endTime - $startTime, 2).' seconds)');
 
             // Display results
             $this->table(
@@ -69,19 +70,22 @@ class UploadSampleImagesCommand extends Command
                     $result['total'],
                     $result['uploaded'],
                     $result['skipped'],
-                    $result['failed']
+                    $result['failed'],
                 ]]
             );
 
             if ($result['failed'] > 0) {
-                $this->warn("Some files failed to upload. Check the logs for details.");
+                $this->warn('Some files failed to upload. Check the logs for details.');
+
                 return 1;
             }
 
-            $this->info("Sample images successfully uploaded to bucket.");
+            $this->info('Sample images successfully uploaded to bucket.');
+
             return 0;
         } catch (\Exception $e) {
-            $this->error('Failed to upload sample images: ' . $e->getMessage());
+            $this->error('Failed to upload sample images: '.$e->getMessage());
+
             return 1;
         }
     }

@@ -2,16 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\Photo\GenerateThumbnails;
-use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
 use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Jobs\ShowClass\UploadProofs;
-use App\Proofgen\ShowClass;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
@@ -22,6 +18,7 @@ class ImageProcessingWorkflowTest extends TestCase
     use RefreshDatabase;
 
     protected string $show = 'testshow';
+
     protected string $class = 'testclass';
 
     protected function setUp(): void
@@ -76,7 +73,7 @@ class ImageProcessingWorkflowTest extends TestCase
         $mockImage2->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/image2.jpg");
 
         $mockContents = [
-            'images' => [$mockImage1, $mockImage2]
+            'images' => [$mockImage1, $mockImage2],
         ];
 
         $mockUtility->shouldReceive('getContentsOfPath')

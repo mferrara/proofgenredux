@@ -8,13 +8,13 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
 
 class ImportPhoto implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public string $image_path;
+
     public string $proof_number;
 
     /**
@@ -28,6 +28,7 @@ class ImportPhoto implements ShouldQueue
 
     /**
      * Execute the job.
+     *
      * @throws \Exception
      */
     public function handle(): void

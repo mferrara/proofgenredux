@@ -15,7 +15,7 @@ class ConfigurationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Clear cache before tests
         Cache::flush();
     }
@@ -27,20 +27,20 @@ class ConfigurationTest extends TestCase
     {
         // Create a test configuration
         Configuration::setConfig(
-            'test.key', 
-            'test_value', 
-            'string', 
-            'testing', 
-            'Test Config', 
+            'test.key',
+            'test_value',
+            'string',
+            'testing',
+            'Test Config',
             'A test configuration value'
         );
-        
+
         // Retrieve it
         $value = Configuration::getConfig('test.key');
-        
+
         // Check the value
         $this->assertEquals('test_value', $value);
-        
+
         // Check that the record was properly saved
         $this->assertDatabaseHas('configurations', [
             'key' => 'test.key',
@@ -48,10 +48,10 @@ class ConfigurationTest extends TestCase
             'type' => 'string',
             'category' => 'testing',
             'label' => 'Test Config',
-            'description' => 'A test configuration value'
+            'description' => 'A test configuration value',
         ]);
     }
-    
+
     /**
      * Test that values are properly cast based on type
      */
@@ -65,7 +65,7 @@ class ConfigurationTest extends TestCase
         Configuration::setConfig('test.float', '123.45', 'float');
         Configuration::setConfig('test.array', 'one,two,three', 'array');
         Configuration::setConfig('test.json', '{"key":"value"}', 'json');
-        
+
         // Retrieve and check each type
         $this->assertSame('test', Configuration::getConfig('test.string'));
         $this->assertSame(123, Configuration::getConfig('test.integer'));
@@ -75,33 +75,33 @@ class ConfigurationTest extends TestCase
         $this->assertEquals(['one', 'two', 'three'], Configuration::getConfig('test.array'));
         $this->assertEquals(['key' => 'value'], Configuration::getConfig('test.json'));
     }
-    
+
     /**
      * Test that configuration is cached
      */
     public function test_configuration_is_cached()
     {
         Configuration::setConfig('test.cached', 'original', 'string');
-        
+
         // Get the value (first retrieval should cache it)
         $value = Configuration::getConfig('test.cached');
         $this->assertEquals('original', $value);
-        
+
         // Update the value directly in the database without clearing cache
         Configuration::where('key', 'test.cached')->update(['value' => 'updated']);
-        
+
         // The cached value should still be returned
         $value = Configuration::getConfig('test.cached');
         $this->assertEquals('original', $value);
-        
+
         // Clear the cache
         Cache::forget(Configuration::CONFIGURATIONS_SINGLE_VALUE_KEY.'.test.cached');
-        
+
         // Now should get the updated value
         $value = Configuration::getConfig('test.cached');
         $this->assertEquals('updated', $value);
     }
-    
+
     /**
      * Test the compile method properly builds the config array
      */
@@ -111,10 +111,10 @@ class ConfigurationTest extends TestCase
         Configuration::setConfig('test1', 'value1', 'string');
         Configuration::setConfig('test2', '123', 'integer');
         Configuration::setConfig('test3', 'true', 'boolean');
-        
+
         // Compile the configurations
         $compiled = Configuration::compile();
-        
+
         // Check the compiled array
         $this->assertIsArray($compiled);
         $this->assertArrayHasKey('test1', $compiled);
@@ -124,7 +124,7 @@ class ConfigurationTest extends TestCase
         $this->assertEquals(123, $compiled['test2']);
         $this->assertEquals(true, $compiled['test3']);
     }
-    
+
     /**
      * Test that configuration overrides Laravel config values
      */
@@ -132,13 +132,13 @@ class ConfigurationTest extends TestCase
     {
         // Set up an initial config value
         LaravelConfig::set('proofgen.test_override', 'original');
-        
+
         // Create a database configuration
         Configuration::setConfig('test_override', 'overridden', 'string');
-        
+
         // Run the override process
         Configuration::overrideApplicationConfig();
-        
+
         // Check if the value was overridden
         $this->assertEquals('overridden', LaravelConfig::get('proofgen.test_override'));
     }

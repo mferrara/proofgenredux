@@ -2,11 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Configuration;
 use App\Services\PathResolver;
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-use Exception;
 
 class MigrateProofsCommand extends Command
 {
@@ -76,23 +75,24 @@ class MigrateProofsCommand extends Command
             $basePath = $this->option('base-path') ?? env('FULLSIZE_HOME_DIR');
         }
 
-        if (!$basePath || !File::isDirectory($basePath)) {
+        if (! $basePath || ! File::isDirectory($basePath)) {
             $this->error("Error: Invalid base path: {$basePath}");
+
             return 1;
         }
 
         $this->info("Starting migration check with base path: {$basePath}");
 
         if ($dryRun) {
-            $this->comment("DRY RUN MODE: No files will be modified");
+            $this->comment('DRY RUN MODE: No files will be modified');
         }
 
         $this->info($moveFiles
-            ? "MOVE MODE: Files will be moved instead of copied"
-            : "COPY MODE: Original files will be preserved");
+            ? 'MOVE MODE: Files will be moved instead of copied'
+            : 'COPY MODE: Original files will be preserved');
 
         // Create destination directories if they don't exist
-        if (!$dryRun) {
+        if (! $dryRun) {
             $this->createDestinationDirectories($basePath);
         }
 
@@ -113,15 +113,15 @@ class MigrateProofsCommand extends Command
      */
     protected function createDestinationDirectories(string $basePath): void
     {
-        $proofsDir = rtrim($basePath, '/') . "/proofs";
-        $webImagesDir = rtrim($basePath, '/') . "/web_images";
+        $proofsDir = rtrim($basePath, '/').'/proofs';
+        $webImagesDir = rtrim($basePath, '/').'/web_images';
 
-        if (!File::isDirectory($proofsDir)) {
+        if (! File::isDirectory($proofsDir)) {
             File::makeDirectory($proofsDir, 0755, true);
             $this->info("Created directory: {$proofsDir}");
         }
 
-        if (!File::isDirectory($webImagesDir)) {
+        if (! File::isDirectory($webImagesDir)) {
             File::makeDirectory($webImagesDir, 0755, true);
             $this->info("Created directory: {$webImagesDir}");
         }
@@ -146,6 +146,7 @@ class MigrateProofsCommand extends Command
             // Skip the top-level 'proofs' and 'web_images' directories
             if (in_array($showName, ['proofs', 'web_images'])) {
                 $this->line("  Skipping directory: {$showName} (reserved name)");
+
                 continue;
             }
 
@@ -200,7 +201,7 @@ class MigrateProofsCommand extends Command
                 $this->migrateFiles(
                     $oldProofPath,
                     $newProofsPath,
-                    "*_thm.jpg",
+                    '*_thm.jpg',
                     $dryRun,
                     $moveFiles,
                     'proof_files_found'
@@ -210,7 +211,7 @@ class MigrateProofsCommand extends Command
                 $this->migrateFiles(
                     $oldProofPath,
                     $newProofsPath,
-                    "*_std.jpg",
+                    '*_std.jpg',
                     $dryRun,
                     $moveFiles,
                     'proof_files_found'
@@ -228,7 +229,7 @@ class MigrateProofsCommand extends Command
             }
 
             // If we're on a 'move' run and the path is now empty, remove it
-            if (!$dryRun && $moveFiles && File::isDirectory($oldProofPath)) {
+            if (! $dryRun && $moveFiles && File::isDirectory($oldProofPath)) {
                 $remainingFiles = array_filter(glob("{$oldProofPath}/*"), 'is_file');
                 if (count($remainingFiles) == 0) {
                     File::deleteDirectory($oldProofPath);
@@ -240,7 +241,7 @@ class MigrateProofsCommand extends Command
             $oldWebPath = "{$classPath}/web_images";
             if (File::isDirectory($oldWebPath)) {
                 $hasOldStructure = true;
-                if (!isset($this->classesWithOldStructure[$className])) {
+                if (! isset($this->classesWithOldStructure[$className])) {
                     $this->stats['classes_with_old_structure']++;
                 }
 
@@ -253,7 +254,7 @@ class MigrateProofsCommand extends Command
                 $this->migrateFiles(
                     $oldWebPath,
                     $newWebPath,
-                    "*_web.jpg",
+                    '*_web.jpg',
                     $dryRun,
                     $moveFiles,
                     'web_files_found'
@@ -267,7 +268,7 @@ class MigrateProofsCommand extends Command
     /**
      * Migrate files from old path to new path.
      *
-     * @param string $statsKey Key to use for tracking statistics
+     * @param  string  $statsKey  Key to use for tracking statistics
      */
     protected function migrateFiles(string $oldPath, string $newPath, string $pattern, bool $dryRun, bool $moveFiles, string $statsKey): void
     {
@@ -275,10 +276,10 @@ class MigrateProofsCommand extends Command
         $files = glob("{$oldPath}/{$pattern}");
         $this->stats[$statsKey] += count($files);
 
-        $this->line("    Found " . count($files) . " " . $pattern . " files");
+        $this->line('    Found '.count($files).' '.$pattern.' files');
 
         // Create the destination directory if needed
-        if (!$dryRun && !File::isDirectory($newPath)) {
+        if (! $dryRun && ! File::isDirectory($newPath)) {
             File::makeDirectory($newPath, 0755, true);
         }
 
@@ -287,7 +288,7 @@ class MigrateProofsCommand extends Command
             $fileName = basename($file);
             $newFilePath = "{$newPath}/{$fileName}";
 
-            if (!$dryRun) {
+            if (! $dryRun) {
                 try {
                     if ($moveFiles) {
                         if (File::move($file, $newFilePath)) {
@@ -305,7 +306,7 @@ class MigrateProofsCommand extends Command
                         }
                     }
                 } catch (Exception $e) {
-                    $this->error("    Error with file {$fileName}: " . $e->getMessage());
+                    $this->error("    Error with file {$fileName}: ".$e->getMessage());
                     $this->stats['errors']++;
                 }
             } else {
@@ -315,7 +316,7 @@ class MigrateProofsCommand extends Command
         }
 
         // If in move mode and all files were moved successfully, remove the empty directory
-        if (!$dryRun && $moveFiles && count($files) > 0 && count($files) == $this->stats['files_migrated'] - $this->stats['errors']) {
+        if (! $dryRun && $moveFiles && count($files) > 0 && count($files) == $this->stats['files_migrated'] - $this->stats['errors']) {
             try {
                 // Check if directory is empty (except for subdirectories which shouldn't exist in this context)
                 $remainingFiles = array_filter(glob("{$oldPath}/*"), 'is_file');
@@ -327,7 +328,7 @@ class MigrateProofsCommand extends Command
                     }
                 }
             } catch (Exception $e) {
-                $this->error("    Error removing directory {$oldPath}: " . $e->getMessage());
+                $this->error("    Error removing directory {$oldPath}: ".$e->getMessage());
             }
         }
     }
@@ -344,7 +345,7 @@ class MigrateProofsCommand extends Command
         $this->line("Classes with old structure: {$this->stats['classes_with_old_structure']}");
         $this->line("Proof files found: {$this->stats['proof_files_found']}");
         $this->line("Web image files found: {$this->stats['web_files_found']}");
-        $this->line("Files " . ($dryRun ? "that would be" : "successfully") . " migrated: {$this->stats['files_migrated']}");
+        $this->line('Files '.($dryRun ? 'that would be' : 'successfully')." migrated: {$this->stats['files_migrated']}");
         $this->line("Errors encountered: {$this->stats['errors']}");
 
         if ($dryRun) {
@@ -358,7 +359,7 @@ class MigrateProofsCommand extends Command
     protected function writeLogFile(): void
     {
         $logDir = storage_path('logs');
-        $logFile = $logDir . '/migration_' . date('Y-m-d_H-i-s') . '.log';
+        $logFile = $logDir.'/migration_'.date('Y-m-d_H-i-s').'.log';
 
         File::put($logFile, json_encode($this->stats, JSON_PRETTY_PRINT));
         $this->info("\nLog file written to: {$logFile}");

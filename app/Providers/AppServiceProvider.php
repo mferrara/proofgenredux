@@ -14,7 +14,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // Register HorizonService as a singleton
         $this->app->singleton(HorizonService::class, function ($app) {
-            return new HorizonService();
+            return new HorizonService;
         });
     }
 

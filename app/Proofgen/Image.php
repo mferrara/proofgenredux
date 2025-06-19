@@ -12,18 +12,26 @@ use League\Flysystem\UnableToReadFile;
 class Image
 {
     public string $image_path = '';
+
     public string $show = '';
+
     public string $class = '';
+
     public bool $is_original = false;
+
     public bool $is_proofed = false;
+
     public array $missing_proofs = [];
+
     public bool $rename_files = true;
+
     public bool $archive_enabled = true;
+
     public string $filename = '';
 
     protected PathResolver $pathResolver;
 
-    public function __construct(string $image_path, PathResolver $pathResolver = null)
+    public function __construct(string $image_path, ?PathResolver $pathResolver = null)
     {
         $this->pathResolver = $pathResolver ?? app(PathResolver::class);
         $this->image_path = $this->pathResolver->normalizePath($image_path);
@@ -44,27 +52,27 @@ class Image
         $proofs = Storage::disk('fullsize')->files($this->pathResolver->normalizePath($proofs_path));
         $proofed = false;
         $proof_sizes = [];
-        foreach(config('proofgen.thumbnails') as $size) {
+        foreach (config('proofgen.thumbnails') as $size) {
             $proof_sizes[] = $size['suffix'];
         }
 
         $proof_sizes_found = [];
-        foreach($proofs as $proof_index => $proof) {
+        foreach ($proofs as $proof_index => $proof) {
             $proof_array_key = pathinfo($this->filename, PATHINFO_FILENAME);
-            foreach($proof_sizes as $suffix) {
+            foreach ($proof_sizes as $suffix) {
                 $proof_filename = pathinfo($proof, PATHINFO_FILENAME);
                 $proof_filename = str_replace($suffix, '', $proof_filename);
-                if($proof_filename === pathinfo($this->filename, PATHINFO_FILENAME)) {
+                if ($proof_filename === pathinfo($this->filename, PATHINFO_FILENAME)) {
                     $proof_sizes_found[$proof_array_key][] = $suffix;
                     break;
                 }
             }
 
-            if(isset($proof_sizes_found[$proof_array_key]) && count($proof_sizes_found[$proof_array_key]) === count($proof_sizes)) {
+            if (isset($proof_sizes_found[$proof_array_key]) && count($proof_sizes_found[$proof_array_key]) === count($proof_sizes)) {
                 // Sort $proof_sizes_round[$proof_array_key] and $proof_sizes so they're in the same order
                 sort($proof_sizes_found[$proof_array_key]);
                 sort($proof_sizes);
-                if($proof_sizes_found[$proof_array_key] === $proof_sizes) {
+                if ($proof_sizes_found[$proof_array_key] === $proof_sizes) {
                     $proofed = true;
                     unset($proofs[$proof_index]);
                     break;
@@ -75,19 +83,20 @@ class Image
 
         $missing_proofs = [];
         $proof_array_key = pathinfo($this->filename, PATHINFO_FILENAME);
-        foreach($proof_sizes as $proof_size) {
-            if( ! isset($proof_sizes_found[$proof_array_key]) || ! in_array($proof_size, $proof_sizes_found[$proof_array_key])) {
+        foreach ($proof_sizes as $proof_size) {
+            if (! isset($proof_sizes_found[$proof_array_key]) || ! in_array($proof_size, $proof_sizes_found[$proof_array_key])) {
                 $missing_proofs[] = $proof_size;
             }
         }
 
-        if(count($missing_proofs)) {
+        if (count($missing_proofs)) {
             $this->missing_proofs = $missing_proofs;
 
             return false;
         }
 
         $this->missing_proofs = [];
+
         return true;
     }
 
@@ -103,21 +112,21 @@ class Image
 
         // Next, we'll move the image to the original directory
         Storage::disk('fullsize')->put($path_to_originals_file, $image);
-        if($debug) {
+        if ($debug) {
             Log::debug('Moved '.$this->image_path.' to originals directory; '.$path_to_originals_file);
         }
         // Next, we'll confirm that copied file exists
         $exists = Storage::disk('fullsize')->exists($path_to_originals_file);
-        if($debug) {
+        if ($debug) {
             Log::debug('File exists in originals directory; '.$path_to_originals_file);
         }
 
-        if( ! $exists) {
+        if (! $exists) {
             throw new \Exception('File not copied to originals directory; '.$this->image_path);
         }
 
         // If we're configured to rename files we'll handle that now
-        if($this->rename_files) {
+        if ($this->rename_files) {
             // Generate the new filename
             $new_filename = $proof_number.'.'.$extension;
 
@@ -127,7 +136,7 @@ class Image
 
             // Next, rename the file we put in the originals path
             Storage::disk('fullsize')->move($path_to_originals_file, $new_original_path);
-            if($debug) {
+            if ($debug) {
                 Log::debug('Renamed file in originals directory from '.$original_filename.' to '.$new_filename.', including paths; from '.$path_to_originals_file.' to '.$new_original_path);
             }
 
@@ -135,7 +144,7 @@ class Image
             $new_path = $this->pathResolver->getFullsizePath($this->show, $this->class).'/'.$new_filename;
             $new_path = $this->pathResolver->normalizePath($new_path);
 
-            if($debug) {
+            if ($debug) {
                 Log::debug('Renaming file in processing directory from '.$original_filename.' to '.$new_filename.', including paths; from '.$this->image_path.' to '.$new_path);
             }
             Storage::disk('fullsize')->move($this->image_path, $new_path);
@@ -148,7 +157,7 @@ class Image
             $path_to_originals_file = $new_original_path;
         }
 
-        if($this->archive_enabled) {
+        if ($this->archive_enabled) {
             // Next we'll copy this file to the archive directory
             // Note: If we re-named the file, the new name will already be included in $this->filename
             $archive_path = $this->pathResolver->getArchivePath($this->show, $this->class).'/'.$this->filename;
@@ -156,8 +165,8 @@ class Image
 
             // First, we'll see if it already exists in the archive from a previous failed run...
             $exists = Storage::disk('archive')->exists($archive_path);
-            if($exists){
-                if($debug) {
+            if ($exists) {
+                if ($debug) {
                     Log::debug('File already exists in archive directory; '.$archive_path.' - Deleting...');
                 }
                 // TODO: Should we have some sort of directory in the /show/class directory, like /deleted that we move
@@ -168,16 +177,16 @@ class Image
             }
 
             Storage::disk('archive')->put($archive_path, $image);
-            if($debug) {
+            if ($debug) {
                 Log::debug('Copied file to archive directory; '.$archive_path);
             }
 
             // Next we'll confirm this copy of the file
             $exists = Storage::disk('archive')->exists($archive_path);
-            if( ! $exists) {
+            if (! $exists) {
                 throw new \Exception('File not copied to archive directory; Tried to write file to: '.$archive_path);
             }
-            if($debug) {
+            if ($debug) {
                 Log::debug('File exists in archive directory; '.$archive_path);
             }
         }
@@ -186,14 +195,14 @@ class Image
         $path_to_delete = isset($new_path) ? $new_path : $this->image_path;
         Storage::disk('fullsize')->delete($path_to_delete);
 
-        if($debug) {
+        if ($debug) {
             Log::debug('Deleted original file; '.$path_to_delete);
         }
 
         // Confirm the file is deleted
         $exists = Storage::disk('fullsize')->exists($path_to_delete);
 
-        if($exists) {
+        if ($exists) {
             throw new \Exception('File not deleted; '.$path_to_delete);
         }
 
@@ -204,9 +213,9 @@ class Image
     public static function importPhoto(string $proof_number, string $file_type, string $show_id, string $show_class_id): Photo
     {
         $photo = Photo::find($proof_number);
-        if( ! $photo) {
+        if (! $photo) {
             // If the image doesn't exist, create it
-            $photo = new Photo();
+            $photo = new Photo;
             $photo->show_class_id = $show_id.'_'.$show_class_id;
             $photo->proof_number = $proof_number;
             $photo->file_type = $file_type;
@@ -226,7 +235,7 @@ class Image
         $web_dest_path = $pathResolver->normalizePath($web_dest_path);
 
         // Confirm the $web_dest_path exists, if not, create it
-        if( ! Storage::disk('fullsize')->exists($web_dest_path)) {
+        if (! Storage::disk('fullsize')->exists($web_dest_path)) {
             Storage::disk('fullsize')->makeDirectory($web_dest_path);
         }
 
@@ -263,7 +272,7 @@ class Image
 
         $average_color = self::determineAverageColor($web_thumb_path);
         $darkness = self::determineWatermarkDarknessFromAverageColor($average_color[0], $average_color[1], $average_color[2]);
-        if($darkness === 'light') {
+        if ($darkness === 'light') {
             imagefilter($watermark, IMG_FILTER_NEGATE);
         }
 
@@ -279,13 +288,69 @@ class Image
         return $web_thumb_path;
     }
 
+    public static function createHighresImage($full_size_image_path, $highres_dest_path): string
+    {
+        // Get PathResolver from the container
+        $pathResolver = app(PathResolver::class);
+
+        // Normalize the paths
+        $full_size_image_path = $pathResolver->normalizePath($full_size_image_path);
+        $highres_dest_path = $pathResolver->normalizePath($highres_dest_path);
+
+        // Confirm the $highres_dest_path exists, if not, create it
+        if (! Storage::disk('fullsize')->exists($highres_dest_path)) {
+            Storage::disk('fullsize')->makeDirectory($highres_dest_path);
+        }
+
+        $base_path = config('proofgen.fullsize_home_dir');
+
+        // Use PathResolver to ensure consistent path formatting
+        $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
+        $highres_dest_system_path = $pathResolver->getAbsolutePath($highres_dest_path, $base_path);
+
+        $manager = ImageManager::gd();
+
+        $image = $manager->read($full_system_path);
+        $highres_suf = config('proofgen.highres_images.suffix');
+        $image_filename = pathinfo($full_system_path, PATHINFO_FILENAME);
+        $highres_thumb_filename = $image_filename.$highres_suf.'.jpg';
+        $highres_thumb_path = $highres_dest_system_path.'/'.$highres_thumb_filename;
+
+        // Save smaller copy of the image that we'll work with
+        $image->scale(config('proofgen.highres_images.width'), config('proofgen.highres_images.height'))
+            ->save($highres_thumb_path, config('proofgen.highres_images.quality'));
+        unset($image);
+
+        // Add the watermark/border/whatever it is
+        // Add watermark
+        $image = $manager->read($highres_thumb_path);
+        $watermark = imagecreatefrompng(storage_path().'/watermarks/web-image-watermark-2.png');
+
+        $average_color = self::determineAverageColor($highres_thumb_path);
+        $darkness = self::determineWatermarkDarknessFromAverageColor($average_color[0], $average_color[1], $average_color[2]);
+        if ($darkness === 'light') {
+            imagefilter($watermark, IMG_FILTER_NEGATE);
+        }
+
+        $image->place($watermark, 'bottom', 0, 60)->save();
+
+        imagedestroy($watermark);
+        unset($image);
+
+        $manager = null;
+        unset($manager);
+
+        // Return the full path to the output file
+        return $highres_thumb_path;
+    }
+
     public static function determineAverageColor(string $image_path): array
     {
         $image = imagecreatefromjpeg($image_path);
         $width = imagesx($image);
         $height = imagesy($image);
         // Calculate the height of the bottom 20% portion
-        $bottom_height = (int)($height * 0.2);
+        $bottom_height = (int) ($height * 0.2);
         $r = $g = $b = 0;
         $total = 0;
         for ($y = $height - $bottom_height; $y < $height; $y++) {
@@ -319,7 +384,7 @@ class Image
         $average = (int) ($r + $g + $b) / 3;
         $darkness = 255 - $average;
 
-        if($darkness > 135) {
+        if ($darkness > 135) {
             return 'light';
         }
 
@@ -346,17 +411,17 @@ class Image
         // but direct filesystem operations need the full path
         $proofs_dest_system_path = $pathResolver->getAbsolutePath($proofs_dest_path, $base_path);
 
-        if($full_size_image_path !== $original_full_size_image_path) {
+        if ($full_size_image_path !== $original_full_size_image_path) {
             Log::debug('Full size image path was changed from '.$original_full_size_image_path.' to '.$full_size_image_path);
         }
 
         // Confirm the $proofs_dest_path exists, if not, create it
-        if( ! Storage::disk('fullsize')->exists($proofs_dest_path)) {
+        if (! Storage::disk('fullsize')->exists($proofs_dest_path)) {
             Storage::disk('fullsize')->makeDirectory($proofs_dest_path);
         }
 
         // Confirm the $full_size_image_path exists, if not, throw an exception
-        if( ! Storage::disk('fullsize')->exists($full_size_image_path)) {
+        if (! Storage::disk('fullsize')->exists($full_size_image_path)) {
             throw new UnableToReadFile('File not found: '.$full_size_image_path);
         }
 
@@ -418,12 +483,12 @@ class Image
                     $image->width());
                 $watermark_bot = self::watermarkLargeProof('Illegal to use - Ferrara Photography', $image->width());
 
-                //$top_offset = round($image->height() * 0.2);
-                //$bottom_offset = round($image->height() * 0.2);
+                // $top_offset = round($image->height() * 0.2);
+                // $bottom_offset = round($image->height() * 0.2);
                 $bottom_offset = round($image->height() * 0.1);
 
                 $image
-                    //->insert($watermark_top, 'top', 0, $top_offset)
+                    // ->insert($watermark_top, 'top', 0, $top_offset)
                     ->place($watermark_top, 'center')
                     ->place($watermark_bot, 'bottom', 0, $bottom_offset)
                     ->save();
@@ -480,15 +545,15 @@ class Image
  *
  * Function for create image from text with selected font.
  *
- * @param  string  $text     : String to convert into the Image.
- * @param  string  $font     : Font name of the text. Kip font file in same folder.
+ * @param  string  $text  : String to convert into the Image.
+ * @param  string  $font  : Font name of the text. Kip font file in same folder.
  * @param  int  $justify  : Justify text in image (0-Left, 1-Right, 2-Center)
- * @param  int  $W        : Width of the Image.
- * @param  int  $H        : Height of the Image.
- * @param  int  $X        : x-coordinate of the text into the image.
- * @param  int  $Y        : y-coordinate of the text into the image.
- * @param  int  $fsize    : Font size of text.
- * @param  array  $color       : RGB color array for text color.
+ * @param  int  $W  : Width of the Image.
+ * @param  int  $H  : Height of the Image.
+ * @param  int  $X  : x-coordinate of the text into the image.
+ * @param  int  $Y  : y-coordinate of the text into the image.
+ * @param  int  $fsize  : Font size of text.
+ * @param  array  $color  : RGB color array for text color.
  * @param  array  $bgcolor  : RGB color array for background.
  * @return resource $im
  */
@@ -498,44 +563,44 @@ function imagettfJustifytext($text, $font = 'CENTURY.TTF', $justify = 2, $W = 0,
 
     $angle = 0;
     $L_R_C = $justify;
-    $_bx = \imageTTFBbox($fsize, 0, $font, $text);
+    $_bx = \imagettfbbox($fsize, 0, $font, $text);
 
-    $W = ($W == 0) ? abs($_bx[2] - $_bx[0]) : $W;    //If Height not initialized by programmer then it will detect and assign perfect height.
-    $H = ($H == 0) ? abs($_bx[5] - $_bx[3]) : $H;    //If Width not initialized by programmer then it will detect and assign perfect width.
+    $W = ($W == 0) ? abs($_bx[2] - $_bx[0]) : $W;    // If Height not initialized by programmer then it will detect and assign perfect height.
+    $H = ($H == 0) ? abs($_bx[5] - $_bx[3]) : $H;    // If Width not initialized by programmer then it will detect and assign perfect width.
 
     $im = @imagecreate($W, $H)
     or exit('Cannot Initialize new GD image stream');
 
-    $background_color = imagecolorallocatealpha($im, $bgcolor[0], $bgcolor[1], $bgcolor[2], $bgcolor[3]);        //RGB color background.
-    $text_color = imagecolorallocatealpha($im, $color[0], $color[1], $color[2], $color[3]);            //RGB color text.
+    $background_color = imagecolorallocatealpha($im, $bgcolor[0], $bgcolor[1], $bgcolor[2], $bgcolor[3]);        // RGB color background.
+    $text_color = imagecolorallocatealpha($im, $color[0], $color[1], $color[2], $color[3]);            // RGB color text.
 
-    if ($L_R_C == 0) { //Justify Left
+    if ($L_R_C == 0) { // Justify Left
         imagettftext($im, $fsize, $angle, $X, $fsize, $text_color, $font, $text);
-    } elseif ($L_R_C == 1) { //Justify Right
+    } elseif ($L_R_C == 1) { // Justify Right
         $s = explode("[\n]+", $text);
         $__H = 0;
 
         foreach ($s as $key => $val) {
-            $_b = \imageTTFBbox($fsize, 0, $font, $val);
+            $_b = \imagettfbbox($fsize, 0, $font, $val);
             $_W = abs($_b[2] - $_b[0]);
-            //Defining the X coordinate.
+            // Defining the X coordinate.
             $_X = $W - $_W;
-            //Defining the Y coordinate.
+            // Defining the Y coordinate.
             $_H = abs($_b[5] - $_b[3]);
             $__H += $_H;
             imagettftext($im, $fsize, $angle, $_X, $__H, $text_color, $font, $val);
             $__H += 6;
         }
-    } elseif ($L_R_C == 2) { //Justify Center
+    } elseif ($L_R_C == 2) { // Justify Center
         $s = explode("[\n]+", $text);
         $__H = 0;
 
         foreach ($s as $key => $val) {
-            $_b = \imageTTFBbox($fsize, 0, $font, $val);
+            $_b = \imagettfbbox($fsize, 0, $font, $val);
             $_W = abs($_b[2] - $_b[0]);
-            //Defining the X coordinate.
+            // Defining the X coordinate.
             $_X = abs($W / 2) - abs($_W / 2);
-            //Defining the Y coordinate.
+            // Defining the Y coordinate.
             $_H = abs($_b[5] - $_b[3]);
             $__H += $_H;
             imagettftext($im, $fsize, $angle, $_X, $__H, $text_color, $font, $val);

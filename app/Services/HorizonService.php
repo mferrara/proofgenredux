@@ -11,8 +11,6 @@ class HorizonService
 {
     /**
      * Check if Horizon is running
-     *
-     * @return bool
      */
     public function isRunning(): bool
     {
@@ -38,18 +36,18 @@ class HorizonService
             // More specific process check if we get here
             // This uses pgrep which is more precise than grep for process matching
             $ps_output = shell_exec("ps -ef | grep '[p]hp.*[a]rtisan horizon$' | grep -v 'horizon:status'");
-            return !empty($ps_output);
+
+            return ! empty($ps_output);
 
         } catch (\Exception $e) {
-            Log::error('Error checking Horizon status: ' . $e->getMessage());
+            Log::error('Error checking Horizon status: '.$e->getMessage());
+
             return false;
         }
     }
 
     /**
      * Terminate the running Horizon process
-     *
-     * @return bool
      */
     public function terminate(): bool
     {
@@ -59,20 +57,20 @@ class HorizonService
 
             $exitCode = Artisan::call('horizon:terminate');
             $output = Artisan::output();
-            Log::debug('Horizon terminate output: ' . $output);
+            Log::debug('Horizon terminate output: '.$output);
 
             return true;
         } catch (\Exception $e) {
-            Log::error('Error using Artisan::call to terminate Horizon: ' . $e->getMessage());
+            Log::error('Error using Artisan::call to terminate Horizon: '.$e->getMessage());
 
             // Fall back to shell exec
             // Get the PHP binary path for fallback
             $phpBinary = Configuration::getPhpBinary();
-            Log::debug('Falling back to shell exec with PHP binary: ' . $phpBinary);
+            Log::debug('Falling back to shell exec with PHP binary: '.$phpBinary);
 
             // Change directory to the application root to ensure the command works
-            $terminateCommand = 'cd ' . base_path() . ' && ' . escapeshellarg($phpBinary) . ' artisan horizon:terminate > /dev/null 2>&1';
-            Log::debug('Running command: ' . $terminateCommand);
+            $terminateCommand = 'cd '.base_path().' && '.escapeshellarg($phpBinary).' artisan horizon:terminate > /dev/null 2>&1';
+            Log::debug('Running command: '.$terminateCommand);
             exec($terminateCommand);
 
             return true;
@@ -81,8 +79,6 @@ class HorizonService
 
     /**
      * Start Horizon in a detached process
-     *
-     * @return bool
      */
     public function start(): bool
     {
@@ -91,13 +87,13 @@ class HorizonService
             $phpBinary = Configuration::getPhpBinary();
 
             // Command to execute
-            $command = 'cd ' . base_path() . ' && ' . escapeshellarg($phpBinary) . ' artisan horizon';
+            $command = 'cd '.base_path().' && '.escapeshellarg($phpBinary).' artisan horizon';
 
             // Descriptors for proc_open
             $descriptorspec = [
                 0 => ['file', '/dev/null', 'r'],  // stdin
                 1 => ['file', storage_path('logs/horizon.log'), 'a'], // stdout
-                2 => ['file', storage_path('logs/horizon.log'), 'a']  // stderr
+                2 => ['file', storage_path('logs/horizon.log'), 'a'],  // stderr
             ];
 
             // Current working directory and environment variables
@@ -112,13 +108,16 @@ class HorizonService
                 // This is critical: make the process run independently
                 proc_close($process);
                 Log::debug('Successfully started Horizon process');
+
                 return true;
             } else {
                 Log::error('Failed to start Horizon process');
+
                 return false;
             }
         } catch (\Exception $e) {
-            Log::error('Failed to start Horizon: ' . $e->getMessage());
+            Log::error('Failed to start Horizon: '.$e->getMessage());
+
             return false;
         }
     }
@@ -132,7 +131,7 @@ class HorizonService
         // Push a job to the queue to restart Horizon
         // This is intentionally sent to the 'default' queue,
         // not 'horizon' which would be processed by the Horizon worker we're restarting
-        Queue::push(new \App\Jobs\RestartHorizon());
+        Queue::push(new \App\Jobs\RestartHorizon);
 
         Log::info('Scheduled Horizon restart job');
     }

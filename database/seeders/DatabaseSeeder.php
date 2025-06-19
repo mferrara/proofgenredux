@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         // Call the AdminUserSeeder to create/update the admin user
         $this->call(AdminUserSeeder::class);
-        
+
         // Create a test user if needed
         if (app()->environment() === 'testing' || app()->environment() === 'local') {
             User::factory()->create([

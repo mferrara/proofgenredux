@@ -10,7 +10,7 @@ class PathResolverTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->pathResolver = new PathResolver();
+        $this->pathResolver = new PathResolver;
     }
 
     /** @test */

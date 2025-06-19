@@ -13,7 +13,7 @@ class PathServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(PathResolver::class, function ($app) {
-            return new PathResolver();
+            return new PathResolver;
         });
     }
 
