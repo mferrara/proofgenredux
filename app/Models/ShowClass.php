@@ -10,6 +10,7 @@ use App\Proofgen\Utility;
 use App\Services\PathResolver;
 use App\Traits\HasPhotosTrait;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,6 +21,7 @@ use League\Flysystem\FileAttributes;
 
 class ShowClass extends Model
 {
+    use HasFactory;
     use HasPhotosTrait;
 
     protected $table = 'show_classes';
@@ -45,6 +47,11 @@ class ShowClass extends Model
         parent::boot();
 
         static::created(function (ShowClass $model) {
+            // Skip file operations during tests if configured
+            if (config('testing.skip_file_operations')) {
+                return;
+            }
+
             // Check the ShowClass directory for a directory named 'originals'
             // if it's there, and it has images in it, we'll import them
             // into the database

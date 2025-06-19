@@ -212,7 +212,8 @@ class Image
 
     public static function importPhoto(string $proof_number, string $file_type, string $show_id, string $show_class_id): Photo
     {
-        $photo = Photo::find($proof_number);
+        $photo_id = $show_id.'_'.$show_class_id.'_'.$proof_number;
+        $photo = Photo::find($photo_id);
         if (! $photo) {
             // If the image doesn't exist, create it
             $photo = new Photo;
@@ -244,6 +245,11 @@ class Image
         // Use PathResolver to ensure consistent path formatting
         $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
         $web_dest_system_path = $pathResolver->getAbsolutePath($web_dest_path, $base_path);
+
+        // Check if the file exists
+        if (!file_exists($full_system_path)) {
+            throw new \Exception("Image file not found at: {$full_system_path}");
+        }
 
         $manager = ImageManager::gd();
 
@@ -434,6 +440,12 @@ class Image
 
         // Use PathResolver.getAbsolutePath to get the correct full system path
         $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
+        
+        // Check if the file exists
+        if (!file_exists($full_system_path)) {
+            throw new \Exception("Image file not found at: {$full_system_path}");
+        }
+        
         $image = $manager->read($full_system_path);
 
         $lrg_suf = config('proofgen.thumbnails.large.suffix');

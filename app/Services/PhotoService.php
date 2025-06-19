@@ -27,11 +27,12 @@ class PhotoService
      * @param  string  $imagePath  The path to the image to process
      * @param  string  $proofNumber  The proof number to assign
      * @param  bool  $debug  Whether to enable debug logging
+     * @param  bool  $dispatchJobs  Whether to dispatch thumbnail/web image generation jobs
      * @return array Returns [fullsizeImagePath, proofDestPath, webImagesPath] for further processing
      *
      * @throws Exception
      */
-    public function processPhoto(string $imagePath, string $proofNumber, bool $debug = false): array
+    public function processPhoto(string $imagePath, string $proofNumber, bool $debug = false, bool $dispatchJobs = true): array
     {
         // Normalize the path and remove leading slash if present
         $imagePath = $this->pathResolver->normalizePath($imagePath);
@@ -45,12 +46,14 @@ class PhotoService
         $highresImagesPath = $show_class->highres_images_path;
 
         // Dispatch jobs for generating thumbnails, web images, and highres images
-        // \Log::debug('Queueing GenerateThumbnails job for photo_id: '.$photo->id);
-        GenerateThumbnails::dispatch($photo->id, $proofDestPath)->onQueue('thumbnails');
-        // \Log::debug('Queueing GenerateWebImage job for photo_id: '.$photo->id);
-        GenerateWebImage::dispatch($photo->id, $webImagesPath)->onQueue('thumbnails');
-        // \Log::debug('Queueing GenerateHighresImage job for photo_id: '.$photo->id);
-        GenerateHighresImage::dispatch($photo->id, $highresImagesPath)->onQueue('thumbnails');
+        if ($dispatchJobs) {
+            // \Log::debug('Queueing GenerateThumbnails job for photo_id: '.$photo->id);
+            GenerateThumbnails::dispatch($photo->id, $proofDestPath)->onQueue('thumbnails');
+            // \Log::debug('Queueing GenerateWebImage job for photo_id: '.$photo->id);
+            GenerateWebImage::dispatch($photo->id, $webImagesPath)->onQueue('thumbnails');
+            // \Log::debug('Queueing GenerateHighresImage job for photo_id: '.$photo->id);
+            GenerateHighresImage::dispatch($photo->id, $highresImagesPath)->onQueue('thumbnails');
+        }
 
         return [
             'photo' => $photo,
@@ -72,6 +75,9 @@ class PhotoService
     {
         // Normalize paths to ensure consistency
         $photo = Photo::find($photo_id);
+        if (!$photo) {
+            throw new \Exception("Photo not found with ID: {$photo_id}");
+        }
         $photoPath = $photo->relative_path;
         $photoPath = $this->pathResolver->normalizePath($photoPath);
         $proofsDestinationPath = $this->pathResolver->normalizePath($proofsDestinationPath);

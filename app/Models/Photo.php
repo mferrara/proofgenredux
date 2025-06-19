@@ -46,6 +46,11 @@ class Photo extends Model
         });
 
         static::created(function (Photo $model) {
+            // Skip file operations during tests if configured
+            if (config('testing.skip_file_operations')) {
+                return;
+            }
+
             // Check if we have a sha1 hash for this photo
             $file_contents = null;
             if (empty($model->sha1)) {

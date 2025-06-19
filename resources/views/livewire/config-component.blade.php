@@ -11,13 +11,23 @@
 
         <div class="mt-6 mb-24">
             <form wire:submit="save">
-            @foreach($configurationsByCategory as $category => $configurations)
-                @if($category === 'thumbnails')
-                    {{-- Special handling for thumbnails with live preview --}}
-                    <div class="mb-8" x-data="{ activeTab: 'large' }">
-                        <div class="text-2xl font-semibold mb-2">
-                            {{ $categoryLabels[$category] ?? ucfirst($category) }}
-                        </div>
+            {{-- Combined Image Settings Section --}}
+            @php
+                $hasImageSettings = false;
+                $allImageConfigs = [];
+                foreach(['thumbnails', 'web_images', 'highres_images'] as $cat) {
+                    if(isset($configurationsByCategory[$cat])) {
+                        $hasImageSettings = true;
+                        $allImageConfigs[$cat] = $configurationsByCategory[$cat];
+                    }
+                }
+            @endphp
+            
+            @if($hasImageSettings)
+                <div class="mb-8" x-data="{ activeTab: 'large' }">
+                    <div class="text-2xl font-semibold mb-2">
+                        Image Settings
+                    </div>
 
                         @if(!$sampleImagePath)
                             <div class="bg-amber-900/20 border border-amber-600/50 rounded-md p-4 mb-4">
@@ -28,31 +38,47 @@
                             </div>
                         @endif
 
-                        {{-- Tab Navigation --}}
-                        <div class="mb-6">
-                            <flux:tabs variant="segmented">
-                                <flux:tab
-                                    name="large"
-                                    x-on:click="activeTab = 'large'"
-                                    x-bind:selected="activeTab === 'large'"
-                                >
-                                    Large Thumbnails
-                                </flux:tab>
-                                <flux:tab
-                                    name="small"
-                                    x-on:click="activeTab = 'small'"
-                                    x-bind:selected="activeTab === 'small'"
-                                >
-                                    Small Thumbnails
-                                </flux:tab>
-                            </flux:tabs>
-                        </div>
+                    {{-- Tab Navigation --}}
+                    <div class="mb-6">
+                        <flux:tabs variant="segmented">
+                            <flux:tab
+                                name="large"
+                                x-on:click="activeTab = 'large'"
+                                x-bind:selected="activeTab === 'large'"
+                            >
+                                Large Thumbnails
+                            </flux:tab>
+                            <flux:tab
+                                name="small"
+                                x-on:click="activeTab = 'small'"
+                                x-bind:selected="activeTab === 'small'"
+                            >
+                                Small Thumbnails
+                            </flux:tab>
+                            <flux:tab
+                                name="web"
+                                x-on:click="activeTab = 'web'"
+                                x-bind:selected="activeTab === 'web'"
+                            >
+                                Web Images
+                            </flux:tab>
+                            <flux:tab
+                                name="highres"
+                                x-on:click="activeTab = 'highres'"
+                                x-bind:selected="activeTab === 'highres'"
+                            >
+                                High Resolution
+                            </flux:tab>
+                        </flux:tabs>
+                    </div>
 
-                        <div class="space-y-6">
-                            @php
-                                $largeConfigs = collect($configurations)->filter(fn($c) => str_starts_with($c->key, 'thumbnails.large.'))->keyBy('key');
-                                $smallConfigs = collect($configurations)->filter(fn($c) => str_starts_with($c->key, 'thumbnails.small.'))->keyBy('key');
-                            @endphp
+                    <div class="space-y-6">
+                        @php
+                            $largeConfigs = collect($allImageConfigs['thumbnails'] ?? [])->filter(fn($c) => str_starts_with($c->key, 'thumbnails.large.'))->keyBy('key');
+                            $smallConfigs = collect($allImageConfigs['thumbnails'] ?? [])->filter(fn($c) => str_starts_with($c->key, 'thumbnails.small.'))->keyBy('key');
+                            $webConfigs = $allImageConfigs['web_images'] ?? [];
+                            $highresConfigs = $allImageConfigs['highres_images'] ?? [];
+                        @endphp
 
                             {{-- Large Thumbnail Tab Content --}}
                             <div x-show="activeTab === 'large'" x-transition>
@@ -241,9 +267,202 @@
                                     </div>
                                 </div>
                             </div>
+
+                        {{-- Web Images Tab Content --}}
+                        <div x-show="activeTab === 'web'" x-transition>
+                                    {{-- Web Images Preview Section --}}
+                                    @if($sampleImagePath)
+                                        <div class="bg-zinc-800 rounded-md p-6 mb-6">
+                                            <h3 class="text-lg font-medium text-gray-200 mb-4">Web Image Preview</h3>
+                                            @if($webImagePreview)
+                                                <div class="relative inline-block">
+                                                    <img src="{{ $webImagePreview }}"
+                                                         alt="Web image preview"
+                                                         class="border border-zinc-600 rounded"
+                                                         wire:loading.class="opacity-50"
+                                                         wire:target="updatePreview">
+                                                    <div wire:loading.delay wire:target="updatePreview"
+                                                         class="absolute inset-0 flex items-center justify-center">
+                                                        <flux:icon.loading class="w-8 h-8 text-blue-500" />
+                                                    </div>
+                                                </div>
+                                                @if($webImageInfo)
+                                                    <div class="mt-2 text-xs text-gray-400">
+                                                        Output: {{ $webImageInfo['dimensions'] }} • {{ $webImageInfo['size'] }}
+                                                    </div>
+                                                @endif
+                                            @else
+                                                <div class="w-[600px] h-[600px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
+                                                    <flux:icon.loading class="w-8 h-8 text-gray-500" />
+                                                </div>
+                                            @endif
+
+                                            {{-- Web Images Preview Controls --}}
+                                            <div class="mt-4 flex items-end gap-4">
+                                                <div>
+                                                    <label class="block text-xs text-gray-400 mb-1">Width</label>
+                                                    <flux:input
+                                                        type="text"
+                                                        wire:model="tempThumbnailValues.web_images.width"
+                                                        wire:change="updatePreview"
+                                                        class="w-24"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs text-gray-400 mb-1">Height</label>
+                                                    <flux:input
+                                                        type="text"
+                                                        wire:model="tempThumbnailValues.web_images.height"
+                                                        wire:change="updatePreview"
+                                                        class="w-24"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs text-gray-400 mb-1">Quality (10-100)</label>
+                                                    <flux:input
+                                                        type="text"
+                                                        wire:model="tempThumbnailValues.web_images.quality"
+                                                        wire:change="updatePreview"
+                                                        class="w-24"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                {{-- Web Images Settings --}}
+                                <div class="bg-zinc-700 rounded-md overflow-hidden">
+                                    <div class="bg-zinc-800 px-6 py-3">
+                                        <h3 class="text-lg font-medium text-gray-200">Web Image Settings</h3>
+                                    </div>
+                                    <div class="p-6">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            @foreach($webConfigs as $config)
+                                                    <flux:field>
+                                                        <flux:label>{{ $config->label ?? $config->key }}</flux:label>
+                                                        <flux:input
+                                                            type="text"
+                                                            wire:model.defer="configValues.{{ $config->id }}"
+                                                            wire:key="{{ $config->key }}-input"
+                                                            placeholder="{{ str_contains($config->key, 'width') || str_contains($config->key, 'height') ? 'e.g. 1200' : (str_contains($config->key, 'quality') ? '10-100' : '') }}"
+                                                        />
+                                                        @if($config->description)
+                                                            <flux:description>
+                                                                {{ $config->description }}
+                                                                @if(str_contains($config->key, 'quality')) (10-100) @endif
+                                                            </flux:description>
+                                                        @endif
+                                                        @error('configValues.'.$config->id)
+                                                            <flux:error>{{ $message }}</flux:error>
+                                                        @enderror
+                                                    </flux:field>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    </div>
+                        </div>
+
+                        {{-- High Resolution Images Tab Content --}}
+                        <div x-show="activeTab === 'highres'" x-transition>
+                                    {{-- High Resolution Images Preview Section --}}
+                                    @if($sampleImagePath)
+                                        <div class="bg-zinc-800 rounded-md p-6 mb-6">
+                                            <h3 class="text-lg font-medium text-gray-200 mb-4">High Resolution Image Preview</h3>
+                                            @if($highresImagePreview)
+                                                <div class="relative inline-block">
+                                                    <img src="{{ $highresImagePreview }}"
+                                                         alt="High resolution image preview"
+                                                         class="border border-zinc-600 rounded max-w-full"
+                                                         wire:loading.class="opacity-50"
+                                                         wire:target="updatePreview">
+                                                    <div wire:loading.delay wire:target="updatePreview"
+                                                         class="absolute inset-0 flex items-center justify-center">
+                                                        <flux:icon.loading class="w-8 h-8 text-blue-500" />
+                                                    </div>
+                                                </div>
+                                                @if($highresImageInfo)
+                                                    <div class="mt-2 text-xs text-gray-400">
+                                                        Output: {{ $highresImageInfo['dimensions'] }} • {{ $highresImageInfo['size'] }}
+                                                    </div>
+                                                @endif
+                                            @else
+                                                <div class="w-[800px] h-[800px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
+                                                    <flux:icon.loading class="w-8 h-8 text-gray-500" />
+                                                </div>
+                                            @endif
+
+                                            {{-- High Resolution Images Preview Controls --}}
+                                            <div class="mt-4 flex items-end gap-4">
+                                                <div>
+                                                    <label class="block text-xs text-gray-400 mb-1">Width</label>
+                                                    <flux:input
+                                                        type="text"
+                                                        wire:model="tempThumbnailValues.highres_images.width"
+                                                        wire:change="updatePreview"
+                                                        class="w-24"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs text-gray-400 mb-1">Height</label>
+                                                    <flux:input
+                                                        type="text"
+                                                        wire:model="tempThumbnailValues.highres_images.height"
+                                                        wire:change="updatePreview"
+                                                        class="w-24"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs text-gray-400 mb-1">Quality (10-100)</label>
+                                                    <flux:input
+                                                        type="text"
+                                                        wire:model="tempThumbnailValues.highres_images.quality"
+                                                        wire:change="updatePreview"
+                                                        class="w-24"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                {{-- High Resolution Images Settings --}}
+                                <div class="bg-zinc-700 rounded-md overflow-hidden">
+                                    <div class="bg-zinc-800 px-6 py-3">
+                                        <h3 class="text-lg font-medium text-gray-200">High Resolution Image Settings</h3>
+                                    </div>
+                                    <div class="p-6">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            @foreach($highresConfigs as $config)
+                                                    <flux:field>
+                                                        <flux:label>{{ $config->label ?? $config->key }}</flux:label>
+                                                        <flux:input
+                                                            type="text"
+                                                            wire:model.defer="configValues.{{ $config->id }}"
+                                                            wire:key="{{ $config->key }}-input"
+                                                            placeholder="{{ str_contains($config->key, 'width') || str_contains($config->key, 'height') ? 'e.g. 2400' : (str_contains($config->key, 'quality') ? '10-100' : '') }}"
+                                                        />
+                                                        @if($config->description)
+                                                            <flux:description>
+                                                                {{ $config->description }}
+                                                                @if(str_contains($config->key, 'quality')) (10-100) @endif
+                                                            </flux:description>
+                                                        @endif
+                                                        @error('configValues.'.$config->id)
+                                                            <flux:error>{{ $message }}</flux:error>
+                                                        @enderror
+                                                    </flux:field>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                         </div>
                     </div>
-                @else
+                </div>
+            @endif
+            
+            {{-- Process other non-image categories --}}
+            @foreach($configurationsByCategory as $category => $configurations)
+                @if(!in_array($category, ['thumbnails', 'web_images', 'highres_images']))
                     {{-- Regular table layout for other categories --}}
                     <div class="mb-8">
                         <div class="text-2xl font-semibold mb-2">

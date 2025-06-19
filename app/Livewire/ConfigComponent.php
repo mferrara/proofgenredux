@@ -32,9 +32,17 @@ class ConfigComponent extends Component
 
     public ?string $smallThumbnailPreview = null;
 
+    public ?string $webImagePreview = null;
+
+    public ?string $highresImagePreview = null;
+
     public ?array $largeThumbnailInfo = null;
 
     public ?array $smallThumbnailInfo = null;
+
+    public ?array $webImageInfo = null;
+
+    public ?array $highresImageInfo = null;
 
     public bool $previewLoading = false;
 
@@ -63,7 +71,7 @@ class ConfigComponent extends Component
         $this->loadConfigurations();
         $this->initializeConfigValues();
         $this->initializeThumbnailPreview();
-        
+
         // Check for updates when Settings page loads
         $this->checkForUpdates();
 
@@ -604,6 +612,8 @@ class ConfigComponent extends Component
     private function initializeTempThumbnailValues(): void
     {
         $thumbnailConfigs = $this->configurationsByCategory['thumbnails'] ?? [];
+        $webImageConfigs = $this->configurationsByCategory['web_images'] ?? [];
+        $highresImageConfigs = $this->configurationsByCategory['highres_images'] ?? [];
 
         // Initialize nested array structure
         $this->tempThumbnailValues = [
@@ -611,8 +621,11 @@ class ConfigComponent extends Component
                 'large' => [],
                 'small' => [],
             ],
+            'web_images' => [],
+            'highres_images' => [],
         ];
 
+        // Process thumbnail configs
         foreach ($thumbnailConfigs as $config) {
             // Parse the key to create nested structure
             // e.g., "thumbnails.large.width" -> ['thumbnails']['large']['width']
@@ -621,6 +634,26 @@ class ConfigComponent extends Component
                 $size = $parts[1]; // 'large' or 'small'
                 $property = $parts[2]; // 'width', 'height', 'quality', etc.
                 $this->tempThumbnailValues['thumbnails'][$size][$property] = $this->configValues[$config->id];
+            }
+        }
+
+        // Process web image configs
+        foreach ($webImageConfigs as $config) {
+            // e.g., "web_images.width" -> ['web_images']['width']
+            $parts = explode('.', $config->key);
+            if (count($parts) === 2 && $parts[0] === 'web_images') {
+                $property = $parts[1]; // 'width', 'height', 'quality', etc.
+                $this->tempThumbnailValues['web_images'][$property] = $this->configValues[$config->id];
+            }
+        }
+
+        // Process highres image configs
+        foreach ($highresImageConfigs as $config) {
+            // e.g., "highres_images.width" -> ['highres_images']['width']
+            $parts = explode('.', $config->key);
+            if (count($parts) === 2 && $parts[0] === 'highres_images') {
+                $property = $parts[1]; // 'width', 'height', 'quality', etc.
+                $this->tempThumbnailValues['highres_images'][$property] = $this->configValues[$config->id];
             }
         }
 
@@ -648,16 +681,22 @@ class ConfigComponent extends Component
      */
     private function findSampleImage(): void
     {
+        Log::debug('ConfigComponent: Starting findSampleImage()');
+        
         // First try storage/sample_images
         $sampleImagesPath = storage_path('sample_images');
 
         if (File::exists($sampleImagesPath)) {
+            Log::debug('ConfigComponent: sample_images directory exists', ['path' => $sampleImagesPath]);
             $images = File::allFiles($sampleImagesPath);
+            Log::debug('ConfigComponent: Found files in sample_images', ['count' => count($images)]);
 
             foreach ($images as $image) {
                 if (in_array(strtolower($image->getExtension()), ['jpg', 'jpeg', 'png'])) {
                     $this->sampleImagePath = $image->getPathname();
-
+                    Log::debug('ConfigComponent: Using sample image from sample_images directory', [
+                        'path' => $this->sampleImagePath
+                    ]);
                     return;
                 }
             }
@@ -687,6 +726,10 @@ class ConfigComponent extends Component
                         $extension = pathinfo($file, PATHINFO_EXTENSION);
                         if (in_array(strtolower($extension), ['jpg', 'jpeg', 'png'])) {
                             $this->sampleImagePath = Storage::disk('fullsize')->path($file);
+                            Log::debug('ConfigComponent: Using sample image from fullsize disk', [
+                                'path' => $this->sampleImagePath,
+                                'file' => $file
+                            ]);
                             $found = true;
                             break;
                         }
@@ -696,6 +739,8 @@ class ConfigComponent extends Component
                 Log::warning('Error searching for sample images: '.$e->getMessage());
             }
         }
+        
+        Log::warning('ConfigComponent: No sample image found in either sample_images directory or fullsize disk');
     }
 
     /**
@@ -723,18 +768,26 @@ class ConfigComponent extends Component
             $timestamp = now()->timestamp;
             $largePreviewPath = $tempDir.'/large_preview_'.$timestamp.'.jpg';
             $smallPreviewPath = $tempDir.'/small_preview_'.$timestamp.'.jpg';
+            $webPreviewPath = $tempDir.'/web_preview_'.$timestamp.'.jpg';
+            $highresPreviewPath = $tempDir.'/highres_preview_'.$timestamp.'.jpg';
 
             // Create thumbnails with custom settings
-            $this->createPreviewThumbnail($this->sampleImagePath, $largePreviewPath, 'large');
-            $this->createPreviewThumbnail($this->sampleImagePath, $smallPreviewPath, 'small');
+            $this->createPreviewThumbnail($this->sampleImagePath, $largePreviewPath, 'thumbnails', 'large');
+            $this->createPreviewThumbnail($this->sampleImagePath, $smallPreviewPath, 'thumbnails', 'small');
+            $this->createPreviewThumbnail($this->sampleImagePath, $webPreviewPath, 'web_images');
+            $this->createPreviewThumbnail($this->sampleImagePath, $highresPreviewPath, 'highres_images');
 
             // Set preview URLs (these will be served via a route)
             $this->largeThumbnailPreview = '/temp/thumbnail-preview/large_preview_'.$timestamp.'.jpg';
             $this->smallThumbnailPreview = '/temp/thumbnail-preview/small_preview_'.$timestamp.'.jpg';
+            $this->webImagePreview = '/temp/thumbnail-preview/web_preview_'.$timestamp.'.jpg';
+            $this->highresImagePreview = '/temp/thumbnail-preview/highres_preview_'.$timestamp.'.jpg';
 
             // Get file info
             $this->largeThumbnailInfo = $this->getFileInfo($largePreviewPath);
             $this->smallThumbnailInfo = $this->getFileInfo($smallPreviewPath);
+            $this->webImageInfo = $this->getFileInfo($webPreviewPath);
+            $this->highresImageInfo = $this->getFileInfo($highresPreviewPath);
 
         } catch (\Exception $e) {
             Log::error('Error generating thumbnail previews: '.$e->getMessage());
@@ -746,17 +799,34 @@ class ConfigComponent extends Component
     /**
      * Create a preview thumbnail with temporary settings
      */
-    private function createPreviewThumbnail(string $sourcePath, string $destPath, string $size): void
+    private function createPreviewThumbnail(string $sourcePath, string $destPath, string $type, ?string $size = null): void
     {
+        Log::debug('createPreviewThumbnail: Reading source image', [
+            'sourcePath' => $sourcePath,
+            'destPath' => $destPath,
+            'type' => $type,
+            'size' => $size,
+            'file_exists' => file_exists($sourcePath),
+            'file_size' => file_exists($sourcePath) ? filesize($sourcePath) : 0
+        ]);
+        
         $manager = ImageManager::gd();
         $image = $manager->read($sourcePath);
 
-        // Get the temporary values for this size using nested array structure
-        $width = (int) ($this->tempThumbnailValues['thumbnails'][$size]['width'] ?? config("proofgen.thumbnails.{$size}.width"));
-        $height = (int) ($this->tempThumbnailValues['thumbnails'][$size]['height'] ?? config("proofgen.thumbnails.{$size}.height"));
-        $quality = (int) ($this->tempThumbnailValues['thumbnails'][$size]['quality'] ?? config("proofgen.thumbnails.{$size}.quality"));
+        // Get the temporary values based on type
+        if ($type === 'thumbnails' && $size) {
+            // For thumbnails, use nested structure
+            $width = (int) ($this->tempThumbnailValues['thumbnails'][$size]['width'] ?? config("proofgen.thumbnails.{$size}.width"));
+            $height = (int) ($this->tempThumbnailValues['thumbnails'][$size]['height'] ?? config("proofgen.thumbnails.{$size}.height"));
+            $quality = (int) ($this->tempThumbnailValues['thumbnails'][$size]['quality'] ?? config("proofgen.thumbnails.{$size}.quality"));
+        } else {
+            // For web_images and highres_images, use flat structure
+            $width = (int) ($this->tempThumbnailValues[$type]['width'] ?? config("proofgen.{$type}.width"));
+            $height = (int) ($this->tempThumbnailValues[$type]['height'] ?? config("proofgen.{$type}.height"));
+            $quality = (int) ($this->tempThumbnailValues[$type]['quality'] ?? config("proofgen.{$type}.quality"));
+        }
 
-        Log::debug("Creating {$size} preview", ['width' => $width, 'height' => $height, 'quality' => $quality]);
+        Log::debug("Creating {$type}" . ($size ? " {$size}" : "") . " preview", ['width' => $width, 'height' => $height, 'quality' => $quality]);
 
         // Scale and save as JPEG with quality
         $image->scale($width, $height)
@@ -816,7 +886,7 @@ class ConfigComponent extends Component
     public function checkForUpdates(): void
     {
         $this->checkingForUpdates = true;
-        
+
         try {
             $updateService = new UpdateService();
             $this->updateInfo = $updateService->checkForUpdates();
@@ -840,15 +910,15 @@ class ConfigComponent extends Component
     {
         $this->performingUpdate = true;
         $this->updateSteps = [];
-        
+
         Flux::modal('update-progress')->show();
-        
+
         try {
             $updateService = new UpdateService();
             $result = $updateService->performUpdate();
-            
+
             $this->updateSteps = $result['steps'];
-            
+
             if ($result['success']) {
                 Flux::toast(
                     text: 'Application updated successfully! The page will reload in 5 seconds.',
@@ -856,7 +926,7 @@ class ConfigComponent extends Component
                     variant: 'success',
                     position: 'top right'
                 );
-                
+
                 // Reload the page after a delay to ensure all changes are loaded
                 $this->dispatch('reload-page-delayed');
             } else {
@@ -866,20 +936,20 @@ class ConfigComponent extends Component
                     variant: 'danger',
                     position: 'top right'
                 );
-                
+
                 if ($result['backup_dir']) {
                     Flux::modal('rollback-instructions')->show();
                 }
             }
-            
+
             // Refresh update info
             $this->checkForUpdates();
-            
+
         } catch (\Exception $e) {
             Log::error('Error performing update: ' . $e->getMessage());
-            
+
             $this->updateSteps[] = 'Fatal error: ' . $e->getMessage();
-            
+
             Flux::toast(
                 text: 'Fatal error during update: ' . $e->getMessage(),
                 heading: 'Update Failed',
