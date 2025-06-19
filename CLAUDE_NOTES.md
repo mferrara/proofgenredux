@@ -1,5 +1,16 @@
 # Proofgen Redux Project Notes
 
+## TODO items
+- [ ] Implement something that is able to report the current filesize/storage usage of the following at the show and class levels:
+  - [ ] Fullsize images
+  - [ ] Proofs
+  - [ ] Web images
+  - [ ] Highres images
+  - [ ] Combined total
+- [ ] Implement a way to determine and report the storage usage of the /backups directory
+- [ ] Implement a way to determine and report the storage usage of the /storage/sample_images directory
+- [ ] Add a "Download Sample Images" button to the configuration page
+
 ## Development Environment Access Information
 
 ### File System Access

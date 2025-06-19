@@ -25,3 +25,5 @@ yarn-error.log
 ferrara_privatekey.pem
 /external-docs*
 /.claude/settings.local.json
+/backups
+/_fluxui_docs*

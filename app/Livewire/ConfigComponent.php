@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Configuration;
 use App\Proofgen\Image;
+use App\Services\UpdateService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
@@ -39,6 +40,12 @@ class ConfigComponent extends Component
 
     public bool $initialLoad = true;
 
+    // Update system properties
+    public ?array $updateInfo = null;
+    public bool $checkingForUpdates = false;
+    public bool $performingUpdate = false;
+    public array $updateSteps = [];
+
     protected $rules = [
         // We'll build dynamic rules in the save() method
     ];
@@ -56,6 +63,9 @@ class ConfigComponent extends Component
         $this->loadConfigurations();
         $this->initializeConfigValues();
         $this->initializeThumbnailPreview();
+        
+        // Check for updates when Settings page loads
+        $this->checkForUpdates();
 
         // Set initial load to false after mount completes
         $this->initialLoad = false;
@@ -798,6 +808,101 @@ class ConfigComponent extends Component
         }
 
         return round($bytes, $precision).' '.$units[$i];
+    }
+
+    /**
+     * Check for available updates
+     */
+    public function checkForUpdates(): void
+    {
+        $this->checkingForUpdates = true;
+        
+        try {
+            $updateService = new UpdateService();
+            $this->updateInfo = $updateService->checkForUpdates();
+        } catch (\Exception $e) {
+            Log::error('Error checking for updates: ' . $e->getMessage());
+            $this->updateInfo = [
+                'current_version' => 'Unknown',
+                'latest_version' => 'Unknown',
+                'update_available' => false,
+                'error' => $e->getMessage(),
+            ];
+        } finally {
+            $this->checkingForUpdates = false;
+        }
+    }
+
+    /**
+     * Perform application update
+     */
+    public function performUpdate(): void
+    {
+        $this->performingUpdate = true;
+        $this->updateSteps = [];
+        
+        Flux::modal('update-progress')->show();
+        
+        try {
+            $updateService = new UpdateService();
+            $result = $updateService->performUpdate();
+            
+            $this->updateSteps = $result['steps'];
+            
+            if ($result['success']) {
+                Flux::toast(
+                    text: 'Application updated successfully! The page will reload in 5 seconds.',
+                    heading: 'Update Complete',
+                    variant: 'success',
+                    position: 'top right'
+                );
+                
+                // Reload the page after a delay to ensure all changes are loaded
+                $this->dispatch('reload-page-delayed');
+            } else {
+                Flux::toast(
+                    text: 'Update failed: ' . ($result['error'] ?? 'Unknown error'),
+                    heading: 'Update Failed',
+                    variant: 'danger',
+                    position: 'top right'
+                );
+                
+                if ($result['backup_dir']) {
+                    Flux::modal('rollback-instructions')->show();
+                }
+            }
+            
+            // Refresh update info
+            $this->checkForUpdates();
+            
+        } catch (\Exception $e) {
+            Log::error('Error performing update: ' . $e->getMessage());
+            
+            $this->updateSteps[] = 'Fatal error: ' . $e->getMessage();
+            
+            Flux::toast(
+                text: 'Fatal error during update: ' . $e->getMessage(),
+                heading: 'Update Failed',
+                variant: 'danger',
+                position: 'top right'
+            );
+        } finally {
+            $this->performingUpdate = false;
+        }
+    }
+
+    /**
+     * Get list of available backups
+     */
+    public function getBackups(): array
+    {
+        try {
+            $updateService = new UpdateService();
+            return $updateService->getBackups();
+        } catch (\Exception $e) {
+            Log::error('Error getting backups: ' . $e->getMessage());
+            return [];
+        }
     }
 
     public function render()

@@ -370,6 +370,40 @@
                         
                         <div class="flex justify-between items-center">
                             <div class="flex items-center gap-2">
+                                <!-- Update Status -->
+                                <div class="flex items-center gap-3 mr-6 px-4 py-2 bg-zinc-700/50 rounded-md">
+                                    @if($checkingForUpdates)
+                                        <flux:icon.loading class="w-4 h-4 text-blue-400" />
+                                        <span class="text-sm text-gray-400">Checking for updates...</span>
+                                    @elseif($updateInfo)
+                                        @if($updateInfo['update_available'])
+                                            <flux:icon name="arrow-down-circle" class="w-4 h-4 text-amber-400" />
+                                            <span class="text-sm text-gray-300">
+                                                Update available: 
+                                                <span class="text-amber-400">{{ $updateInfo['latest_version'] }}</span>
+                                            </span>
+                                            <flux:button
+                                                variant="ghost"
+                                                size="sm"
+                                                wire:click="performUpdate"
+                                                wire:loading.attr="disabled"
+                                                wire:target="performUpdate"
+                                                class="text-amber-400 hover:text-amber-300"
+                                            >
+                                                Update Now
+                                            </flux:button>
+                                        @else
+                                            <flux:icon name="check-circle" class="w-4 h-4 text-emerald-400" />
+                                            <span class="text-sm text-gray-400">
+                                                Up to date 
+                                                <span class="text-emerald-400">{{ $updateInfo['current_version'] }}</span>
+                                            </span>
+                                        @endif
+                                    @endif
+                                </div>
+                                
+                                <div class="w-px h-8 bg-zinc-600"></div>
+                                
                                 <!-- Horizon Control Buttons -->
                                 @if($isHorizonRunning)
                                     <flux:button
@@ -464,4 +498,90 @@
             </form>
         </div>
     </div>
+    
+    <!-- Update Progress Modal -->
+    <flux:modal name="update-progress" class="max-w-2xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Application Update in Progress</flux:heading>
+            </div>
+            
+            <div>
+                @if($performingUpdate)
+                    <div class="flex items-center gap-3 mb-4">
+                        <flux:icon.loading class="w-5 h-5 text-blue-500" />
+                        <span class="text-gray-300">Updating application...</span>
+                    </div>
+                @endif
+                
+                <div class="bg-zinc-800 rounded-md p-4 max-h-96 overflow-y-auto">
+                    <pre class="text-xs text-gray-400 whitespace-pre-wrap">@foreach($updateSteps as $step){{ $step }}
+@endforeach</pre>
+                </div>
+            </div>
+            
+            @if(!$performingUpdate)
+                <div class="flex gap-2">
+                    <flux:spacer />
+                    <flux:modal.close>
+                        <flux:button variant="primary">Close</flux:button>
+                    </flux:modal.close>
+                </div>
+            @endif
+        </div>
+    </flux:modal>
+    
+    <!-- Rollback Instructions Modal -->
+    <flux:modal name="rollback-instructions" class="max-w-2xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Update Failed - Rollback Instructions</flux:heading>
+                <flux:text class="mt-2">
+                    The update failed, but a backup was created. To rollback to the previous version:
+                </flux:text>
+            </div>
+            
+            <ol class="list-decimal list-inside space-y-2 text-sm text-gray-400">
+                <li>Navigate to your application directory</li>
+                <li>Delete all contents EXCEPT the <code class="bg-zinc-800 px-1 py-0.5 rounded">/backups</code> directory</li>
+                <li>Copy the contents of the most recent backup folder back to the application directory</li>
+                <li>Restart the application</li>
+            </ol>
+            
+            @php
+                $backups = $this->getBackups();
+            @endphp
+            
+            @if(count($backups) > 0)
+                <div>
+                    <h4 class="text-sm font-medium text-gray-300 mb-2">Available Backups:</h4>
+                    <div class="bg-zinc-800 rounded-md p-3 space-y-1">
+                        @foreach($backups as $backup)
+                            <div class="text-xs text-gray-400">
+                                <span class="text-gray-300">{{ $backup['name'] }}</span> - 
+                                {{ $backup['date'] }} ({{ $backup['size'] }})
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+            
+            <div class="flex gap-2">
+                <flux:spacer />
+                <flux:modal.close>
+                    <flux:button variant="primary">Close</flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
+    </flux:modal>
 </div>
+
+<script>
+    document.addEventListener('livewire:initialized', () => {
+        Livewire.on('reload-page-delayed', () => {
+            setTimeout(() => {
+                window.location.reload();
+            }, 5000);
+        });
+    });
+</script>
