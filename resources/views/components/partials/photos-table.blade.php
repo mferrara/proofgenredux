@@ -224,6 +224,16 @@
                                 Web Uploaded: {{ $photo->web_image_uploaded_at->format('m/d/Y H:i:s') }}
                             </div>
                         @endif
+                        @if($photo->highres_image_generated_at)
+                            <div>
+                                Highres Generated: {{ $photo->highres_image_generated_at->format('m/d/Y H:i:s') }}
+                            </div>
+                        @endif
+                        @if($photo->highres_image_uploaded_at)
+                            <div>
+                                Highres Uploaded: {{ $photo->highres_image_uploaded_at->format('m/d/Y H:i:s') }}
+                            </div>
+                        @endif
                     </div>
                 </td>
                 @if(is_array($actions) && count($actions) > 0 && ( ! in_array('deletePhotoRecord', $actions) || (isset($show_delete) && $show_delete)))
@@ -288,6 +298,26 @@
                                     <flux:badge color="rose" size="sm">No Web</flux:badge>
                                     <flux:button
                                         wire:click="generateWebImage('{{ $photo->id }}')"
+                                        size="xs"
+                                        class="!px-0 hover:cursor-pointer"
+                                    >
+                                        <flux:badge color="cyan" size="sm">
+                                            <flux:icon.play variant="micro"/>
+                                        </flux:badge>
+                                    </flux:button>
+                                </div>
+                            @endif
+                            @if($photo->highres_image_generated_at)
+                                @if($photo->highres_image_uploaded_at)
+                                    <flux:badge color="emerald" size="sm">Highres Image</flux:badge>
+                                @else
+                                    <flux:badge color="yellow" size="sm">Highres Not Uploaded</flux:badge>
+                                @endif
+                            @else
+                                <div class="flex flex-row items-center justify-start gap-x-1">
+                                    <flux:badge color="rose" size="sm">No Highres</flux:badge>
+                                    <flux:button
+                                        wire:click="generateHighresImage('{{ $photo->id }}')"
                                         size="xs"
                                         class="!px-0 hover:cursor-pointer"
                                     >

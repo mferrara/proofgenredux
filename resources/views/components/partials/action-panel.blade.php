@@ -1,7 +1,7 @@
 <div class="col-span-7">
     <flux:card>
 
-        <div class="grid grid-cols-3 gap-6 mb-8">
+        <div class="grid grid-cols-2 gap-4 mb-8">
             <div>
                 <flux:heading size="xl" class="mb-4">Imports</flux:heading>
 
@@ -9,15 +9,17 @@
                     @if($photos_pending_import && count($photos_pending_import))
                         <div class="flex flex-col justify-start gap-y-4">
                             <div class="p-4 bg-gray-500/10 rounded-md">
-                                <flux:badge color="amber" size="lg" inset="top bottom">{{ count($photos_pending_import) }}</flux:badge> pending
-                            </div>
-                            <div>
-                                <flux:button
-                                    wire:click="importPendingImages"
-                                    size="sm"
-                                >
-                                    Import
-                                </flux:button>
+                                <div class="flex flex-row items-center justify-between">
+                                    <div>
+                                        <flux:badge color="amber" size="lg" inset="top bottom">{{ count($photos_pending_import) }}</flux:badge> pending
+                                    </div>
+                                    <flux:button
+                                        wire:click="importPendingImages"
+                                        size="sm"
+                                    >
+                                        Import
+                                    </flux:button>
+                                </div>
                             </div>
                         </div>
                     @else
@@ -33,15 +35,17 @@
                     @if($photos_pending_proofs->count())
                         <div class="flex flex-col justify-start gap-y-4">
                             <div class="p-4 bg-gray-500/10 rounded-md">
-                                <flux:badge color="amber" size="lg" inset="top bottom">{{ $photos_pending_proofs->count() }}</flux:badge> pending
-                            </div>
-                            <div>
-                                <flux:button
-                                    wire:click="proofPendingPhotos"
-                                    size="sm"
-                                >
-                                    Generate
-                                </flux:button>
+                                <div class="flex flex-row items-center justify-between">
+                                    <div>
+                                        <flux:badge color="amber" size="lg" inset="top bottom">{{ $photos_pending_proofs->count() }}</flux:badge> pending
+                                    </div>
+                                    <flux:button
+                                        wire:click="proofPendingPhotos"
+                                        size="sm"
+                                    >
+                                        Generate
+                                    </flux:button>
+                                </div>
                             </div>
                         </div>
                     @else
@@ -57,14 +61,43 @@
                     @if($photos_pending_web_images->count())
                         <div class="flex flex-col justify-start gap-y-4">
                             <div class="p-4 bg-gray-500/10 rounded-md">
-                                <flux:badge color="amber" size="lg" inset="top bottom">{{ $photos_pending_web_images->count() }}</flux:badge> pending
+                                <div class="flex flex-row items-center justify-between">
+                                    <div>
+                                        <flux:badge color="amber" size="lg" inset="top bottom">{{ $photos_pending_web_images->count() }}</flux:badge> pending
+                                    </div>
+                                    <flux:button
+                                        wire:click="webImagePendingPhotos"
+                                        size="sm"
+                                    >
+                                        Generate
+                                    </flux:button>
+                                </div>
                             </div>
-                            <div><flux:button
-                                    wire:click="webImagePendingPhotos"
-                                    size="sm"
-                                >
-                                    Generate
-                                </flux:button>
+                        </div>
+                    @else
+                        <div class="p-4 bg-gray-500/10 rounded-md"><flux:badge color="gray" size="lg" inset="top bottom">0</flux:badge> pending</div>
+                    @endif
+                </div>
+            </div>
+            <div>
+                <flux:heading size="xl" class="mb-4">Highres Images</flux:heading>
+
+                <div class="flex flex-col gap-3 text-gray-400">
+
+                    @if($photos_pending_highres_images->count())
+                        <div class="flex flex-col justify-start gap-y-4">
+                            <div class="p-4 bg-gray-500/10 rounded-md">
+                                <div class="flex flex-row items-center justify-between">
+                                    <div>
+                                        <flux:badge color="amber" size="lg" inset="top bottom">{{ $photos_pending_highres_images->count() }}</flux:badge> pending
+                                    </div>
+                                    <flux:button
+                                        wire:click="highresImagePendingPhotos"
+                                        size="sm"
+                                    >
+                                        Generate
+                                    </flux:button>
+                                </div>
                             </div>
                         </div>
                     @else
@@ -82,7 +115,7 @@
                 <div x-data="{ expanded: false }"
                      class="flex flex-col gap-y-1">
                     <div class="flex items-center gap-x-2">
-                        <div>Check Web Server Uploads (Proofs & Web Images)</div>
+                        <div>Check Web Server Uploads (Proofs, Web & Highres Images)</div>
                         <div x-on:click="expanded = ! expanded"
                              class="text-gray-500 text-sm underline hover:cursor-pointer">
                             <span x-show="! expanded">(more info)</span>
@@ -105,19 +138,22 @@
                 </flux:button>
             </div>
 
-            @if($photos_pending_proof_uploads->count() || $photos_pending_web_image_uploads->count())
+            @if($photos_pending_proof_uploads->count() || $photos_pending_web_image_uploads->count() || $photos_pending_highres_image_uploads->count())
                 <div class="flex justify-between items-center">
                     <span>
-                        @if($photos_pending_proof_uploads->count())
-                            <flux:badge color="amber" size="lg" inset="top bottom">{{ $photos_pending_proof_uploads->count() }}</flux:badge> Proofs
-                        @endif
-                        @if($photos_pending_web_image_uploads->count())
-                            @if($photos_pending_proof_uploads->count())
-                                and
-                            @endif
-                            <flux:badge color="amber" size="lg" inset="top bottom">{{ $photos_pending_web_image_uploads->count() }}</flux:badge> Web images
-                        @endif
-                        pending upload
+                        @php
+                            $pendingTypes = [];
+                            if($photos_pending_proof_uploads->count()) {
+                                $pendingTypes[] = '<flux:badge color="amber" size="lg" inset="top bottom">' . $photos_pending_proof_uploads->count() . '</flux:badge> Proofs';
+                            }
+                            if($photos_pending_web_image_uploads->count()) {
+                                $pendingTypes[] = '<flux:badge color="amber" size="lg" inset="top bottom">' . $photos_pending_web_image_uploads->count() . '</flux:badge> Web images';
+                            }
+                            if($photos_pending_highres_image_uploads->count()) {
+                                $pendingTypes[] = '<flux:badge color="amber" size="lg" inset="top bottom">' . $photos_pending_highres_image_uploads->count() . '</flux:badge> Highres images';
+                            }
+                        @endphp
+                        {!! implode(', ', $pendingTypes) !!} pending upload
                     </span>
 
                     <flux:button
@@ -130,7 +166,7 @@
             @else
                 <div class="flex justify-between items-center ml-2 min-h-12 px-4 py-1 rounded-sm bg-emerald-400/40 text-emerald-200 font-semibold">
                     <div class="">
-                        All generated proofs and web images are uploaded
+                        All generated proofs, web and highres images are uploaded
                     </div>
                 </div>
             @endif
@@ -153,6 +189,15 @@
                     <span>Regenerate web images on <flux:badge color="orange" size="sm" inset="top bottom">{{ $photos_imported->count() }}</flux:badge> photos</span>
                     <flux:button
                         wire:click="regenerateWebImages"
+                        size="sm"
+                    >
+                        Regenerate
+                    </flux:button>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>Regenerate highres images on <flux:badge color="orange" size="sm" inset="top bottom">{{ $photos_imported->count() }}</flux:badge> photos</span>
+                    <flux:button
+                        wire:click="regenerateHighresImages"
                         size="sm"
                     >
                         Regenerate

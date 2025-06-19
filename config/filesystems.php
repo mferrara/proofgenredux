@@ -56,6 +56,16 @@ return [
             'throw' => true,
         ],
 
+        'remote_highres_images' => [
+            'driver' => 'sftp',
+            'host' => getenv('SFTP_HOSTNAME'),
+            'port' => getenv('SFTP_PORT') ?: 22,
+            'username' => getenv('SFTP_USERNAME'),
+            'privateKey' => getenv('SFTP_PATHTOPRIVATEKEY'),
+            'root' => getenv('SFTP_HIGHRES_IMAGES_PATH'),
+            'throw' => true,
+        ],
+
         'fullsize' => [
             'driver' => 'local',
             'root' => getenv('FULLSIZE_HOME_DIR'),
@@ -73,13 +83,13 @@ return [
             'root' => getenv('TEST_SOURCE_DIR'),
             'throw' => false,
         ],
-        
+
         'sample_images' => [
             'driver' => 'local',
             'root' => storage_path('sample_images'),
             'throw' => false,
         ],
-        
+
         'sample_images_bucket' => [
             'driver' => 's3',
             'key' => env('SAMPLE_IMAGES_S3_KEY'),

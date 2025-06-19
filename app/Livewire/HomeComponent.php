@@ -35,7 +35,7 @@ class HomeComponent extends Component
 
         $top_level_directories = $this->getDirectoriesOfPath($this->working_path);
 
-        $remove = ['proofs', 'web_images'];
+        $remove = ['proofs', 'web_images', 'highres_images'];
         $top_level_directories = array_diff($top_level_directories, $remove);
 
         // Loop through the top level directories determining which are imported as Shows

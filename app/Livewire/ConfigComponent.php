@@ -243,6 +243,7 @@ class ConfigComponent extends Component
             'watermarks' => 'Watermarks',
             'thumbnails' => 'Thumbnails',
             'web_images' => 'Web Images',
+            'highres_images' => 'High Resolution Images',
             'sftp' => 'Server (SFTP)',
             'archive' => 'Archive',
             'system' => 'System Settings',

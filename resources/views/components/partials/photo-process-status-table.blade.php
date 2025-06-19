@@ -124,6 +124,53 @@
                     @endif
                 </td>
             </tr>
+            <tr>
+                <td class="h-8 font-medium text-lg">Highres Images</td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="h-8">&nbsp; - Generated</td>
+                <td class="text-center">
+                    @if($photos_pending_highres_images->count())
+                        <flux:badge color="amber">
+                            {{ $photos_pending_highres_images->count() }}
+                        </flux:badge>
+                    @else
+                        -
+                    @endif
+                </td>
+                <td class="text-center">
+                    @if($photos_highres_images_generated->count())
+                        <flux:badge color="emerald">
+                            {{ $photos_highres_images_generated->count() }}
+                        </flux:badge>
+                    @else
+                        -
+                    @endif
+                </td>
+            </tr>
+            <tr>
+                <td class="h-8">&nbsp;&nbsp;- Uploaded</td>
+                <td class="text-center">
+                    @if($photos_pending_highres_image_uploads->count())
+                        <flux:badge color="amber">
+                            {{ $photos_pending_highres_image_uploads->count() }}
+                        </flux:badge>
+                    @else
+                        -
+                    @endif
+                </td>
+                <td class="text-center">
+                    @if($photos_highres_images_uploaded->count())
+                        <flux:badge color="emerald">
+                            {{ $photos_highres_images_uploaded->count() }}
+                        </flux:badge>
+                    @else
+                        -
+                    @endif
+                </td>
+            </tr>
             </tbody>
         </flux:table>
     </flux:card>

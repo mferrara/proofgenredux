@@ -46,4 +46,24 @@ trait HasPhotosTrait
     {
         return $this->photos()->whereNotNull('web_image_generated_at')->whereNull('web_image_uploaded_at');
     }
+
+    public function photosHighresImaged(): HasMany|HasManyThrough
+    {
+        return $this->photos()->whereNotNull('highres_image_generated_at');
+    }
+
+    public function photosNotHighresImaged(): HasMany|HasManyThrough
+    {
+        return $this->photos()->whereNull('highres_image_generated_at');
+    }
+
+    public function photosHighresImagesUploaded(): HasMany|HasManyThrough
+    {
+        return $this->photos()->whereNotNull('highres_image_uploaded_at');
+    }
+
+    public function photosHighresImagedNotUploaded(): HasMany|HasManyThrough
+    {
+        return $this->photos()->whereNotNull('highres_image_generated_at')->whereNull('highres_image_uploaded_at');
+    }
 }

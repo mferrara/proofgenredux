@@ -5,10 +5,10 @@ return [
     'archive_home_dir' => getenv('ARCHIVE_HOME_DIR'),
     'archive_enabled' => getenv('ARCHIVE_ENABLED') === 'TRUE',
     'test_source_dir' => getenv('TEST_SOURCE_DIR'),
-    
+
     // Sample images configuration
     'auto_download_sample_images' => getenv('AUTO_DOWNLOAD_SAMPLE_IMAGES') === 'TRUE',
-    
+
     'rename_files' => getenv('RENAME_FILES') === 'TRUE',
     'upload_proofs' => getenv('UPLOAD_PROOFS') === 'TRUE',
     'watermark_proofs' => getenv('WATERMARK_PROOFS'),
@@ -32,7 +32,7 @@ return [
             'quality' => getenv('LARGE_THUMBNAIL_QUALITY'),
             'font_size' => getenv('LARGE_THUMBNAIL_FONT_SIZE'),
             'bg_size' => getenv('LARGE_THUMBNAIL_BG_SIZE'),
-        ]
+        ],
     ],
 
     'web_images' => [
@@ -44,6 +44,15 @@ return [
         'bg_size' => getenv('WEB_BG_SIZE'),
     ],
 
+    'highres_images' => [
+        'suffix' => getenv('HIGHRES_SUFFIX') ?: '_highres',
+        'width' => getenv('HIGHRES_WIDTH'),
+        'height' => getenv('HIGHRES_HEIGHT'),
+        'quality' => getenv('HIGHRES_QUALITY'),
+        'font_size' => getenv('HIGHRES_FONT_SIZE'),
+        'bg_size' => getenv('HIGHRES_BG_SIZE'),
+    ],
+
     'sftp' => [
         'host' => getenv('SFTP_HOSTNAME'),
         'port' => getenv('SFTP_PORT') ?: 22,
@@ -51,5 +60,6 @@ return [
         'private_key' => getenv('SFTP_PATHTOPRIVATEKEY'),
         'path' => getenv('SFTP_PROOFSPATH'),
         'web_images_path' => getenv('SFTP_WEB_IMAGES_PATH'),
-    ]
+        'highres_images_path' => getenv('SFTP_HIGHRES_IMAGES_PATH'),
+    ],
 ];

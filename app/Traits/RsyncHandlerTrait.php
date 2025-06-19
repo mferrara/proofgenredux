@@ -7,7 +7,6 @@ use App\Models\ShowClass;
 use App\Services\PathResolver;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Trait for handling rsync operations and updating database records
@@ -17,9 +16,9 @@ trait RsyncHandlerTrait
     /**
      * Process rsync output for proofs and update photo records
      *
-     * @param array $output Rsync command output
-     * @param string|null $show_id Show ID
-     * @param bool $is_dry_run Whether this was a dry run
+     * @param  array  $output  Rsync command output
+     * @param  string|null  $show_id  Show ID
+     * @param  bool  $is_dry_run  Whether this was a dry run
      * @return array Processed paths
      */
     public function processProofRsyncOutput(array $output, ?string $show_id = null, bool $is_dry_run = false): array
@@ -40,9 +39,9 @@ trait RsyncHandlerTrait
     /**
      * Process rsync output for web images and update photo records
      *
-     * @param array $output Rsync command output
-     * @param string|null $show_id Show ID
-     * @param bool $is_dry_run Whether this was a dry run
+     * @param  array  $output  Rsync command output
+     * @param  string|null  $show_id  Show ID
+     * @param  bool  $is_dry_run  Whether this was a dry run
      * @return array Processed paths
      */
     public function processWebImageRsyncOutput(array $output, ?string $show_id = null, bool $is_dry_run = false): array
@@ -57,15 +56,26 @@ trait RsyncHandlerTrait
     }
 
     /**
-     * Process rsync output and update database records
+     * Process rsync output for highres images and update photo records
      *
-     * @param string $sync_type
-     * @param array $allowed_filename_endings
-     * @param string $path_resolver_method
-     * @param array $output
-     * @param string $show_id
-     * @param bool $is_dry_run
-     * @return array
+     * @param  array  $output  Rsync command output
+     * @param  string|null  $show_id  Show ID
+     * @param  bool  $is_dry_run  Whether this was a dry run
+     * @return array Processed paths
+     */
+    public function processHighresImageRsyncOutput(array $output, ?string $show_id = null, bool $is_dry_run = false): array
+    {
+        // We only want to process output lines that relate to files that were uploaded, specifically those that
+        // match our expected highres image filename structures
+        $allowed_filename_endings = ['_highres.jpg'];
+        $sync_type = 'highres_images';
+        $path_resolver_method = 'getHighresImagesPath';
+
+        return $this->processRsyncOutput($sync_type, $allowed_filename_endings, $path_resolver_method, $output, $show_id, $is_dry_run);
+    }
+
+    /**
+     * Process rsync output and update database records
      */
     protected function processRsyncOutput(string $sync_type, array $allowed_filename_endings, string $path_resolver_method, array $output, string $show_id, bool $is_dry_run): array
     {
@@ -81,14 +91,14 @@ trait RsyncHandlerTrait
             $line = trim($line);
 
             // We can immediately ignore these lines
-            if(str_starts_with(strtolower($line), '.')
+            if (str_starts_with(strtolower($line), '.')
                 || str_ends_with(strtolower($line), '/')
                 || str_starts_with(strtolower($line), 'deleting')
             ) {
                 continue;
             }
 
-            if (!empty($line) && $this->ends_with_any($line, $allowed_filename_endings)) {
+            if (! empty($line) && $this->ends_with_any($line, $allowed_filename_endings)) {
                 // Extract class name and file name from the path
                 $parts = explode('/', $line);
 
@@ -118,7 +128,7 @@ trait RsyncHandlerTrait
                         // Keep track of file info for database updates
                         $uploaded_files[$class_name][$file_name] = [
                             'path' => $full_path,
-                            'processed' => !$is_dry_run  // If not dry run, it was processed
+                            'processed' => ! $is_dry_run,  // If not dry run, it was processed
                         ];
                     }
                 }
@@ -126,14 +136,14 @@ trait RsyncHandlerTrait
         }
 
         // Log the $uploaded_files array for debugging
-        if(count($uploaded_files)) {
+        if (count($uploaded_files)) {
             Log::debug('Uploaded files', ['uploaded_files' => $uploaded_files]);
         } else {
             Log::debug('No uploaded files found in rsync output');
         }
 
         // Now update the database based on the rsync results
-        if (!empty($uploaded_files)) {
+        if (! empty($uploaded_files)) {
             $this->updateDatabaseRecordsFromRsyncOutput($sync_type, $uploaded_files, $show_id, $is_dry_run);
         }
 
@@ -143,11 +153,10 @@ trait RsyncHandlerTrait
     /**
      * Convenience method to update database records based on rsync output
      *
-     * @param string $type Type of rsync output ('proofs' or 'web_images')
-     * @param array $uploaded_files Class/file organization of uploaded files
-     * @param string $show_id Show ID
-     * @param bool $is_dry_run Whether this was a dry run
-     * @return void
+     * @param  string  $type  Type of rsync output ('proofs', 'web_images', or 'highres_images')
+     * @param  array  $uploaded_files  Class/file organization of uploaded files
+     * @param  string  $show_id  Show ID
+     * @param  bool  $is_dry_run  Whether this was a dry run
      */
     protected function updateDatabaseRecordsFromRsyncOutput(string $type, array $uploaded_files, string $show_id, bool $is_dry_run): void
     {
@@ -158,6 +167,9 @@ trait RsyncHandlerTrait
             case 'web_images':
                 $this->updateDatabaseWebImageRecords($uploaded_files, $show_id, $is_dry_run);
                 break;
+            case 'highres_images':
+                $this->updateDatabaseHighresImageRecords($uploaded_files, $show_id, $is_dry_run);
+                break;
             default:
                 Log::warning("Unknown rsync type: {$type}");
                 break;
@@ -167,16 +179,15 @@ trait RsyncHandlerTrait
     /**
      * Update database records for proof uploads
      *
-     * @param array $uploaded_files Class/file organization of proof uploads
-     * @param string $show_id Show ID
-     * @param bool $is_dry_run Whether this was a dry run
-     * @return void
+     * @param  array  $uploaded_files  Class/file organization of proof uploads
+     * @param  string  $show_id  Show ID
+     * @param  bool  $is_dry_run  Whether this was a dry run
      */
     protected function updateDatabaseProofRecords(array $uploaded_files, string $show_id, bool $is_dry_run): void
     {
         // Get all thumbnail suffixes from config
         $thumbnail_sizes = config('proofgen.thumbnails');
-        $thumbnail_sizes = array_map(function($item) {
+        $thumbnail_sizes = array_map(function ($item) {
             return $item['suffix'];
         }, $thumbnail_sizes);
 
@@ -184,8 +195,9 @@ trait RsyncHandlerTrait
         foreach ($uploaded_files as $class_name => $files) {
             // Get the ShowClass model
             $show_class = ShowClass::where('id', $show_id.'_'.$class_name)->first();
-            if (!$show_class) {
+            if (! $show_class) {
                 Log::warning("Show class not found for ID: {$show_id}_{$class_name}");
+
                 continue;
             }
 
@@ -201,7 +213,7 @@ trait RsyncHandlerTrait
 
                 $proof_numbers[$proof_number][] = [
                     'file_name' => $file_name,
-                    'processed' => $info['processed']
+                    'processed' => $info['processed'],
                 ];
             }
 
@@ -247,12 +259,13 @@ trait RsyncHandlerTrait
 
                 // Confirm that there are actually local proofs for this photo
                 $proofs_exist = $photo->checkPathForProofs();
-                if( ! $proofs_exist) {
+                if (! $proofs_exist) {
                     // If the proofs don't exist, we need to reset the proofs_generated_at timestamp
                     $photo->proofs_generated_at = null;
                     $photo->save();
 
                     Log::debug('Local proofs not found for proof: '.$photo->proof_number.' during updateDatabaseProofRecords()');
+
                     continue;
                 }
 
@@ -267,10 +280,9 @@ trait RsyncHandlerTrait
     /**
      * Update database records for web image uploads
      *
-     * @param array $web_image_timestamps Class/file organization of web image uploads
-     * @param string $show_id Show ID
-     * @param bool $is_dry_run Whether this was a dry run
-     * @return void
+     * @param  array  $web_image_timestamps  Class/file organization of web image uploads
+     * @param  string  $show_id  Show ID
+     * @param  bool  $is_dry_run  Whether this was a dry run
      */
     protected function updateDatabaseWebImageRecords(array $web_image_timestamps, string $show_id, bool $is_dry_run): void
     {
@@ -278,8 +290,9 @@ trait RsyncHandlerTrait
         foreach ($web_image_timestamps as $class_name => $files) {
             // Get the ShowClass model
             $show_class = ShowClass::where('id', $show_id.'_'.$class_name)->first();
-            if (!$show_class) {
+            if (! $show_class) {
                 Log::warning("Show class not found for ID: {$show_id}_{$class_name}");
+
                 continue;
             }
 
@@ -291,7 +304,7 @@ trait RsyncHandlerTrait
 
                 $proof_numbers[$proof_number][] = [
                     'file_name' => $file_name,
-                    'processed' => $info['processed']
+                    'processed' => $info['processed'],
                 ];
             }
 
@@ -335,12 +348,13 @@ trait RsyncHandlerTrait
 
                 // Confirm that there is actually a local web image for this photo
                 $web_image_exists = $photo->checkPathForWebImage();
-                if (!$web_image_exists) {
+                if (! $web_image_exists) {
                     // If the web image doesn't exist, we need to reset the web_image_generated_at timestamp
                     $photo->web_image_generated_at = null;
                     $photo->save();
 
                     Log::debug('Local web image not found for proof: '.$photo->proof_number.' during updateDatabaseWebImageRecords()');
+
                     continue;
                 }
 
@@ -352,6 +366,94 @@ trait RsyncHandlerTrait
         }
     }
 
+    /**
+     * Update database records for highres image uploads
+     *
+     * @param  array  $highres_image_timestamps  Class/file organization of highres image uploads
+     * @param  string  $show_id  Show ID
+     * @param  bool  $is_dry_run  Whether this was a dry run
+     */
+    protected function updateDatabaseHighresImageRecords(array $highres_image_timestamps, string $show_id, bool $is_dry_run): void
+    {
+        // Process each class
+        foreach ($highres_image_timestamps as $class_name => $files) {
+            // Get the ShowClass model
+            $show_class = ShowClass::where('id', $show_id.'_'.$class_name)->first();
+            if (! $show_class) {
+                Log::warning("Show class not found for ID: {$show_id}_{$class_name}");
+
+                continue;
+            }
+
+            // Group files by proof number
+            $proof_numbers = [];
+            foreach ($files as $file_name => $info) {
+                $proof_number = pathinfo($file_name, PATHINFO_FILENAME);
+                $proof_number = str_replace('_highres', '', $proof_number);
+
+                $proof_numbers[$proof_number][] = [
+                    'file_name' => $file_name,
+                    'processed' => $info['processed'],
+                ];
+            }
+
+            // Now update Photo records
+            foreach ($proof_numbers as $proof_number => $files_info) {
+                // If we're on a dry run and we find a highres image in the output, that means
+                // it's not yet uploaded, so we should reset the highres_image_uploaded_at flag
+                if ($is_dry_run) {
+                    $photo = $show_class->photos()->where('proof_number', $proof_number)->whereNotNull('highres_image_uploaded_at')->first();
+                    if ($photo) {
+                        Log::debug("Pending highres image upload found for proof: {$proof_number}");
+                        $photo->highres_image_uploaded_at = null;
+                        $photo->save();
+                    }
+                }
+                // If this is not a dry run, we mark the highres image as uploaded
+                else {
+                    $photo = $show_class->photos()->where('proof_number', $proof_number)->first();
+                    if ($photo) {
+                        Log::debug("Marking highres image uploaded for proof: {$proof_number}");
+                        $photo->highres_image_uploaded_at = Carbon::now();
+                        $photo->save();
+                    }
+                }
+            }
+
+            // Now we'll look for any Photo records that are marked as having their highres images generated, but aren't
+            // showing that their highres images have been uploaded yet - meaning they weren't included in this recent rsync
+            // output either - which can only indicate that either they were previously uploaded, or they don't
+            // actually exist in our local highres images directory
+            $not_in_list = $show_class->photos()
+                ->whereNotNull('highres_image_generated_at')
+                ->whereNull('highres_image_uploaded_at')
+                ->get();
+
+            foreach ($not_in_list as $photo) {
+                // Skip if this photo was in our upload list
+                if (isset($proof_numbers[$photo->proof_number])) {
+                    continue;
+                }
+
+                // Confirm that there is actually a local highres image for this photo
+                $highres_image_exists = $photo->checkPathForHighresImage();
+                if (! $highres_image_exists) {
+                    // If the highres image doesn't exist, we need to reset the highres_image_generated_at timestamp
+                    $photo->highres_image_generated_at = null;
+                    $photo->save();
+
+                    Log::debug('Local highres image not found for proof: '.$photo->proof_number.' during updateDatabaseHighresImageRecords()');
+
+                    continue;
+                }
+
+                // If rsync didn't upload it, and we show it being present on the local filesystem, we can assume
+                // that it's already uploaded
+                $photo->highres_image_uploaded_at = Carbon::now();
+                $photo->save();
+            }
+        }
+    }
 
     public function getShowId(?string $show_id): string
     {
@@ -366,7 +468,7 @@ trait RsyncHandlerTrait
                     // We're in a Show
                     $show_id = $this->id;
                 }
-            } else if (isset($this->show_id)) {
+            } elseif (isset($this->show_id)) {
                 $show_id = $this->show_id;
             }
         }

@@ -7,11 +7,15 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+
 class Photo extends Model
 {
     protected $table = 'photos';
+
     protected $primaryKey = 'id';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $guarded = [
@@ -28,6 +32,8 @@ class Photo extends Model
         'proofs_uploaded_at' => 'datetime',
         'web_image_generated_at' => 'datetime',
         'web_image_uploaded_at' => 'datetime',
+        'highres_image_generated_at' => 'datetime',
+        'highres_image_uploaded_at' => 'datetime',
     ];
 
     // Model events
@@ -36,7 +42,7 @@ class Photo extends Model
         parent::boot();
 
         static::creating(function (Photo $model) {
-            $model->id = (string) $model->show_class_id . '_' . $model->proof_number;
+            $model->id = (string) $model->show_class_id.'_'.$model->proof_number;
         });
 
         static::created(function (Photo $model) {
@@ -58,6 +64,9 @@ class Photo extends Model
 
             // Check if the web image is already generated
             $web_image_found = $model->checkPathForWebImage();
+
+            // Check if the highres image is already generated
+            $highres_image_found = $model->checkPathForHighresImage();
         });
 
         static::updating(function (Photo $model) {
@@ -80,12 +89,22 @@ class Photo extends Model
                     $model->web_image_uploaded_at = null;
                 }
             }
+
+            // If our highres_image_generated_at is changing to a non-null value we'll want to null out the highres_image_uploaded_at
+            // if there is a value so that it'll be re-uploaded
+            if ($model->isDirty('highres_image_generated_at') && $model->highres_image_generated_at !== null) {
+                // If highres_image_generated_at is _before_ highres_image_uploaded_at, we don't need to null the highres_image_uploaded_at
+                // value because we're probably back-setting a value from a previously generated file found in the directory
+                if ($model->highres_image_uploaded_at !== null && $model->highres_image_generated_at > $model->highres_image_uploaded_at) {
+                    $model->highres_image_uploaded_at = null;
+                }
+            }
         });
     }
 
     public function createMetadataRecord(?string $file_contents = null): PhotoMetadata
     {
-        if($file_contents === null) {
+        if ($file_contents === null) {
             $file_contents = $this->getFileContents();
         }
 
@@ -97,7 +116,7 @@ class Photo extends Model
             'photo_id' => $this->id,
             'file_size' => strlen($file_contents),
         ]);
-        if($exif_data !== false) {
+        if ($exif_data !== false) {
             $metadata->fillFromExifDataArray($exif_data);
             \Log::debug('Exif data not found for photo: '.$this->id.'/'.$this->proof_number);
         }
@@ -108,12 +127,12 @@ class Photo extends Model
 
     public function getFullPathAttribute(): string
     {
-        return config('proofgen.fullsize_home_dir') . '/' . $this->relative_path;
+        return config('proofgen.fullsize_home_dir').'/'.$this->relative_path;
     }
 
     public function getRelativePathAttribute(): string
     {
-        return str_replace('_', '/', $this->show_class_id) . '/originals/' . $this->proof_number . '.' . $this->file_type;
+        return str_replace('_', '/', $this->show_class_id).'/originals/'.$this->proof_number.'.'.$this->file_type;
     }
 
     public function getProofsPathAttribute(): string
@@ -129,7 +148,7 @@ class Photo extends Model
     {
         $path_resolver = app(PathResolver::class);
 
-        return config('proofgen.fullsize_home_dir') . '/' . $path_resolver->normalizePath($this->proofs_path);
+        return config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($this->proofs_path);
     }
 
     public function showClass(): BelongsTo
@@ -152,7 +171,7 @@ class Photo extends Model
         $thumbnails = [];
         foreach (config('proofgen.thumbnails') as $size => $values) {
             $suffix = $values['suffix'];
-            $expected_filename = $this->proof_number . $suffix . '.' . $this->file_type;
+            $expected_filename = $this->proof_number.$suffix.'.'.$this->file_type;
             $thumbnails[] = $expected_filename;
         }
 
@@ -163,16 +182,16 @@ class Photo extends Model
     {
         $proofs_path = $this->absolute_proofs_path;
 
-        foreach($this->expectedThumbnailFilenames() as $filename) {
-            $expected_proof_path = $proofs_path . '/' . $filename;
+        foreach ($this->expectedThumbnailFilenames() as $filename) {
+            $expected_proof_path = $proofs_path.'/'.$filename;
             if (file_exists($expected_proof_path)) {
-                \Log::debug('Deleting proof: ' . $expected_proof_path);
+                \Log::debug('Deleting proof: '.$expected_proof_path);
                 unlink($expected_proof_path);
             }
         }
 
         $check = $this->checkPathForProofs();
-        if( ! $check) {
+        if (! $check) {
             $this->proofs_generated_at = null;
             $this->proofs_uploaded_at = null;
             $this->save();
@@ -183,7 +202,7 @@ class Photo extends Model
     {
         $expected_web_image_path = $this->expectedWebImageFilePath();
         if ($this->checkPathForWebImage()) {
-            \Log::debug('Deleting web image: ' . $expected_web_image_path);
+            \Log::debug('Deleting web image: '.$expected_web_image_path);
             unlink($expected_web_image_path);
         }
 
@@ -194,14 +213,30 @@ class Photo extends Model
         }
     }
 
+    public function deleteLocalHighresImage(): void
+    {
+        $expected_highres_image_path = $this->expectedHighresImageFilePath();
+        if ($this->checkPathForHighresImage()) {
+            \Log::debug('Deleting highres image: '.$expected_highres_image_path);
+            unlink($expected_highres_image_path);
+        }
+
+        if ($this->highres_image_generated_at !== null) {
+            $this->highres_image_generated_at = null;
+            $this->highres_image_uploaded_at = null;
+            $this->save();
+        }
+    }
+
     public function expectedWebImageFilePath(): string
     {
         $path_resolver = app(PathResolver::class);
         $web_images_path = $path_resolver->getWebImagesPath($this->showClass->show->name, $this->showClass->name);
-        $web_images_path = config('proofgen.fullsize_home_dir') . '/' . $path_resolver->normalizePath($web_images_path);
+        $web_images_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($web_images_path);
 
-        $expected_filename = $this->proof_number . '_web.' . $this->file_type;
-        return $web_images_path . '/' . $expected_filename;
+        $expected_filename = $this->proof_number.config('proofgen.web_images.suffix').'.jpg';
+
+        return $web_images_path.'/'.$expected_filename;
     }
 
     public function checkPathForWebImage(): bool
@@ -210,8 +245,36 @@ class Photo extends Model
 
         if (file_exists($expected_web_image_path)) {
 
-            if($this->web_image_generated_at === null) {
+            if ($this->web_image_generated_at === null) {
                 $this->web_image_generated_at = Carbon::createFromTimestamp(filemtime($expected_web_image_path));
+                $this->save();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function expectedHighresImageFilePath(): string
+    {
+        $path_resolver = app(PathResolver::class);
+        $highres_images_path = $path_resolver->getHighresImagesPath($this->showClass->show->name, $this->showClass->name);
+        $highres_images_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($highres_images_path);
+
+        $expected_filename = $this->proof_number.config('proofgen.highres_images.suffix').'.jpg';
+
+        return $highres_images_path.'/'.$expected_filename;
+    }
+
+    public function checkPathForHighresImage(): bool
+    {
+        $expected_highres_image_path = $this->expectedHighresImageFilePath();
+
+        if (file_exists($expected_highres_image_path)) {
+
+            if ($this->highres_image_generated_at === null) {
+                $this->highres_image_generated_at = Carbon::createFromTimestamp(filemtime($expected_highres_image_path));
                 $this->save();
             }
 
@@ -229,7 +292,7 @@ class Photo extends Model
 
         $proofs_found = [];
         $expected_proof_count = count(config('proofgen.thumbnails'));
-        foreach(config('proofgen.thumbnails') as $size => $values) {
+        foreach (config('proofgen.thumbnails') as $size => $values) {
             $suffix = $values['suffix'];
             $expected_filename = $this->proof_number.$suffix.'.'.$this->file_type;
             $expected_proof_path = $proofs_path.'/'.$expected_filename;
@@ -242,9 +305,9 @@ class Photo extends Model
             }
         }
 
-        if($expected_proof_count === count($proofs_found)) {
+        if ($expected_proof_count === count($proofs_found)) {
             // If we have all the proofs, set the proofs_generated_at to the earliest modified time
-            if($this->proofs_generated_at === null) {
+            if ($this->proofs_generated_at === null) {
                 $existing_timestamp = Carbon::createFromTimestamp($proofs_found[array_key_first($proofs_found)]);
                 \Log::debug('Making proofs_generated_at for photo: '.$this->id.' from '.$existing_timestamp);
                 $this->proofs_generated_at = $existing_timestamp;
@@ -252,7 +315,7 @@ class Photo extends Model
             }
         }
 
-        if(count($proofs_found) === 0) {
+        if (count($proofs_found) === 0) {
             return false;
         }
 

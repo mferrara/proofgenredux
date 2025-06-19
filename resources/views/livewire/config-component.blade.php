@@ -18,7 +18,7 @@
                         <div class="text-2xl font-semibold mb-2">
                             {{ $categoryLabels[$category] ?? ucfirst($category) }}
                         </div>
-                        
+
                         @if(!$sampleImagePath)
                             <div class="bg-amber-900/20 border border-amber-600/50 rounded-md p-4 mb-4">
                                 <div class="flex items-center gap-2">
@@ -27,18 +27,18 @@
                                 </div>
                             </div>
                         @endif
-                        
+
                         {{-- Tab Navigation --}}
                         <div class="mb-6">
                             <flux:tabs variant="segmented">
-                                <flux:tab 
+                                <flux:tab
                                     name="large"
                                     x-on:click="activeTab = 'large'"
                                     x-bind:selected="activeTab === 'large'"
                                 >
                                     Large Thumbnails
                                 </flux:tab>
-                                <flux:tab 
+                                <flux:tab
                                     name="small"
                                     x-on:click="activeTab = 'small'"
                                     x-bind:selected="activeTab === 'small'"
@@ -47,13 +47,13 @@
                                 </flux:tab>
                             </flux:tabs>
                         </div>
-                        
+
                         <div class="space-y-6">
                             @php
                                 $largeConfigs = collect($configurations)->filter(fn($c) => str_starts_with($c->key, 'thumbnails.large.'))->keyBy('key');
                                 $smallConfigs = collect($configurations)->filter(fn($c) => str_starts_with($c->key, 'thumbnails.small.'))->keyBy('key');
                             @endphp
-                            
+
                             {{-- Large Thumbnail Tab Content --}}
                             <div x-show="activeTab === 'large'" x-transition>
                                 {{-- Large Preview Section --}}
@@ -62,12 +62,12 @@
                                         <h3 class="text-lg font-medium text-gray-200 mb-4">Large Thumbnail Preview</h3>
                                         @if($largeThumbnailPreview)
                                             <div class="relative inline-block">
-                                                <img src="{{ $largeThumbnailPreview }}" 
-                                                     alt="Large thumbnail preview" 
+                                                <img src="{{ $largeThumbnailPreview }}"
+                                                     alt="Large thumbnail preview"
                                                      class="border border-zinc-600 rounded"
                                                      wire:loading.class="opacity-50"
                                                      wire:target="updatePreview">
-                                                <div wire:loading.delay wire:target="updatePreview" 
+                                                <div wire:loading.delay wire:target="updatePreview"
                                                      class="absolute inset-0 flex items-center justify-center">
                                                     <flux:icon.loading class="w-8 h-8 text-blue-500" />
                                                 </div>
@@ -82,7 +82,7 @@
                                                 <flux:icon.loading class="w-8 h-8 text-gray-500" />
                                             </div>
                                         @endif
-                                        
+
                                         {{-- Large Preview Controls --}}
                                         <div class="mt-4 flex items-end gap-4">
                                             <div>
@@ -115,7 +115,7 @@
                                         </div>
                                     </div>
                                 @endif
-                                
+
                                 {{-- Large Thumbnail Settings --}}
                                 <div class="bg-zinc-700 rounded-md overflow-hidden">
                                     <div class="bg-zinc-800 px-6 py-3">
@@ -138,7 +138,7 @@
                                                             @if(str_contains($config->key, 'quality')) (10-100) @endif
                                                         </flux:description>
                                                     @endif
-                                                    @error('configValues.'.$config->id) 
+                                                    @error('configValues.'.$config->id)
                                                         <flux:error>{{ $message }}</flux:error>
                                                     @enderror
                                                 </flux:field>
@@ -147,7 +147,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             {{-- Small Thumbnail Tab Content --}}
                             <div x-show="activeTab === 'small'" x-transition>
                                 {{-- Small Preview Section --}}
@@ -156,8 +156,8 @@
                                         <h3 class="text-lg font-medium text-gray-200 mb-4">Small Thumbnail Preview</h3>
                                         @if($smallThumbnailPreview)
                                             <div class="relative inline-block">
-                                                <img src="{{ $smallThumbnailPreview }}" 
-                                                     alt="Small thumbnail preview" 
+                                                <img src="{{ $smallThumbnailPreview }}"
+                                                     alt="Small thumbnail preview"
                                                      class="border border-zinc-600 rounded"
                                                      wire:loading.class="opacity-50"
                                                      wire:target="updatePreview">
@@ -176,7 +176,7 @@
                                                 <flux:icon.loading class="w-8 h-8 text-gray-500" />
                                             </div>
                                         @endif
-                                        
+
                                         {{-- Small Preview Controls --}}
                                         <div class="mt-4 flex items-end gap-4">
                                             <div>
@@ -209,7 +209,7 @@
                                         </div>
                                     </div>
                                 @endif
-                                
+
                                 {{-- Small Thumbnail Settings --}}
                                 <div class="bg-zinc-700 rounded-md overflow-hidden">
                                     <div class="bg-zinc-800 px-6 py-3">
@@ -232,7 +232,7 @@
                                                             @if(str_contains($config->key, 'quality')) (10-100) @endif
                                                         </flux:description>
                                                     @endif
-                                                    @error('configValues.'.$config->id) 
+                                                    @error('configValues.'.$config->id)
                                                         <flux:error>{{ $message }}</flux:error>
                                                     @enderror
                                                 </flux:field>
@@ -300,7 +300,7 @@
                                                 <div class="flex flex-row items-center text-sm">
                                                     <flux:input
                                                         type="text"
-                                                        class:input="{{ $config->type === 'integer' ? '!w-18 !text-right' : ''  }} {{ $config->type === 'string' ? '!w-32' : '' }}"
+                                                        class:input="{{ $config->type === 'integer' ? '!w-18 !text-right' : ''  }} {{ ($config->type === 'string') ? '!w-28' : '' }}"
                                                         wire:model.defer="configValues.{{ $config->id }}"
                                                         wire:key="{{ $config->key }}-input"
                                                         wire:dirty.class="!border-warning-border !text-warning"

@@ -107,6 +107,10 @@ class ShowViewComponent extends Component
         $photos_pending_web_images = $this->show->photosNotWebImaged()->get();
         $photos_web_images_uploaded = $this->show->photosWebImaged()->get();
         $photos_pending_web_image_uploads = $this->show->photosWebImagedNotUploaded()->get();
+        $photos_highres_images_generated = $this->show->photosHighresImaged()->get();
+        $photos_pending_highres_images = $this->show->photosNotHighresImaged()->get();
+        $photos_highres_images_uploaded = $this->show->photosHighresImagesUploaded()->get();
+        $photos_pending_highres_image_uploads = $this->show->photosHighresImagedNotUploaded()->get();
 
         return view('livewire.show-view-component')
             ->with('show', $this->show)
@@ -122,6 +126,10 @@ class ShowViewComponent extends Component
             ->with('photos_pending_web_images', $photos_pending_web_images)
             ->with('photos_web_images_uploaded', $photos_web_images_uploaded)
             ->with('photos_pending_web_image_uploads', $photos_pending_web_image_uploads)
+            ->with('photos_highres_images_generated', $photos_highres_images_generated)
+            ->with('photos_pending_highres_images', $photos_pending_highres_images)
+            ->with('photos_highres_images_uploaded', $photos_highres_images_uploaded)
+            ->with('photos_pending_highres_image_uploads', $photos_pending_highres_image_uploads)
             ->title($this->show->id.' - Proofgen');
     }
 
@@ -155,18 +163,26 @@ class ShowViewComponent extends Component
         $response = $this->show->checkAllUploads();
         $images_pending_upload = count($response['images_pending_upload']);
         $web_images_pending_upload = count($response['web_images_pending_upload']);
+        $highres_images_pending_upload = count($response['highres_images_pending_upload'] ?? []);
 
-        if ($images_pending_upload > 0 || $web_images_pending_upload > 0) {
-            $flash_message = 'Pending uploads: ';
+        $total_pending = $images_pending_upload + $web_images_pending_upload + $highres_images_pending_upload;
+
+        if ($total_pending > 0) {
+            $parts = [];
+
             if ($images_pending_upload > 0) {
-                $flash_message .= $images_pending_upload.' Images';
+                $parts[] = $images_pending_upload.' Images';
             }
+
             if ($web_images_pending_upload > 0) {
-                if ($images_pending_upload > 0) {
-                    $flash_message .= ' and ';
-                }
-                $flash_message .= $web_images_pending_upload.' Web Images';
+                $parts[] = $web_images_pending_upload.' Web Images';
             }
+
+            if ($highres_images_pending_upload > 0) {
+                $parts[] = $highres_images_pending_upload.' Highres Images';
+            }
+
+            $flash_message = 'Pending uploads: '.implode(', ', $parts);
         } else {
             $flash_message = 'No uploads pending';
         }
@@ -191,25 +207,28 @@ class ShowViewComponent extends Component
     {
         $uploaded = $this->show->proofUploads();
         $web_images = $this->show->webImageUploads();
+        $highres_images = $this->show->highresImageUploads();
 
-        $flash_message = '';
-        if (count($uploaded) === 0 && count($web_images) === 0) {
+        $total = count($uploaded) + count($web_images) + count($highres_images);
+
+        if ($total === 0) {
             $flash_message = 'No images to upload.';
         } else {
+            $parts = [];
+
             if (count($uploaded) > 0) {
-                $flash_message = count($uploaded).' Images uploaded';
+                $parts[] = count($uploaded).' Images';
             }
 
             if (count($web_images) > 0) {
-                if (count($uploaded) > 0) {
-                    $this->flash_message .= ' and ';
-                }
-                $flash_message .= count($web_images).' Web Images uploaded';
+                $parts[] = count($web_images).' Web Images';
             }
 
-            if (strlen($this->flash_message) > 0) {
-                $flash_message .= '.';
+            if (count($highres_images) > 0) {
+                $parts[] = count($highres_images).' Highres Images';
             }
+
+            $flash_message = implode(', ', $parts).' uploaded.';
         }
 
         $this->setFlashMessage($flash_message);
@@ -233,6 +252,15 @@ class ShowViewComponent extends Component
         $this->setFlashMessage($count.' Web Images queued.');
     }
 
+    public function regenerateHighresImages(): void
+    {
+        $count = 0;
+        foreach ($this->show->classes as $showClass) {
+            $count += $showClass->regenerateHighresImages();
+        }
+        $this->setFlashMessage($count.' Highres Images queued.');
+    }
+
     public function resetPhotos(): void
     {
         foreach ($this->show->classes as $showClass) {
@@ -247,11 +275,29 @@ class ShowViewComponent extends Component
         );
     }
 
+    public function proofPendingPhotos(): void
+    {
+        $count = 0;
+        foreach ($this->show->classes as $showClass) {
+            $count += $showClass->proofPendingPhotos();
+        }
+        $this->setFlashMessage($count.' Photos queued.');
+    }
+
     public function webImagePendingPhotos(): void
     {
         $count = 0;
         foreach ($this->show->classes as $showClass) {
             $count += $showClass->webImagePendingPhotos();
+        }
+        $this->setFlashMessage($count.' Photos queued.');
+    }
+
+    public function highresImagePendingPhotos(): void
+    {
+        $count = 0;
+        foreach ($this->show->classes as $showClass) {
+            $count += $showClass->highresImagePendingPhotos();
         }
         $this->setFlashMessage($count.' Photos queued.');
     }

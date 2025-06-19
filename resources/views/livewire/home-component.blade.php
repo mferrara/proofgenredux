@@ -52,7 +52,7 @@
 
         <div class="grid gap-3">
             @foreach($top_level_directories as $directory)
-                @if($directory === 'web_images' || $directory === 'proofs') @continue @endif
+                @if($directory === 'web_images' || $directory === 'proofs' || $directory === 'highres_images') @continue @endif
                 @php
                     $folder_name = explode('/', $directory);
                     $folder_name = end($folder_name);
@@ -106,7 +106,7 @@
                 </div>
             @endforeach
 
-            @if(count($top_level_directories) === 0 || (count($top_level_directories) === 2 && in_array('web_images', $top_level_directories) && in_array('proofs', $top_level_directories)))
+            @if(count($top_level_directories) === 0 || (count($top_level_directories) === 3 && in_array('web_images', $top_level_directories) && in_array('proofs', $top_level_directories) && in_array('highres_images', $top_level_directories)))
                 <div class="py-8 text-center">
                     <div class="mb-4">
                         <flux:icon name="folder-open" variant="outline" class="text-gray-400 size-12 mx-auto" />

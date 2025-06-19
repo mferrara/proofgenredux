@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\ShowClass\ResetClassPhotos;
+use App\Jobs\ShowClass\UploadHighresImages;
 use App\Jobs\ShowClass\UploadProofs;
 use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Photo;
@@ -39,6 +40,8 @@ class ClassViewComponent extends Component
 
     public string $web_images_path = '';
 
+    public string $highres_images_path = '';
+
     public string $flash_message = '';
 
     public int $flash_message_set_at = 0;
@@ -61,6 +64,7 @@ class ClassViewComponent extends Component
         $this->working_path = $this->show.'/'.$this->class;
         $this->proofs_path = $this->pathResolver->getProofsPath($this->show, $this->class);
         $this->web_images_path = $this->pathResolver->getWebImagesPath($this->show, $this->class);
+        $this->highres_images_path = $this->pathResolver->getHighresImagesPath($this->show, $this->class);
     }
 
     public function boot(): void
@@ -109,6 +113,10 @@ class ClassViewComponent extends Component
         $photos_pending_web_images = $counts['photos_pending_web_images'];
         $photos_web_images_uploaded = $counts['photos_web_images_uploaded'];
         $photos_pending_web_image_uploads = $counts['photos_pending_web_image_uploads'];
+        $photos_highres_images_generated = $counts['photos_highres_images_generated'];
+        $photos_pending_highres_images = $counts['photos_pending_highres_images'];
+        $photos_highres_images_uploaded = $counts['photos_highres_images_uploaded'];
+        $photos_pending_highres_image_uploads = $counts['photos_pending_highres_image_uploads'];
 
         return view('livewire.class-view-component')
             ->with('show', $this->showModel)
@@ -124,6 +132,10 @@ class ClassViewComponent extends Component
             ->with('photos_pending_web_images', $photos_pending_web_images)
             ->with('photos_web_images_uploaded', $photos_web_images_uploaded)
             ->with('photos_pending_web_image_uploads', $photos_pending_web_image_uploads)
+            ->with('photos_highres_images_generated', $photos_highres_images_generated)
+            ->with('photos_pending_highres_images', $photos_pending_highres_images)
+            ->with('photos_highres_images_uploaded', $photos_highres_images_uploaded)
+            ->with('photos_pending_highres_image_uploads', $photos_pending_highres_image_uploads)
             ->title($this->show.' '.$this->class.' - Proofgen');
     }
 
@@ -143,21 +155,27 @@ class ClassViewComponent extends Component
     public function checkProofAndWebImageUploads(): void
     {
         $images_pending_upload = count($this->showClass->pendingProofUploads());
-        // Log::debug('Images pending proof uploads', ['images_pending_upload' => $images_pending_upload]);
         $web_images_pending_upload = count($this->showClass->pendingWebImageUploads());
-        // Log::debug('Images pending web image uploads', ['web_images_pending_upload' => $web_images_pending_upload]);
+        $highres_images_pending_upload = count($this->showClass->pendingHighresImageUploads());
 
-        if ($images_pending_upload > 0 || $web_images_pending_upload > 0) {
-            $flash_message = 'Pending uploads: ';
+        $total_pending = $images_pending_upload + $web_images_pending_upload + $highres_images_pending_upload;
+
+        if ($total_pending > 0) {
+            $parts = [];
+
             if ($images_pending_upload > 0) {
-                $flash_message .= $images_pending_upload.' Images';
+                $parts[] = $images_pending_upload.' Images';
             }
+
             if ($web_images_pending_upload > 0) {
-                if ($images_pending_upload > 0) {
-                    $flash_message .= ' and ';
-                }
-                $flash_message .= $web_images_pending_upload.' Web Images';
+                $parts[] = $web_images_pending_upload.' Web Images';
             }
+
+            if ($highres_images_pending_upload > 0) {
+                $parts[] = $highres_images_pending_upload.' Highres Images';
+            }
+
+            $flash_message = 'Pending uploads: '.implode(', ', $parts);
         } else {
             $flash_message = 'No uploads pending';
         }
@@ -222,6 +240,12 @@ class ClassViewComponent extends Component
         $this->setFlashMessage($count.' Photos queued.');
     }
 
+    public function highresImagePendingPhotos(): void
+    {
+        $count = $this->showClass->highresImagePendingPhotos();
+        $this->setFlashMessage($count.' Photos queued.');
+    }
+
     public function proofPhoto(string $photo_id): void
     {
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
@@ -283,6 +307,48 @@ class ClassViewComponent extends Component
         }
     }
 
+    public function generateHighresImage(string $photo_id): void
+    {
+        $photo = $this->showClass->photos()->where('id', $photo_id)->first();
+        if (! $photo) {
+            $this->setFlashMessage('Photo not found');
+
+            return;
+        }
+
+        // Get PathResolver instance for this request
+        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $highres_images_path = $pathResolver->getHighresImagesPath($this->showModel->name, $this->showClass->name);
+        $photoService = app(PhotoService::class);
+        try {
+            $highres_image_path = $photoService->generateHighresImage($photo->id, $highres_images_path);
+            Log::debug('Generated highres image: '.$highres_image_path);
+            if ($highres_image_path) {
+                $photo->highres_image_generated_at = now();
+                $photo->save();
+                Flux::toast(
+                    text: 'Highres image generated: '.$photo->proof_number,
+                    heading: 'Info',
+                    variant: 'success',
+                    position: 'top right'
+                );
+            } else {
+                Flux::toast(
+                    text: 'Highres image generation failed',
+                    heading: 'Error',
+                    variant: 'error',
+                    position: 'top right'
+                );
+            }
+        } catch (Exception $e) {
+            Log::error('Error generating highres image: '.$e->getMessage());
+            Log::debug('Highres Image generation attempted with photo_id: '.$photo->id.' and highres_images_path: '.$highres_images_path);
+            $this->setFlashMessage('Error generating highres image: '.$e->getMessage());
+
+            return;
+        }
+    }
+
     public function regenerateProofs(): void
     {
         $photos_queued = $this->showClass->regenerateProofs();
@@ -301,6 +367,18 @@ class ClassViewComponent extends Component
 
         Flux::toast(
             text: number_format($photos_queued).' photos queued to regenerate web images for '.$this->show.' '.$this->class,
+            heading: 'Info',
+            variant: 'success',
+            position: 'top right'
+        );
+    }
+
+    public function regenerateHighresImages(): void
+    {
+        $photos_queued = $this->showClass->regenerateHighresImages();
+
+        Flux::toast(
+            text: number_format($photos_queued).' photos queued to regenerate highres images for '.$this->show.' '.$this->class,
             heading: 'Info',
             variant: 'success',
             position: 'top right'
@@ -334,29 +412,38 @@ class ClassViewComponent extends Component
         $web_images_queued_for_upload = 0;
         if ($photos_web_images_not_uploaded->count()) {
             UploadWebImages::dispatch($this->show, $this->class);
-            $web_images_queued_for_upload += $photos_web_images_not_uploaded->count();
+            $web_images_queued_for_upload = $photos_web_images_not_uploaded->count();
+        }
+
+        // Photos pending highres image uploads
+        $photos_highres_images_not_uploaded = $this->showClass->photosHighresImagedNotUploaded()->get();
+        $highres_images_queued_for_upload = 0;
+        if ($photos_highres_images_not_uploaded->count()) {
+            UploadHighresImages::dispatch($this->show, $this->class);
+            $highres_images_queued_for_upload = $photos_highres_images_not_uploaded->count();
         }
 
         $message = '';
-        if ($photos_queued_for_upload + $web_images_queued_for_upload === 0) {
+        $total_queued = $photos_queued_for_upload + $web_images_queued_for_upload + $highres_images_queued_for_upload;
+
+        if ($total_queued === 0) {
             $message = 'Nothing to upload.';
         } else {
-            $both = false;
-            if ($photos_queued_for_upload > 0 && $web_images_queued_for_upload > 0) {
-                $both = true;
+            $parts = [];
+
+            if ($photos_queued_for_upload > 0) {
+                $parts[] = $photos_queued_for_upload.' Photos';
             }
 
-            if ($photos_queued_for_upload > 0 && $both) {
-                $message = $photos_queued_for_upload.' Photos and ';
-            } elseif ($photos_queued_for_upload > 0) {
-                $message = $photos_queued_for_upload.' Photos queued for upload.';
+            if ($web_images_queued_for_upload > 0) {
+                $parts[] = $web_images_queued_for_upload.' Web Images';
             }
 
-            if ($web_images_queued_for_upload > 0 && $both) {
-                $message .= $web_images_queued_for_upload.' Web Images queued for upload.';
-            } elseif ($web_images_queued_for_upload > 0) {
-                $message .= $web_images_queued_for_upload.' Web Images queued for upload.';
+            if ($highres_images_queued_for_upload > 0) {
+                $parts[] = $highres_images_queued_for_upload.' Highres Images';
             }
+
+            $message = implode(', ', $parts).' queued for upload.';
         }
 
         Flux::toast(

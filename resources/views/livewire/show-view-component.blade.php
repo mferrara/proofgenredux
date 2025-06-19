@@ -103,6 +103,16 @@
                                             Web Upload: {{ $class_folder_data['show_class']->photos()->whereNotNull('web_image_generated_at')->whereNull('web_image_uploaded_at')->count() }}
                                         </flux:badge>
                                     @endif
+                                    @if($class_folder_data['show_class']->photos()->whereNull('highres_image_generated_at')->count())
+                                        <flux:badge color="purple" size="sm">
+                                            Highres Gen: {{ $class_folder_data['show_class']->photos()->whereNull('highres_image_generated_at')->count() }}
+                                        </flux:badge>
+                                    @endif
+                                    @if($class_folder_data['show_class']->photos()->whereNotNull('highres_image_generated_at')->whereNull('highres_image_uploaded_at')->count())
+                                        <flux:badge color="purple" size="sm">
+                                            Highres Upload: {{ $class_folder_data['show_class']->photos()->whereNotNull('highres_image_generated_at')->whereNull('highres_image_uploaded_at')->count() }}
+                                        </flux:badge>
+                                    @endif
                                 @endif
                             </td>
                             <td class="text-right pr-2">

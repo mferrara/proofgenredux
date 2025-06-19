@@ -159,9 +159,8 @@
                 <li>
                     <div class="flex flex-row items-center gap-x-1">
                         <div class="flex flex-row items-center gap-x-1">
-                            <div><flux:badge color="indigo">Web Images</flux:badge> generated for this classes imported photos are located in the</div>
+                            <div><flux:badge color="indigo">Web Images</flux:badge> generated for this classes imported photos are located at &nbsp;&nbsp;&nbsp;&nbsp;</div>
                             <span class="text-indigo-400 px-2 py-1 bg-gray-400/10 shadow-md">{{ $show_class->full_web_images_path }}</span>
-                            <div>directory</div>
                         </div>
                         <flux:tooltip content="Copy path to clipboard">
                             <div
@@ -192,6 +191,46 @@
                         <flux:tooltip content="Open path in finder">
                             <div class="text-indigo-300 hover:text-indigo-400 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
                                  wire:click="openFolder('{{ $show_class->full_web_images_path }}')">
+                                <flux:icon.arrow-top-right-on-square class="size-5" />
+                            </div>
+                        </flux:tooltip>
+                    </div>
+                </li>
+                <li>
+                    <div class="flex flex-row items-center gap-x-1">
+                        <div class="flex flex-row items-center gap-x-1">
+                            <div><flux:badge color="purple">Highres Images</flux:badge> generated for this classes imported photos are located at</div>
+                            <span class="text-indigo-400 px-2 py-1 bg-gray-400/10 shadow-md">{{ $show_class->full_highres_images_path }}</span>
+                        </div>
+                        <flux:tooltip content="Copy path to clipboard">
+                            <div
+                                class="text-indigo-300 hover:text-indigo-400 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                x-data="{ copied: false }"
+                                x-on:click="
+                                    const el = document.createElement('textarea');
+                                    el.value = '{{ $show_class->full_highres_images_path }}';
+                                    el.setAttribute('readonly', '');
+                                    el.style.position = 'absolute';
+                                    el.style.left = '-9999px';
+                                    document.body.appendChild(el);
+                                    el.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(el);
+                                    copied = true;
+                                    setTimeout(() => copied = false, 2000);
+                                "
+                            >
+                                <template x-if="!copied">
+                                    <flux:icon.document-duplicate class="size-5" />
+                                </template>
+                                <template x-if="copied">
+                                    <flux:icon.check class="size-5 !text-emerald-500" />
+                                </template>
+                            </div>
+                        </flux:tooltip>
+                        <flux:tooltip content="Open path in finder">
+                            <div class="text-indigo-300 hover:text-indigo-400 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                                 wire:click="openFolder('{{ $show_class->full_highres_images_path }}')">
                                 <flux:icon.arrow-top-right-on-square class="size-5" />
                             </div>
                         </flux:tooltip>
