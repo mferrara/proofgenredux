@@ -46,6 +46,28 @@
             @if($autoRestartEnabled)
                 <flux:badge variant="outline" color="sky" size="sm">Auto-restart enabled</flux:badge>
             @endif
+            <div class="flex items-center gap-1">
+                <flux:button
+                    wire:click="stopHorizon"
+                    wire:loading.attr="disabled"
+                    wire:target="stopHorizon"
+                    icon="stop"
+                    size="xs"
+                    variant="ghost"
+                    class="text-red-500 hover:text-red-400"
+                    title="Stop Horizon"
+                />
+                <flux:button
+                    wire:click="restartHorizon"
+                    wire:loading.attr="disabled"
+                    wire:target="restartHorizon"
+                    icon="arrow-path"
+                    size="xs"
+                    variant="ghost"
+                    class="text-blue-400 hover:text-blue-300"
+                    title="Restart Horizon"
+                />
+            </div>
         @else
             <div class="flex items-center gap-2">
                 <flux:badge variant="outline" color="rose" size="sm">Stopped</flux:badge>

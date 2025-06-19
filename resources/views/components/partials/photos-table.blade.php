@@ -1,12 +1,72 @@
-<div class="w-full mt-4">
+@php
+    $allPhotoIds = $photos->pluck('id')->toArray();
+    $photoCount = $photos->count();
+@endphp
+<div class="w-full mt-4" x-data="{ 
+    localSelectedPhotos: @js($selectedPhotos ?? []),
+    get selectAll() {
+        return this.localSelectedPhotos.length === {{ $photoCount }};
+    },
+    toggleAll() {
+        if (this.localSelectedPhotos.length === {{ $photoCount }}) {
+            this.localSelectedPhotos = [];
+        } else {
+            this.localSelectedPhotos = @js($allPhotoIds);
+        }
+        $wire.set('selectedPhotos', this.localSelectedPhotos);
+    },
+    togglePhoto(id) {
+        const index = this.localSelectedPhotos.indexOf(id);
+        if (index > -1) {
+            this.localSelectedPhotos.splice(index, 1);
+        } else {
+            this.localSelectedPhotos.push(id);
+        }
+        $wire.set('selectedPhotos', this.localSelectedPhotos);
+    }
+}">
+    {{-- Action bar --}}
+    <div x-show="localSelectedPhotos.length > 0" 
+         x-transition
+         x-cloak
+         class="mb-4 p-4 bg-gray-800 rounded-lg flex items-center gap-4">
+        <span class="text-sm">
+            <span x-text="localSelectedPhotos.length"></span> photos selected
+        </span>
+        <flux:select wire:model="selectedAction" size="sm">
+            <flux:select.option value="">Choose action...</flux:select.option>
+            <flux:select.option value="move">Move to class...</flux:select.option>
+            <flux:select.option value="delete">Delete photos</flux:select.option>
+        </flux:select>
+        <flux:button 
+            wire:click="performBulkAction" 
+            size="sm"
+        >
+            Apply
+        </flux:button>
+        <flux:button 
+            variant="ghost" 
+            size="sm"
+            @click="localSelectedPhotos = []; $wire.set('selectedPhotos', [])"
+        >
+            Clear selection
+        </flux:button>
+    </div>
+
     <flux:table class="!text-gray-300" hover>
         <thead>
             <tr>
+                <th class="w-10">
+                    <input type="checkbox" 
+                           :checked="selectAll"
+                           @change="toggleAll()"
+                           class="rounded">
+                </th>
                 <th class="@if(isset($display_thumbnail) && $display_thumbnail) w-24 @else w-8 @endif"></th>
                 <th>Proof Number</th>
                 <th class="text-right pr-1">Metadata</th>
                 <th class="text-right pr-1">Timestamps</th>
-                @if(is_array($actions) && count($actions) > 0 && ( ! in_array('deletePhotoRecord', $actions) || (isset($show_delete) && $show_delete)))
+                @if(false)
                     <th class="text-right pr-1">Actions</th>
                 @endif
                 @if(isset($details) && $details)
@@ -64,6 +124,13 @@
                 }
             @endphp
             <tr wire:key="{{ 'image-row-'.$photo->id }}" class="@if( ! $photo->metadata || $file_not_found) bg-red-800/40 @endif">
+                <td>
+                    <input type="checkbox" 
+                           value="{{ $photo->id }}"
+                           :checked="localSelectedPhotos.includes('{{ $photo->id }}')"
+                           @change="togglePhoto('{{ $photo->id }}')"
+                           class="rounded">
+                </td>
                 <td>
                     @if(isset($display_thumbnail) && $display_thumbnail && $thumbnail_base64 !== null)
                         <div class="p-1 w-48">
@@ -236,7 +303,7 @@
                         @endif
                     </div>
                 </td>
-                @if(is_array($actions) && count($actions) > 0 && ( ! in_array('deletePhotoRecord', $actions) || (isset($show_delete) && $show_delete)))
+                @if(false)
                     <td class="text-right pr-1">
                         <div class="my-0.5 grid grid-cols-1 gap-1">
                             @if(is_array($actions) && in_array('deletePhotoRecord', $actions) && (isset($show_delete) && $show_delete))

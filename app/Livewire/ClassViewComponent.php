@@ -52,9 +52,20 @@ class ClassViewComponent extends Component
 
     public bool $local_proofs_sync_performed = false;
 
-    public bool $show_delete = false;
-
     protected PathResolver $pathResolver;
+
+    // Bulk action properties
+    public array $selectedPhotos = [];
+
+    public string $selectedAction = '';
+
+    public bool $showMoveModal = false;
+
+    public bool $showDeleteModal = false;
+
+    public string $targetClass = '';
+
+    public bool $deleteFiles = false;
 
     public function mount(PathResolver $pathResolver): void
     {
@@ -454,49 +465,6 @@ class ClassViewComponent extends Component
         );
     }
 
-    public function deletePhotoRecord(string $photo_id): void
-    {
-        $photo = $this->showClass->photos()->where('id', $photo_id)->first();
-        if ($photo) {
-            $photo->delete();
-
-            Flux::toast(
-                text: 'Photo record deleted',
-                heading: 'Info',
-                variant: 'success',
-                position: 'top right'
-            );
-        } else {
-            Flux::toast(
-                text: 'Photo record not found with photo_id: '.$photo_id,
-                heading: 'Error',
-                variant: 'error',
-                position: 'top right'
-            );
-        }
-    }
-
-    public function deleteLocalProofs(string $photo_id): void
-    {
-        $photo = $this->showClass->photos()->where('id', $photo_id)->first();
-        if ($photo) {
-            $photo->deleteLocalProofs();
-            Flux::toast(
-                text: 'Local proofs deleted',
-                heading: 'Info',
-                variant: 'success',
-                position: 'top right'
-            );
-        } else {
-            Flux::toast(
-                text: 'Photo record not found with photo_id: '.$photo_id,
-                heading: 'Error',
-                variant: 'error',
-                position: 'top right'
-            );
-        }
-    }
-
     public function openFolder(string $path): void
     {
         if (! file_exists($path)) {
@@ -540,5 +508,87 @@ class ClassViewComponent extends Component
         } else {
             return '0 bytes';
         }
+    }
+
+    // Bulk action methods
+    public function performBulkAction(): void
+    {
+        switch ($this->selectedAction) {
+            case 'move':
+                $this->showMoveModal = true;
+                break;
+            case 'delete':
+                $this->showDeleteModal = true;
+                break;
+        }
+    }
+
+    public function moveSelectedPhotos(): void
+    {
+        if (empty($this->targetClass)) {
+            Flux::toast('Please select a target class', 'Error', 'error');
+
+            return;
+        }
+
+        $photoMoveService = app(\App\Services\PhotoMoveService::class);
+        $results = $photoMoveService->movePhotos($this->selectedPhotos, $this->targetClass);
+
+        if (count($results['success']) > 0) {
+            Flux::toast(
+                count($results['success']).' photos moved successfully',
+                'Success',
+                'success'
+            );
+        }
+
+        if (count($results['errors']) > 0) {
+            foreach ($results['errors'] as $photoId => $error) {
+                Flux::toast($error, 'Error', 'error');
+            }
+        }
+
+        // Reset state
+        $this->selectedPhotos = [];
+        $this->showMoveModal = false;
+        $this->targetClass = '';
+        $this->selectedAction = '';
+    }
+
+    public function deleteSelectedPhotos(): void
+    {
+        $deletedCount = 0;
+
+        foreach ($this->selectedPhotos as $photoId) {
+            $photo = Photo::find($photoId);
+            if ($photo) {
+                if ($this->deleteFiles) {
+                    // Delete all associated files
+                    $photo->deleteLocalProofs();
+                    $photo->deleteLocalWebImage();
+                    $photo->deleteLocalHighresImage();
+
+                    // Delete original
+                    if (file_exists($photo->full_path)) {
+                        unlink($photo->full_path);
+                    }
+                }
+
+                $photo->delete();
+                $deletedCount++;
+            }
+        }
+
+        Flux::toast(
+            $deletedCount.' photos deleted',
+            'Success',
+            'success'
+        );
+
+        // Reset state
+        $this->selectedPhotos = [];
+        $this->showDeleteModal = false;
+        $this->deleteFiles = false;
+        $this->selectedAction = '';
     }
 }

@@ -97,6 +97,85 @@ class ConfigComponent extends Component
         }
     }
 
+    /**
+     * Stop Horizon gracefully
+     */
+    public function stopHorizon(): void
+    {
+        Log::info('Stopping Horizon from ConfigComponent');
+
+        try {
+            // Get the HorizonService
+            $horizonService = app(\App\Services\HorizonService::class);
+
+            // Stop Horizon
+            if ($horizonService->stop()) {
+                Flux::toast(
+                    text: 'Horizon has been stopped successfully.',
+                    heading: 'Horizon Stopped',
+                    variant: 'success',
+                    position: 'top right'
+                );
+            } else {
+                Flux::toast(
+                    text: 'Failed to stop Horizon. Check logs for details.',
+                    heading: 'Stop Failed',
+                    variant: 'danger',
+                    position: 'top right'
+                );
+            }
+        } catch (\Exception $e) {
+            Log::error('Error stopping Horizon: '.$e->getMessage());
+
+            Flux::toast(
+                text: 'Error stopping Horizon: '.$e->getMessage(),
+                heading: 'Stop Failed',
+                variant: 'danger',
+                position: 'top right'
+            );
+        }
+    }
+
+    /**
+     * Force kill Horizon processes
+     * This should only be used when normal stop doesn't work
+     */
+    public function forceKillHorizon(): void
+    {
+        Log::warning('Force killing Horizon from ConfigComponent');
+
+        try {
+            // Get the HorizonService
+            $horizonService = app(\App\Services\HorizonService::class);
+
+            // Force kill Horizon
+            if ($horizonService->forceKill()) {
+                Flux::toast(
+                    text: 'All Horizon processes have been forcefully terminated.',
+                    heading: 'Horizon Force Killed',
+                    variant: 'warning',
+                    position: 'top right'
+                );
+            } else {
+                Flux::toast(
+                    text: 'Failed to kill all Horizon processes. Check logs for details.',
+                    heading: 'Force Kill Failed',
+                    variant: 'danger',
+                    position: 'top right'
+                );
+            }
+        } catch (\Exception $e) {
+            Log::error('Error force killing Horizon: '.$e->getMessage());
+
+            Flux::toast(
+                text: 'Error force killing Horizon: '.$e->getMessage(),
+                heading: 'Force Kill Failed',
+                variant: 'danger',
+                position: 'top right'
+            );
+        }
+    }
+
     public function loadConfigurations(): void
     {
         // Get all configurations
@@ -400,11 +479,42 @@ class ConfigComponent extends Component
     /**
      * Restart Horizon programmatically directly from UI button
      * This is called when manually clicking the restart button
-     * We use the queue job approach to avoid HTTP timeouts
+     * We use direct restart to avoid issues with stuck queue
      */
     public function restartHorizon(): void
     {
-        $this->scheduleHorizonRestart();
+        Log::info('Restarting Horizon directly from ConfigComponent');
+
+        try {
+            // Get the HorizonService
+            $horizonService = app(\App\Services\HorizonService::class);
+
+            // Use direct restart instead of queued job
+            if ($horizonService->restartDirect()) {
+                Flux::toast(
+                    text: 'Horizon has been restarted successfully.',
+                    heading: 'Horizon Restarted',
+                    variant: 'success',
+                    position: 'top right'
+                );
+            } else {
+                Flux::toast(
+                    text: 'Failed to restart Horizon. Check logs for details.',
+                    heading: 'Restart Failed',
+                    variant: 'danger',
+                    position: 'top right'
+                );
+            }
+        } catch (\Exception $e) {
+            Log::error('Error restarting Horizon: '.$e->getMessage());
+
+            Flux::toast(
+                text: 'Error restarting Horizon: '.$e->getMessage(),
+                heading: 'Restart Failed',
+                variant: 'danger',
+                position: 'top right'
+            );
+        }
     }
 
     /**
@@ -695,9 +805,11 @@ class ConfigComponent extends Component
         // Pass the Horizon status to the view
         $horizonService = app(\App\Services\HorizonService::class);
         $isHorizonRunning = $horizonService->isRunning();
+        $horizonProcessInfo = $horizonService->getProcessInfo();
 
         return view('livewire.config-component', [
             'isHorizonRunning' => $isHorizonRunning,
+            'horizonProcessInfo' => $horizonProcessInfo,
         ]);
     }
 }

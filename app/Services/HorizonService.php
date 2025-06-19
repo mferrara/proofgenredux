@@ -47,6 +47,65 @@ class HorizonService
     }
 
     /**
+     * Get detailed Horizon process information
+     */
+    public function getProcessInfo(): array
+    {
+        try {
+            $phpBinary = Configuration::getPhpBinary();
+            
+            // Get main Horizon process
+            $mainProcess = shell_exec("ps aux | grep '[p]hp.*artisan horizon$' | grep -v 'horizon:work' | grep -v 'horizon:supervisor'");
+            
+            if (empty($mainProcess)) {
+                return [
+                    'running' => false,
+                    'processes' => []
+                ];
+            }
+
+            $processes = [];
+            $lines = explode("\n", trim($mainProcess));
+            
+            foreach ($lines as $line) {
+                if (empty($line)) continue;
+                
+                // Parse ps output
+                $parts = preg_split('/\s+/', $line, 11);
+                if (count($parts) >= 11) {
+                    $processes[] = [
+                        'user' => $parts[0],
+                        'pid' => $parts[1],
+                        'cpu' => $parts[2],
+                        'memory' => $parts[3],
+                        'start_time' => $parts[8],
+                        'command' => $parts[10]
+                    ];
+                }
+            }
+
+            // Count supervisor and worker processes
+            $supervisorCount = (int) shell_exec("ps aux | grep '[h]orizon:supervisor' | wc -l");
+            $workerCount = (int) shell_exec("ps aux | grep '[h]orizon:work' | wc -l");
+
+            return [
+                'running' => true,
+                'main_process' => $processes[0] ?? null,
+                'supervisor_count' => $supervisorCount,
+                'worker_count' => $workerCount,
+                'total_processes' => 1 + $supervisorCount + $workerCount
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Error getting Horizon process info: '.$e->getMessage());
+            return [
+                'running' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
      * Terminate the running Horizon process
      */
     public function terminate(): bool
@@ -134,5 +193,107 @@ class HorizonService
         Queue::push(new \App\Jobs\RestartHorizon);
 
         Log::info('Scheduled Horizon restart job');
+    }
+
+    /**
+     * Restart Horizon directly without using queue
+     * This is useful when Horizon is stuck and can't process queued jobs
+     */
+    public function restartDirect(): bool
+    {
+        try {
+            Log::info('Directly restarting Horizon (without queue)');
+
+            // First terminate if running
+            if ($this->isRunning()) {
+                Log::debug('Terminating existing Horizon process');
+                $this->terminate();
+
+                // Wait for process to stop (max 5 seconds)
+                $startTime = time();
+                $maxWaitTime = 5;
+
+                while ($this->isRunning() && (time() - $startTime < $maxWaitTime)) {
+                    usleep(500000); // 500ms
+                }
+
+                if ($this->isRunning()) {
+                    Log::warning('Horizon did not stop gracefully, attempting force kill');
+                    $this->forceKill();
+                    sleep(1); // Give it a moment after force kill
+                }
+            }
+
+            // Start Horizon
+            Log::debug('Starting Horizon');
+            $result = $this->start();
+
+            if ($result) {
+                Log::info('Horizon restarted successfully');
+            } else {
+                Log::error('Failed to restart Horizon');
+            }
+
+            return $result;
+
+        } catch (\Exception $e) {
+            Log::error('Error during direct Horizon restart: '.$e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Force kill all Horizon processes
+     * This should only be used when terminate() doesn't work
+     */
+    public function forceKill(): bool
+    {
+        try {
+            Log::warning('Force killing Horizon processes');
+
+            // Get all Horizon process PIDs
+            $pids = shell_exec("ps aux | grep '[p]hp.*artisan horizon' | awk '{print $2}'");
+            
+            if (empty($pids)) {
+                Log::info('No Horizon processes found to kill');
+                return true;
+            }
+
+            $pidArray = array_filter(explode("\n", trim($pids)));
+            
+            foreach ($pidArray as $pid) {
+                if (!empty($pid) && is_numeric($pid)) {
+                    Log::debug("Killing Horizon process: $pid");
+                    exec("kill -9 $pid");
+                }
+            }
+
+            // Give processes time to die
+            sleep(1);
+
+            // Verify they're gone
+            $remainingPids = shell_exec("ps aux | grep '[p]hp.*artisan horizon' | awk '{print $2}'");
+            
+            if (empty(trim($remainingPids))) {
+                Log::info('All Horizon processes killed successfully');
+                return true;
+            } else {
+                Log::error('Some Horizon processes may still be running');
+                return false;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error force killing Horizon: '.$e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Stop Horizon gracefully
+     * Alias for terminate() for UI consistency
+     */
+    public function stop(): bool
+    {
+        return $this->terminate();
     }
 }

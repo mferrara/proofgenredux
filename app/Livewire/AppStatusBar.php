@@ -60,6 +60,84 @@ class AppStatusBar extends Component
         }
     }
 
+    /**
+     * Stop Horizon
+     */
+    public function stopHorizon()
+    {
+        Log::info('Stopping Horizon from AppStatusBar');
+
+        try {
+            // Get the HorizonService
+            $horizonService = app(HorizonService::class);
+
+            // Stop Horizon
+            if ($horizonService->stop()) {
+                Flux::toast(
+                    text: 'Horizon has been stopped successfully.',
+                    heading: 'Horizon Stopped',
+                    variant: 'success',
+                    position: 'top right'
+                );
+            } else {
+                Flux::toast(
+                    text: 'Failed to stop Horizon. Check logs for details.',
+                    heading: 'Stop Failed',
+                    variant: 'danger',
+                    position: 'top right'
+                );
+            }
+        } catch (\Exception $e) {
+            Log::error('Error stopping Horizon: '.$e->getMessage());
+
+            Flux::toast(
+                text: 'Error stopping Horizon: '.$e->getMessage(),
+                heading: 'Stop Failed',
+                variant: 'danger',
+                position: 'top right'
+            );
+        }
+    }
+
+    /**
+     * Restart Horizon directly
+     */
+    public function restartHorizon()
+    {
+        Log::info('Restarting Horizon from AppStatusBar');
+
+        try {
+            // Get the HorizonService
+            $horizonService = app(HorizonService::class);
+
+            // Use direct restart
+            if ($horizonService->restartDirect()) {
+                Flux::toast(
+                    text: 'Horizon has been restarted successfully.',
+                    heading: 'Horizon Restarted',
+                    variant: 'success',
+                    position: 'top right'
+                );
+            } else {
+                Flux::toast(
+                    text: 'Failed to restart Horizon. Check logs for details.',
+                    heading: 'Restart Failed',
+                    variant: 'danger',
+                    position: 'top right'
+                );
+            }
+        } catch (\Exception $e) {
+            Log::error('Error restarting Horizon: '.$e->getMessage());
+
+            Flux::toast(
+                text: 'Error restarting Horizon: '.$e->getMessage(),
+                heading: 'Restart Failed',
+                variant: 'danger',
+                position: 'top right'
+            );
+        }
+    }
+
     public function render()
     {
         // Check if Horizon is running using the service

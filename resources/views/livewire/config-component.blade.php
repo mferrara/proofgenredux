@@ -353,35 +353,82 @@
                 @endif
             @endforeach
                 <div class="fixed bottom-0 left-0 right-0 bg-zinc-800/90 shadow-lg border-t border-zinc-700 p-4 z-50 transition-all duration-300 ease-in-out transform translate-y-0">
-                    <div class="max-w-7xl mx-auto flex justify-between items-center">
-                        <div>
-                            <!-- Horizon Start/Restart Button -->
-                            @if($isHorizonRunning)
-                                <flux:button
-                                    variant="ghost"
-                                    wire:click="restartHorizon"
-                                    wire:loading.attr="disabled"
-                                    wire:target="restartHorizon"
-                                    icon="arrow-path"
-                                    class="text-blue-400 hover:text-blue-300"
-                                >
-                                    Restart Horizon
-                                </flux:button>
-                            @else
-                                <flux:button
-                                    variant="ghost"
-                                    wire:click="startHorizon"
-                                    wire:loading.attr="disabled"
-                                    wire:target="startHorizon"
-                                    icon="play"
-                                    class="text-green-500 hover:text-green-400"
-                                >
-                                    Start Horizon
-                                </flux:button>
-                            @endif
+                    <div class="max-w-7xl mx-auto">
+                        <!-- Horizon Process Info -->
+                        @if($isHorizonRunning && isset($horizonProcessInfo['main_process']))
+                            <div class="mb-3 text-xs text-gray-400">
+                                <div class="flex gap-4">
+                                    <span>PID: {{ $horizonProcessInfo['main_process']['pid'] ?? 'N/A' }}</span>
+                                    <span>CPU: {{ $horizonProcessInfo['main_process']['cpu'] ?? 'N/A' }}%</span>
+                                    <span>Memory: {{ $horizonProcessInfo['main_process']['memory'] ?? 'N/A' }}%</span>
+                                    <span>Supervisors: {{ $horizonProcessInfo['supervisor_count'] ?? 0 }}</span>
+                                    <span>Workers: {{ $horizonProcessInfo['worker_count'] ?? 0 }}</span>
+                                    <span>Total Processes: {{ $horizonProcessInfo['total_processes'] ?? 0 }}</span>
+                                </div>
+                            </div>
+                        @endif
+                        
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2">
+                                <!-- Horizon Control Buttons -->
+                                @if($isHorizonRunning)
+                                    <flux:button
+                                        variant="ghost"
+                                        wire:click="stopHorizon"
+                                        wire:loading.attr="disabled"
+                                        wire:target="stopHorizon"
+                                        icon="stop"
+                                        class="text-red-500 hover:text-red-400"
+                                    >
+                                        Stop
+                                    </flux:button>
+                                    
+                                    <flux:button
+                                        variant="ghost"
+                                        wire:click="restartHorizon"
+                                        wire:loading.attr="disabled"
+                                        wire:target="restartHorizon"
+                                        icon="arrow-path"
+                                        class="text-blue-400 hover:text-blue-300"
+                                    >
+                                        Restart
+                                    </flux:button>
+                                    
+                                    <flux:dropdown align="top">
+                                        <flux:button 
+                                            variant="ghost" 
+                                            icon="exclamation-triangle"
+                                            class="text-amber-500 hover:text-amber-400"
+                                        >
+                                            Force Actions
+                                        </flux:button>
+                                        
+                                        <flux:menu>
+                                            <flux:menu.item 
+                                                wire:click="forceKillHorizon"
+                                                wire:confirm="Are you sure you want to force kill all Horizon processes? This should only be used if normal stop doesn't work."
+                                                icon="x-circle"
+                                                variant="danger"
+                                            >
+                                                Force Kill All Processes
+                                            </flux:menu.item>
+                                        </flux:menu>
+                                    </flux:dropdown>
+                                @else
+                                    <flux:button
+                                        variant="ghost"
+                                        wire:click="startHorizon"
+                                        wire:loading.attr="disabled"
+                                        wire:target="startHorizon"
+                                        icon="play"
+                                        class="text-green-500 hover:text-green-400"
+                                    >
+                                        Start Horizon
+                                    </flux:button>
+                                @endif
 
-                            <div class="inline-flex items-center gap-2 ml-4">
-                                <!-- Auto-restart Horizon checkbox -->
+                                <div class="inline-flex items-center gap-2 ml-4">
+                                    <!-- Auto-restart Horizon checkbox -->
                                 <flux:checkbox
                                     id="auto_restart_horizon"
                                     wire:model.live="configValues.{{ $this->getConfigId('auto_restart_horizon') }}"
