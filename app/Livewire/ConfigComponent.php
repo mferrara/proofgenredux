@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Configuration;
 use App\Proofgen\Image;
+use App\Services\ImageEnhancementService;
 use App\Services\UpdateService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -47,6 +48,18 @@ class ConfigComponent extends Component
     public bool $previewLoading = false;
 
     public bool $initialLoad = true;
+
+    // Active tab for image preview
+    public string $activeTab = 'large';
+
+    // Unenhanced preview properties for comparison
+    public ?string $largeThumbnailPreviewUnenhanced = null;
+
+    public ?string $smallThumbnailPreviewUnenhanced = null;
+
+    public ?string $webImagePreviewUnenhanced = null;
+
+    public ?string $highresImagePreviewUnenhanced = null;
 
     // Update system properties
     public ?array $updateInfo = null;
@@ -292,6 +305,15 @@ class ConfigComponent extends Component
         $this->generateThumbnailPreviews();
     }
 
+    /**
+     * Update the active tab and generate preview for that tab
+     */
+    public function updateActiveTab(string $tab): void
+    {
+        $this->activeTab = $tab;
+        $this->generateThumbnailPreviews();
+    }
+
     public function returnError(?string $message = null): void
     {
         if (! $message) {
@@ -344,6 +366,7 @@ class ConfigComponent extends Component
             'thumbnails' => 'Thumbnails',
             'web_images' => 'Web Images',
             'highres_images' => 'High Resolution Images',
+            'enhancement' => 'Image Enhancement',
             'sftp' => 'Server (SFTP)',
             'archive' => 'Archive',
             'system' => 'System Settings',
@@ -407,8 +430,37 @@ class ConfigComponent extends Component
                         $rule[] = 'min:1';
                         $rule[] = 'max:9999';
                     }
+                    // Enhancement grid size validation
+                    elseif ($config->key === 'enhancement_clahe_grid_size') {
+                        $rule[] = 'min:4';
+                        $rule[] = 'max:16';
+                    }
+                } elseif ($config->type === 'float') {
+                    $rule[] = 'numeric';
+
+                    // Enhancement percentile validation
+                    if ($config->key === 'enhancement_percentile_low') {
+                        $rule[] = 'min:0.0';
+                        $rule[] = 'max:1.0';
+                    } elseif ($config->key === 'enhancement_percentile_high') {
+                        $rule[] = 'min:99.0';
+                        $rule[] = 'max:100.0';
+                    }
+                    // CLAHE clip limit validation
+                    elseif ($config->key === 'enhancement_clahe_clip_limit') {
+                        $rule[] = 'min:1.0';
+                        $rule[] = 'max:4.0';
+                    }
+                } elseif ($config->type === 'string') {
+                    // For enhancement method, validate against allowed values
+                    if ($config->key === 'image_enhancement_method') {
+                        $rule[] = 'in:basic_auto_levels,percentile_clipping,percentile_with_curve,clahe,smart_indoor';
+                    } else {
+                        // For other string fields, limit string length
+                        $rule[] = 'max:250';
+                    }
                 } else {
-                    // For non-integer fields, limit string length
+                    // For other non-integer fields, limit string length
                     $rule[] = 'max:250';
                 }
 
@@ -770,28 +822,45 @@ class ConfigComponent extends Component
 
             // Generate previews with temporary config values
             $timestamp = now()->timestamp;
-            $largePreviewPath = $tempDir.'/large_preview_'.$timestamp.'.jpg';
-            $smallPreviewPath = $tempDir.'/small_preview_'.$timestamp.'.jpg';
-            $webPreviewPath = $tempDir.'/web_preview_'.$timestamp.'.jpg';
-            $highresPreviewPath = $tempDir.'/highres_preview_'.$timestamp.'.jpg';
 
-            // Create thumbnails with custom settings
-            $this->createPreviewThumbnail($this->sampleImagePath, $largePreviewPath, 'thumbnails', 'large');
-            $this->createPreviewThumbnail($this->sampleImagePath, $smallPreviewPath, 'thumbnails', 'small');
-            $this->createPreviewThumbnail($this->sampleImagePath, $webPreviewPath, 'web_images');
-            $this->createPreviewThumbnail($this->sampleImagePath, $highresPreviewPath, 'highres_images');
+            // Only generate preview for the active tab
+            switch ($this->activeTab) {
+                case 'large':
+                    $largePreviewPath = $tempDir.'/large_preview_'.$timestamp.'.jpg';
+                    $largePreviewPathUnenhanced = $tempDir.'/large_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->createPreviewThumbnail($this->sampleImagePath, $largePreviewPath, 'thumbnails', 'large', true);
+                    $this->largeThumbnailPreview = '/temp/thumbnail-preview/large_preview_'.$timestamp.'.jpg';
+                    $this->largeThumbnailPreviewUnenhanced = '/temp/thumbnail-preview/large_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->largeThumbnailInfo = $this->getFileInfo($largePreviewPath);
+                    break;
 
-            // Set preview URLs (these will be served via a route)
-            $this->largeThumbnailPreview = '/temp/thumbnail-preview/large_preview_'.$timestamp.'.jpg';
-            $this->smallThumbnailPreview = '/temp/thumbnail-preview/small_preview_'.$timestamp.'.jpg';
-            $this->webImagePreview = '/temp/thumbnail-preview/web_preview_'.$timestamp.'.jpg';
-            $this->highresImagePreview = '/temp/thumbnail-preview/highres_preview_'.$timestamp.'.jpg';
+                case 'small':
+                    $smallPreviewPath = $tempDir.'/small_preview_'.$timestamp.'.jpg';
+                    $smallPreviewPathUnenhanced = $tempDir.'/small_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->createPreviewThumbnail($this->sampleImagePath, $smallPreviewPath, 'thumbnails', 'small', true);
+                    $this->smallThumbnailPreview = '/temp/thumbnail-preview/small_preview_'.$timestamp.'.jpg';
+                    $this->smallThumbnailPreviewUnenhanced = '/temp/thumbnail-preview/small_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->smallThumbnailInfo = $this->getFileInfo($smallPreviewPath);
+                    break;
 
-            // Get file info
-            $this->largeThumbnailInfo = $this->getFileInfo($largePreviewPath);
-            $this->smallThumbnailInfo = $this->getFileInfo($smallPreviewPath);
-            $this->webImageInfo = $this->getFileInfo($webPreviewPath);
-            $this->highresImageInfo = $this->getFileInfo($highresPreviewPath);
+                case 'web':
+                    $webPreviewPath = $tempDir.'/web_preview_'.$timestamp.'.jpg';
+                    $webPreviewPathUnenhanced = $tempDir.'/web_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->createPreviewThumbnail($this->sampleImagePath, $webPreviewPath, 'web_images', null, true);
+                    $this->webImagePreview = '/temp/thumbnail-preview/web_preview_'.$timestamp.'.jpg';
+                    $this->webImagePreviewUnenhanced = '/temp/thumbnail-preview/web_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->webImageInfo = $this->getFileInfo($webPreviewPath);
+                    break;
+
+                case 'highres':
+                    $highresPreviewPath = $tempDir.'/highres_preview_'.$timestamp.'.jpg';
+                    $highresPreviewPathUnenhanced = $tempDir.'/highres_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->createPreviewThumbnail($this->sampleImagePath, $highresPreviewPath, 'highres_images', null, true);
+                    $this->highresImagePreview = '/temp/thumbnail-preview/highres_preview_'.$timestamp.'.jpg';
+                    $this->highresImagePreviewUnenhanced = '/temp/thumbnail-preview/highres_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->highresImageInfo = $this->getFileInfo($highresPreviewPath);
+                    break;
+            }
 
         } catch (\Exception $e) {
             Log::error('Error generating thumbnail previews: '.$e->getMessage());
@@ -803,7 +872,7 @@ class ConfigComponent extends Component
     /**
      * Create a preview thumbnail with temporary settings
      */
-    private function createPreviewThumbnail(string $sourcePath, string $destPath, string $type, ?string $size = null): void
+    private function createPreviewThumbnail(string $sourcePath, string $destPath, string $type, ?string $size = null, bool $generateUnenhanced = false): void
     {
         Log::debug('createPreviewThumbnail: Reading source image', [
             'sourcePath' => $sourcePath,
@@ -815,7 +884,61 @@ class ConfigComponent extends Component
         ]);
 
         $manager = ImageManager::gd();
-        $image = $manager->read($sourcePath);
+
+        // Check if enhancement is enabled and should be applied to this image type
+        $enhancementEnabled = false;
+        $enhancementMethod = 'basic_auto_levels';
+
+        // Get enhancement configuration values
+        $enhancementEnabledId = $this->getConfigId('image_enhancement_enabled');
+        $enhancementMethodId = $this->getConfigId('image_enhancement_method');
+
+        if ($enhancementEnabledId && isset($this->configValues[$enhancementEnabledId]) && $this->configValues[$enhancementEnabledId]) {
+            // Check if we should apply to this type
+            if ($type === 'thumbnails') {
+                $applyToProofsId = $this->getConfigId('enhancement_apply_to_proofs');
+                $enhancementEnabled = $applyToProofsId && isset($this->configValues[$applyToProofsId]) && $this->configValues[$applyToProofsId];
+            } elseif ($type === 'web_images') {
+                $applyToWebId = $this->getConfigId('enhancement_apply_to_web');
+                $enhancementEnabled = $applyToWebId && isset($this->configValues[$applyToWebId]) && $this->configValues[$applyToWebId];
+            } elseif ($type === 'highres_images') {
+                $applyToHighresId = $this->getConfigId('enhancement_apply_to_highres');
+                $enhancementEnabled = $applyToHighresId && isset($this->configValues[$applyToHighresId]) && $this->configValues[$applyToHighresId];
+            }
+
+            if ($enhancementMethodId && isset($this->configValues[$enhancementMethodId])) {
+                $enhancementMethod = $this->configValues[$enhancementMethodId];
+            }
+        }
+
+        // Apply enhancement if enabled
+        if ($enhancementEnabled) {
+            $enhancementService = app(ImageEnhancementService::class);
+
+            // Get enhancement parameters from config values
+            $parameters = [];
+            $percentileLowId = $this->getConfigId('enhancement_percentile_low');
+            $percentileHighId = $this->getConfigId('enhancement_percentile_high');
+            $claheClipLimitId = $this->getConfigId('enhancement_clahe_clip_limit');
+            $claheGridSizeId = $this->getConfigId('enhancement_clahe_grid_size');
+
+            if ($percentileLowId && isset($this->configValues[$percentileLowId])) {
+                $parameters['percentile_low'] = $this->configValues[$percentileLowId];
+            }
+            if ($percentileHighId && isset($this->configValues[$percentileHighId])) {
+                $parameters['percentile_high'] = $this->configValues[$percentileHighId];
+            }
+            if ($claheClipLimitId && isset($this->configValues[$claheClipLimitId])) {
+                $parameters['clahe_clip_limit'] = $this->configValues[$claheClipLimitId];
+            }
+            if ($claheGridSizeId && isset($this->configValues[$claheGridSizeId])) {
+                $parameters['clahe_grid_size'] = $this->configValues[$claheGridSizeId];
+            }
+
+            $image = $enhancementService->enhance($sourcePath, $enhancementMethod, $parameters);
+        } else {
+            $image = $manager->read($sourcePath);
+        }
 
         // Get the temporary values based on type
         if ($type === 'thumbnails' && $size) {
@@ -836,6 +959,17 @@ class ConfigComponent extends Component
         $image->scale($width, $height)
             ->toJpeg($quality)
             ->save($destPath);
+
+        // If enhancement is enabled and we need unenhanced version, create it too
+        if ($generateUnenhanced && $enhancementEnabled) {
+            // Generate unenhanced version
+            $imageUnenhanced = $manager->read($sourcePath);
+            $unenhancedPath = str_replace('_preview_', '_preview_unenhanced_', $destPath);
+
+            $imageUnenhanced->scale($width, $height)
+                ->toJpeg($quality)
+                ->save($unenhancedPath);
+        }
     }
 
     /**
@@ -868,6 +1002,38 @@ class ConfigComponent extends Component
             'size' => $this->formatBytes($size),
             'dimensions' => $width.' × '.$height.' px',
         ];
+    }
+
+    /**
+     * Check if enhancement is enabled for the current tab
+     */
+    public function isEnhancementEnabledForCurrentTab(): bool
+    {
+        $enhancementEnabledId = $this->getConfigId('image_enhancement_enabled');
+        if (! $enhancementEnabledId || ! isset($this->configValues[$enhancementEnabledId]) || ! $this->configValues[$enhancementEnabledId]) {
+            return false;
+        }
+
+        switch ($this->activeTab) {
+            case 'large':
+            case 'small':
+                $applyToProofsId = $this->getConfigId('enhancement_apply_to_proofs');
+
+                return $applyToProofsId && isset($this->configValues[$applyToProofsId]) && $this->configValues[$applyToProofsId];
+
+            case 'web':
+                $applyToWebId = $this->getConfigId('enhancement_apply_to_web');
+
+                return $applyToWebId && isset($this->configValues[$applyToWebId]) && $this->configValues[$applyToWebId];
+
+            case 'highres':
+                $applyToHighresId = $this->getConfigId('enhancement_apply_to_highres');
+
+                return $applyToHighresId && isset($this->configValues[$applyToHighresId]) && $this->configValues[$applyToHighresId];
+
+            default:
+                return false;
+        }
     }
 
     /**

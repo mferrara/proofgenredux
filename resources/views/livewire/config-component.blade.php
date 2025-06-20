@@ -24,7 +24,7 @@
             @endphp
             
             @if($hasImageSettings)
-                <div class="mb-8" x-data="{ activeTab: 'large' }">
+                <div class="mb-8" x-data="{ activeTab: @entangle('activeTab') }">
                     <div class="text-2xl font-semibold mb-2">
                         Image Settings
                     </div>
@@ -43,28 +43,28 @@
                         <flux:tabs variant="segmented">
                             <flux:tab
                                 name="large"
-                                x-on:click="activeTab = 'large'"
+                                wire:click="updateActiveTab('large')"
                                 x-bind:selected="activeTab === 'large'"
                             >
                                 Large Thumbnails
                             </flux:tab>
                             <flux:tab
                                 name="small"
-                                x-on:click="activeTab = 'small'"
+                                wire:click="updateActiveTab('small')"
                                 x-bind:selected="activeTab === 'small'"
                             >
                                 Small Thumbnails
                             </flux:tab>
                             <flux:tab
                                 name="web"
-                                x-on:click="activeTab = 'web'"
+                                wire:click="updateActiveTab('web')"
                                 x-bind:selected="activeTab === 'web'"
                             >
                                 Web Images
                             </flux:tab>
                             <flux:tab
                                 name="highres"
-                                x-on:click="activeTab = 'highres'"
+                                wire:click="updateActiveTab('highres')"
                                 x-bind:selected="activeTab === 'highres'"
                             >
                                 High Resolution
@@ -87,16 +87,28 @@
                                     <div class="bg-zinc-800 rounded-md p-6 mb-6">
                                         <h3 class="text-lg font-medium text-gray-200 mb-4">Large Thumbnail Preview</h3>
                                         @if($largeThumbnailPreview)
-                                            <div class="relative inline-block">
-                                                <img src="{{ $largeThumbnailPreview }}"
+                                            <div class="relative inline-block" x-data="{ showUnenhanced: false }">
+                                                <img x-bind:src="showUnenhanced && @js($largeThumbnailPreviewUnenhanced) ? @js($largeThumbnailPreviewUnenhanced) : @js($largeThumbnailPreview)"
                                                      alt="Large thumbnail preview"
-                                                     class="border border-zinc-600 rounded"
+                                                     class="border border-zinc-600 rounded transition-all duration-200"
+                                                     x-bind:class="{ 'border-amber-500': showUnenhanced }"
                                                      wire:loading.class="opacity-50"
-                                                     wire:target="updatePreview">
-                                                <div wire:loading.delay wire:target="updatePreview"
+                                                     wire:target="updatePreview,updateActiveTab">
+                                                <div wire:loading.delay wire:target="updatePreview,updateActiveTab"
                                                      class="absolute inset-0 flex items-center justify-center">
                                                     <flux:icon.loading class="w-8 h-8 text-blue-500" />
                                                 </div>
+                                                
+                                                @if($this->isEnhancementEnabledForCurrentTab())
+                                                    <div class="absolute top-2 right-2"
+                                                         x-on:mouseenter="showUnenhanced = true"
+                                                         x-on:mouseleave="showUnenhanced = false">
+                                                        <div class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
+                                                            <flux:icon.sparkles variant="mini" class="mr-1" />
+                                                            <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
+                                                        </div>
+                                                    </div>
+                                                @endif
                                             </div>
                                             @if($largeThumbnailInfo)
                                                 <div class="mt-2 text-xs text-gray-400">
@@ -181,16 +193,28 @@
                                     <div class="bg-zinc-800 rounded-md p-6 mb-6">
                                         <h3 class="text-lg font-medium text-gray-200 mb-4">Small Thumbnail Preview</h3>
                                         @if($smallThumbnailPreview)
-                                            <div class="relative inline-block">
-                                                <img src="{{ $smallThumbnailPreview }}"
+                                            <div class="relative inline-block" x-data="{ showUnenhanced: false }">
+                                                <img x-bind:src="showUnenhanced && @js($smallThumbnailPreviewUnenhanced) ? @js($smallThumbnailPreviewUnenhanced) : @js($smallThumbnailPreview)"
                                                      alt="Small thumbnail preview"
-                                                     class="border border-zinc-600 rounded"
+                                                     class="border border-zinc-600 rounded transition-all duration-200"
+                                                     x-bind:class="{ 'border-amber-500': showUnenhanced }"
                                                      wire:loading.class="opacity-50"
-                                                     wire:target="updatePreview">
-                                                <div wire:loading.delay wire:target="updatePreview"
+                                                     wire:target="updatePreview,updateActiveTab">
+                                                <div wire:loading.delay wire:target="updatePreview,updateActiveTab"
                                                      class="absolute inset-0 flex items-center justify-center">
                                                     <flux:icon.loading class="w-8 h-8 text-blue-500" />
                                                 </div>
+                                                
+                                                @if($this->isEnhancementEnabledForCurrentTab())
+                                                    <div class="absolute top-2 right-2"
+                                                         x-on:mouseenter="showUnenhanced = true"
+                                                         x-on:mouseleave="showUnenhanced = false">
+                                                        <div class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
+                                                            <flux:icon.sparkles variant="mini" class="mr-1" />
+                                                            <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
+                                                        </div>
+                                                    </div>
+                                                @endif
                                             </div>
                                             @if($smallThumbnailInfo)
                                                 <div class="mt-2 text-xs text-gray-400">
@@ -275,16 +299,32 @@
                                         <div class="bg-zinc-800 rounded-md p-6 mb-6">
                                             <h3 class="text-lg font-medium text-gray-200 mb-4">Web Image Preview</h3>
                                             @if($webImagePreview)
-                                                <div class="relative inline-block">
-                                                    <img src="{{ $webImagePreview }}"
+                                                <div class="relative inline-block" x-data="{ showUnenhanced: false }">
+                                                    <img x-bind:src="showUnenhanced && @js($webImagePreviewUnenhanced) ? @js($webImagePreviewUnenhanced) : @js($webImagePreview)"
                                                          alt="Web image preview"
                                                          class="border border-zinc-600 rounded"
                                                          wire:loading.class="opacity-50"
-                                                         wire:target="updatePreview">
-                                                    <div wire:loading.delay wire:target="updatePreview"
+                                                         wire:target="updatePreview,updateActiveTab">
+                                                    <div wire:loading.delay wire:target="updatePreview,updateActiveTab"
                                                          class="absolute inset-0 flex items-center justify-center">
                                                         <flux:icon.loading class="w-8 h-8 text-blue-500" />
                                                     </div>
+                                                    
+                                                    @if($this->isEnhancementEnabledForCurrentTab())
+                                                        <div class="absolute top-2 right-2">
+                                                            <flux:badge 
+                                                                color="blue" 
+                                                                size="sm" 
+                                                                variant="solid"
+                                                                class="cursor-pointer select-none"
+                                                                x-on:mouseenter="showUnenhanced = true"
+                                                                x-on:mouseleave="showUnenhanced = false"
+                                                            >
+                                                                <flux:icon.sparkles variant="mini" class="mr-1" />
+                                                                Enhanced
+                                                            </flux:badge>
+                                                        </div>
+                                                    @endif
                                                 </div>
                                                 @if($webImageInfo)
                                                     <div class="mt-2 text-xs text-gray-400">
@@ -386,16 +426,28 @@
                                         <div class="bg-zinc-800 rounded-md p-6 mb-6">
                                             <h3 class="text-lg font-medium text-gray-200 mb-4">High Resolution Image Preview</h3>
                                             @if($highresImagePreview)
-                                                <div class="relative inline-block">
-                                                    <img src="{{ $highresImagePreview }}"
+                                                <div class="relative inline-block" x-data="{ showUnenhanced: false }">
+                                                    <img x-bind:src="showUnenhanced && @js($highresImagePreviewUnenhanced) ? @js($highresImagePreviewUnenhanced) : @js($highresImagePreview)"
                                                          alt="High resolution image preview"
-                                                         class="border border-zinc-600 rounded max-w-full"
+                                                         class="border border-zinc-600 rounded max-w-full transition-all duration-200"
+                                                         x-bind:class="{ 'border-amber-500': showUnenhanced }"
                                                          wire:loading.class="opacity-50"
-                                                         wire:target="updatePreview">
-                                                    <div wire:loading.delay wire:target="updatePreview"
+                                                         wire:target="updatePreview,updateActiveTab">
+                                                    <div wire:loading.delay wire:target="updatePreview,updateActiveTab"
                                                          class="absolute inset-0 flex items-center justify-center">
                                                         <flux:icon.loading class="w-8 h-8 text-blue-500" />
                                                     </div>
+                                                    
+                                                    @if($this->isEnhancementEnabledForCurrentTab())
+                                                        <div class="absolute top-2 right-2"
+                                                             x-on:mouseenter="showUnenhanced = true"
+                                                             x-on:mouseleave="showUnenhanced = false">
+                                                            <div class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
+                                                                <flux:icon.sparkles variant="mini" class="mr-1" />
+                                                                <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
+                                                            </div>
+                                                        </div>
+                                                    @endif
                                                 </div>
                                                 @if($highresImageInfo)
                                                     <div class="mt-2 text-xs text-gray-400">
@@ -494,9 +546,12 @@
                 </div>
             @endif
             
+            {{-- Enhancement Settings --}}
+            @include('livewire.partials.enhancement-settings')
+            
             {{-- Process other non-image categories --}}
             @foreach($configurationsByCategory as $category => $configurations)
-                @if(!in_array($category, ['thumbnails', 'web_images', 'highres_images']))
+                @if(!in_array($category, ['thumbnails', 'web_images', 'highres_images', 'enhancement']))
                     {{-- Regular table layout for other categories --}}
                     <div class="mb-8">
                         <div class="text-2xl font-semibold mb-2">

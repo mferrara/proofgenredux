@@ -4,6 +4,7 @@ namespace App\Proofgen;
 
 use App\Models\Photo;
 use App\Services\PathResolver;
+use App\Services\ImageEnhancementService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\ImageManager;
@@ -260,7 +261,15 @@ class Image
         // determines if the image is rotated or not. 1 = normal, 3 = 180 degrees, 6 = 90 degrees, 8 = 270 degrees
         // But since we haven't had to change anything here this is likely handled automatically.
         // $image = $manager->read($full_size_image_path)->orientate();
-        $image = $manager->read($full_system_path);
+        
+        // Apply enhancement if enabled
+        if (config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_web')) {
+            $enhancementService = app(ImageEnhancementService::class);
+            $method = config('proofgen.image_enhancement_method', 'basic_auto_levels');
+            $image = $enhancementService->enhance($full_system_path, $method);
+        } else {
+            $image = $manager->read($full_system_path);
+        }
         $web_suf = config('proofgen.web_images.suffix');
         $image_filename = pathinfo($full_system_path, PATHINFO_FILENAME);
         $web_thumb_filename = $image_filename.$web_suf.'.jpg';
@@ -316,7 +325,14 @@ class Image
 
         $manager = ImageManager::gd();
 
-        $image = $manager->read($full_system_path);
+        // Apply enhancement if enabled
+        if (config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_highres')) {
+            $enhancementService = app(ImageEnhancementService::class);
+            $method = config('proofgen.image_enhancement_method', 'basic_auto_levels');
+            $image = $enhancementService->enhance($full_system_path, $method);
+        } else {
+            $image = $manager->read($full_system_path);
+        }
         $highres_suf = config('proofgen.highres_images.suffix');
         $image_filename = pathinfo($full_system_path, PATHINFO_FILENAME);
         $highres_thumb_filename = $image_filename.$highres_suf.'.jpg';
@@ -446,7 +462,14 @@ class Image
             throw new \Exception("Image file not found at: {$full_system_path}");
         }
 
-        $image = $manager->read($full_system_path);
+        // Apply enhancement if enabled
+        if (config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_proofs')) {
+            $enhancementService = app(ImageEnhancementService::class);
+            $method = config('proofgen.image_enhancement_method', 'basic_auto_levels');
+            $image = $enhancementService->enhance($full_system_path, $method);
+        } else {
+            $image = $manager->read($full_system_path);
+        }
 
         $lrg_suf = config('proofgen.thumbnails.large.suffix');
         $sml_suf = config('proofgen.thumbnails.small.suffix');
