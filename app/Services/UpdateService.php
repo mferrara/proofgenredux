@@ -112,7 +112,16 @@ class UpdateService
      */
     protected function findComposerBinary(): ?string
     {
-        // First check if composer is in PATH
+        // First check if there's a composer.phar in the project root (bundled with app)
+        $projectComposer = base_path('composer.phar');
+        if (file_exists($projectComposer)) {
+            // Make sure PHP binary is available
+            $phpBinary = config('proofgen.php_binary_path', 'php');
+
+            return "{$phpBinary} {$projectComposer}";
+        }
+
+        // Fallback: check if composer is in PATH
         $result = Process::run('which composer');
         if ($result->successful() && ! empty(trim($result->output()))) {
             return trim($result->output());
@@ -131,15 +140,6 @@ class UpdateService
             if (file_exists($path) && is_executable($path)) {
                 return $path;
             }
-        }
-
-        // Check if there's a composer.phar in the project root
-        $projectComposer = base_path('composer.phar');
-        if (file_exists($projectComposer)) {
-            // Make sure PHP binary is available
-            $phpBinary = config('proofgen.php_binary_path', 'php');
-
-            return "{$phpBinary} {$projectComposer}";
         }
 
         return null;
