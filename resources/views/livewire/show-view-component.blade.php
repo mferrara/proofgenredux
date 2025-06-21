@@ -191,6 +191,61 @@
                                             </flux:button>
                                         </flux:tooltip>
                                     @endif
+                                    
+                                    @if($class_folder_data['is_valid'] && $class_folder_data['show_class'])
+                                        <div x-data="{ 
+                                            renaming: false, 
+                                            newName: '{{ $class_folder_data['path'] }}',
+                                            originalName: '{{ $class_folder_data['path'] }}'
+                                        }">
+                                            <flux:dropdown position="bottom" align="start">
+                                                <flux:button size="xs" variant="ghost" icon-only>
+                                                    <flux:icon name="ellipsis-horizontal" variant="solid" />
+                                                </flux:button>
+                                                
+                                                <flux:navmenu>
+                                                    <flux:navmenu.item 
+                                                        @click="renaming = true; $nextTick(() => $refs.renameInput.focus())"
+                                                        icon="pencil"
+                                                    >
+                                                        Rename
+                                                    </flux:navmenu.item>
+                                                </flux:navmenu>
+                                            </flux:dropdown>
+                                            
+                                            <template x-if="renaming">
+                                                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="renaming = false; newName = originalName">
+                                                    <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+                                                        <flux:heading size="lg" class="mb-4">Rename Class</flux:heading>
+                                                        <div class="space-y-4">
+                                                            <flux:input 
+                                                                x-ref="renameInput"
+                                                                x-model="newName"
+                                                                @keydown.enter="$wire.renameImportedClass(originalName, newName); renaming = false"
+                                                                @keydown.escape="renaming = false; newName = originalName"
+                                                                placeholder="Enter new class name"
+                                                            />
+                                                            <div class="flex justify-end gap-2">
+                                                                <flux:button 
+                                                                    @click="renaming = false; newName = originalName"
+                                                                    variant="ghost"
+                                                                >
+                                                                    Cancel
+                                                                </flux:button>
+                                                                <flux:button 
+                                                                    @click="$wire.renameImportedClass(originalName, newName); renaming = false"
+                                                                    variant="primary"
+                                                                >
+                                                                    <flux:icon name="check" variant="mini" />
+                                                                    Rename
+                                                                </flux:button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    @endif
                                 </div>
                             </td>
                         </tr>

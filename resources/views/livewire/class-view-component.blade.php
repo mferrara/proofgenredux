@@ -77,7 +77,7 @@
                 <li>
                     <div class="flex flex-row items-center gap-x-1">
                         <div class="flex flex-row items-center gap-x-1">
-                            <div><flux:badge color="teal">Imported Photos</flux:badge> are moved from the base class directory (above) into the</div>
+                            <div><flux:badge color="teal">Imported Photos</flux:badge> are moved from the base class directory into the</div>
                             <span class="text-indigo-400 px-2 py-1 bg-gray-400/10 shadow-md">{{ $show_class->full_originals_path }}</span>
                             <div>directory</div>
                         </div>
@@ -289,12 +289,12 @@
     {{-- Move Modal --}}
     <flux:modal wire:model="showMoveModal" name="move-photos">
         <flux:heading size="lg">Move Photos to Another Class</flux:heading>
-        
+
         <div class="mt-4">
             <p class="text-gray-400 mb-4">
                 Moving {{ count($selectedPhotos) }} photos to another class.
             </p>
-            
+
             <flux:select wire:model="targetClass" label="Target Class">
                 <flux:select.option value="">Select a class...</flux:select.option>
                 @foreach($show_class->show->classes as $class)
@@ -303,7 +303,7 @@
                     @endif
                 @endforeach
             </flux:select>
-            
+
             <div class="mt-4 text-sm text-gray-500">
                 <p>This will move:</p>
                 <ul class="list-disc list-inside mt-2">
@@ -314,7 +314,7 @@
                 </ul>
             </div>
         </div>
-        
+
         <div class="flex justify-end gap-3 mt-6">
             <flux:button variant="ghost" wire:click="$set('showMoveModal', false)">
                 Cancel
@@ -328,21 +328,21 @@
     {{-- Delete Modal --}}
     <flux:modal wire:model="showDeleteModal" name="delete-photos">
         <flux:heading size="lg">Delete Photos</flux:heading>
-        
+
         <div class="mt-4">
             <flux:badge color="red" size="lg">
                 Warning: This action cannot be undone
             </flux:badge>
-            
+
             <p class="text-gray-400 mt-4">
                 You are about to delete {{ count($selectedPhotos) }} photos.
             </p>
-            
+
             <div class="mt-4">
                 <flux:checkbox wire:model="deleteFiles" label="Also delete files (originals, proofs, web images, highres images)" />
             </div>
         </div>
-        
+
         <div class="flex justify-end gap-3 mt-6">
             <flux:button variant="ghost" wire:click="$set('showDeleteModal', false)">
                 Cancel
@@ -360,13 +360,13 @@
                 <flux:heading size="lg">
                     Proof #{{ $modalImageData['photo']->proof_number }}
                 </flux:heading>
-                
+
                 <div class="bg-zinc-800 rounded-lg p-4">
-                    <img src="{{ $modalImageData['image'] }}" 
+                    <img src="{{ $modalImageData['image'] }}"
                          alt="Proof #{{ $modalImageData['photo']->proof_number }}"
                          class="max-w-full h-auto mx-auto rounded">
                 </div>
-                
+
                 <div class="grid grid-cols-2 gap-4 text-sm">
                     <div>
                         <span class="text-gray-400">File Type:</span>

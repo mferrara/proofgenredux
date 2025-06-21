@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Helpers\DirectoryNameValidator;
 use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Jobs\ShowClass\ResetClassPhotos;
+use App\Models\ShowClass as ShowClassModel;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
@@ -410,6 +411,44 @@ class ShowViewComponent extends Component
 
             Flux::toast(
                 text: 'Failed to rename directory. Please check permissions.',
+                heading: 'Error',
+                variant: 'danger',
+                position: 'top right'
+            );
+        }
+    }
+
+    public function renameImportedClass(string $old_name, string $new_name): void
+    {
+        // Get the ShowClass model
+        $classId = $this->show_id.'_'.$old_name;
+        $showClass = ShowClassModel::find($classId);
+
+        if (! $showClass) {
+            Flux::toast(
+                text: "Class '{$old_name}' not found.",
+                heading: 'Error',
+                variant: 'danger',
+                position: 'top right'
+            );
+
+            return;
+        }
+
+        // Use the ClassRenameService to handle the rename
+        $renameService = app(\App\Services\ClassRenameService::class);
+        $result = $renameService->renameClass($showClass, $new_name);
+
+        if ($result['success']) {
+            Flux::toast(
+                text: $result['message'],
+                heading: 'Success',
+                variant: 'success',
+                position: 'top right'
+            );
+        } else {
+            Flux::toast(
+                text: $result['error'],
                 heading: 'Error',
                 variant: 'danger',
                 position: 'top right'

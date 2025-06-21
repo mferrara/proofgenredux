@@ -2,7 +2,7 @@
     $allPhotoIds = $photos->pluck('id')->toArray();
     $photoCount = $photos->count();
 @endphp
-<div class="w-full mt-4" x-data="{ 
+<div class="w-full mt-4" x-data="{
     localSelectedPhotos: @js($selectedPhotos ?? []),
     get selectAll() {
         return this.localSelectedPhotos.length === {{ $photoCount }};
@@ -26,7 +26,7 @@
     }
 }">
     {{-- Action bar --}}
-    <div x-show="localSelectedPhotos.length > 0" 
+    <div x-show="localSelectedPhotos.length > 0"
          x-transition
          x-cloak
          class="mb-4 p-4 bg-gray-800 rounded-lg flex items-center gap-4">
@@ -38,14 +38,14 @@
             <flux:select.option value="move">Move to class...</flux:select.option>
             <flux:select.option value="delete">Delete photos</flux:select.option>
         </flux:select>
-        <flux:button 
-            wire:click="performBulkAction" 
+        <flux:button
+            wire:click="performBulkAction"
             size="sm"
         >
             Apply
         </flux:button>
-        <flux:button 
-            variant="ghost" 
+        <flux:button
+            variant="ghost"
             size="sm"
             @click="localSelectedPhotos = []; $wire.set('selectedPhotos', [])"
         >
@@ -57,7 +57,7 @@
         <thead>
             <tr>
                 <th class="w-10">
-                    <input type="checkbox" 
+                    <input type="checkbox"
                            :checked="selectAll"
                            @change="toggleAll()"
                            class="rounded">
@@ -125,7 +125,7 @@
             @endphp
             <tr wire:key="{{ 'image-row-'.$photo->id }}" class="@if( ! $photo->metadata || $file_not_found) bg-red-800/40 @endif">
                 <td>
-                    <input type="checkbox" 
+                    <input type="checkbox"
                            value="{{ $photo->id }}"
                            :checked="localSelectedPhotos.includes('{{ $photo->id }}')"
                            @change="togglePhoto('{{ $photo->id }}')"
@@ -142,7 +142,7 @@
                 </td>
                 <td>
                     <div class="ml-2 text-indigo-400 font-medium">
-                        <button type="button" 
+                        <button type="button"
                                 @click="$wire.showPhotoModal('{{ $photo->id }}')"
                                 class="hover:text-indigo-300 hover:underline cursor-pointer transition-colors">
                             {{ $photo->proof_number }}
@@ -384,7 +384,7 @@
                                 @else
                                     <flux:badge color="yellow" size="sm">Highres Not Uploaded</flux:badge>
                                 @endif
-                            @else
+                            @elseif(config('proofgen.generate_highres_images.enabled', true))
                                 <div class="flex flex-row items-center justify-start gap-x-1">
                                     <flux:badge color="rose" size="sm">No Highres</flux:badge>
                                     <flux:button
