@@ -410,7 +410,11 @@ class ProofgenImageEnhancer {
 
     private func loadImage(from path: String) -> CIImage? {
         let url = URL(fileURLWithPath: path)
-        return CIImage(contentsOf: url)
+        // Load image without applying EXIF orientation to prevent auto-rotation
+        let options: [CIImageOption: Any] = [
+            .applyOrientationProperty: false
+        ]
+        return CIImage(contentsOf: url, options: options)
     }
 
     private func saveImage(_ image: CIImage, to path: String) throws {
