@@ -1,20 +1,8 @@
 # Proofgen Redux Project Notes
 
 ## TODO items
-- [x] Implement a configuration setting to apply "auto levels" to proofs during generation
-  - [x] Created ImageEnhancementService with multiple enhancement methods
-  - [x] Added configuration options for enabling/disabling enhancement
-  - [x] Integrated enhancement into thumbnail, web image, and highres image generation
-  - [x] Updated ConfigComponent to show enhancement settings and preview changes
-  - [x] Added tests for enhancement functionality
-  - [x] Optimized preview generation to only render active tab
-  - [x] Added enhancement indicator with hover comparison feature
-- [ ] Update ConfigComponent preview image generation to use watermarks as they are configured so that the preview images are accurate representations of what will be generated
-  - [ ] Large thumbnail
-  - [ ] Small thumbnail
-  - [ ] Web image
-  - [ ] Highres image
-- [ ] Review and determine if the Web Image and Highres Image settings need/use the background size and font size settings - if not, remove the settings from the ConfigComponent and anywhere else they are used
+
+- [ ] Make favicon from the logo
 - [ ] Update web image and highres image uploads to happen _after_ the proofs are uploaded to ensure that the proofs are prioritized for upload
 - [ ] Implement something that is able to report the current filesize/storage usage of the following at the show and class levels:
   - [ ] Fullsize images
