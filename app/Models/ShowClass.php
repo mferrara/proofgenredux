@@ -704,6 +704,13 @@ class ShowClass extends Model
 
     public function webImageUploads(): array
     {
+        // Check if SFTP web images path is configured
+        $webImagesPath = config('proofgen.sftp.web_images_path');
+        if (empty($webImagesPath)) {
+            Log::error('SFTP web images path not configured - cannot upload web images for ' . $this->id);
+            return [];
+        }
+
         $remote_web_images_path = '/'.$this->remote_web_images_path;
         // Log::debug('Remote web images path: '.$remote_web_images_path);
         if (! Storage::disk('remote_web_images')->exists($remote_web_images_path)) {
@@ -718,7 +725,7 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -747,6 +754,13 @@ class ShowClass extends Model
 
     public function highresImageUploads(): array
     {
+        // Check if SFTP highres images path is configured
+        $highresPath = config('proofgen.sftp.highres_images_path');
+        if (empty($highresPath)) {
+            Log::error('SFTP highres images path not configured - cannot upload highres images for ' . $this->id);
+            return [];
+        }
+
         $remote_highres_images_path = '/'.$this->remote_highres_images_path;
         // Log::debug('Remote highres images path: '.$remote_highres_images_path);
         if (! Storage::disk('remote_highres_images')->exists($remote_highres_images_path)) {
@@ -755,13 +769,19 @@ class ShowClass extends Model
 
         $path_resolver = app(PathResolver::class);
         $command = $this->rsyncHighresImagesCommand();
+        Log::debug('Executing rsync for highres images: ' . $command);
         exec($command, $output, $returnCode);
+        Log::debug('Rsync return code: ' . $returnCode);
+        
+        if ($returnCode !== 0) {
+            Log::error('Rsync failed with return code: ' . $returnCode . ' for ' . $this->id);
+        }
 
         $uploaded_highres_images = [];
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -808,7 +828,7 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -852,7 +872,7 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -879,6 +899,13 @@ class ShowClass extends Model
 
     public function proofUploads()
     {
+        // Check if SFTP proofs path is configured
+        $proofsPath = config('proofgen.sftp.path');
+        if (empty($proofsPath)) {
+            Log::error('SFTP proofs path not configured - cannot upload proofs for ' . $this->id);
+            return [];
+        }
+
         $remote_proofs_path = '/'.$this->remote_proofs_path;
         if (! Storage::disk('remote_proofs')->exists($remote_proofs_path)) {
             Storage::disk('remote_proofs')->makeDirectory($remote_proofs_path);
@@ -896,7 +923,7 @@ class ShowClass extends Model
                 continue;
             }
 
-            if (str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+            if (str_starts_with(strtolower($line), strtolower($this->show->name))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -971,7 +998,7 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show_folder))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 

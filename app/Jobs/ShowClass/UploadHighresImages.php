@@ -39,7 +39,7 @@ class UploadHighresImages implements ShouldQueue
         if (count($highres_uploaded)) {
             Log::info('Uploaded '.count($highres_uploaded).' highres images for '.$this->show.' '.$this->class);
         } else {
-            Log::info('No highres images to upload for '.$this->show.' '.$this->class);
+            Log::warning('Upload operation completed but no highres images were uploaded for '.$this->show.' '.$this->class.' - check configuration and rsync output');
         }
     }
 
