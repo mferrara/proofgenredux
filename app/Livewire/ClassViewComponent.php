@@ -74,6 +74,12 @@ class ClassViewComponent extends Component
 
     public ?array $modalImageData = null;
 
+    // View mode property
+    public string $viewMode = 'list';
+
+    // Thumbnail size property
+    public string $thumbnailSize = 'small';
+
     public function mount(PathResolver $pathResolver): void
     {
         $this->pathResolver = $pathResolver;
@@ -719,5 +725,13 @@ class ClassViewComponent extends Component
         $this->showImageModal = false;
         $this->selectedPhotoId = null;
         $this->modalImageData = null;
+    }
+
+    /**
+     * Toggle between list and grid view modes
+     */
+    public function toggleViewMode(): void
+    {
+        $this->viewMode = $this->viewMode === 'list' ? 'grid' : 'list';
     }
 }

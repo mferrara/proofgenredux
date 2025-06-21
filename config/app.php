@@ -56,6 +56,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Version
+    |--------------------------------------------------------------------------
+    |
+    | This value is the version of your application. This value is used when
+    | the application version needs to be displayed in the UI or elsewhere.
+    | The actual version is determined dynamically from git tags.
+    |
+    */
+
+    'version' => env('APP_VERSION', '1.0.0'), // Fallback only
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
