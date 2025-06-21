@@ -162,19 +162,25 @@ class HorizonService
             $cwd = base_path();
             $env = null; // Use current environment
 
-            // Open the process
-            $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env, ['bypass_shell' => true]);
-
-            // Check if process started successfully
-            if (is_resource($process)) {
-                // This is critical: make the process run independently
-                proc_close($process);
+            // Use shell_exec to start Horizon in the background
+            $fullCommand = sprintf(
+                'cd %s && nohup %s artisan horizon > %s 2>&1 &',
+                escapeshellarg($cwd),
+                escapeshellarg($phpBinary),
+                escapeshellarg(storage_path('logs/horizon.log'))
+            );
+            
+            shell_exec($fullCommand);
+            
+            // Give it a moment to start
+            usleep(500000); // 0.5 seconds
+            
+            // Check if it started successfully
+            if ($this->isRunning()) {
                 Log::debug('Successfully started Horizon process');
-
                 return true;
             } else {
                 Log::error('Failed to start Horizon process');
-
                 return false;
             }
         } catch (\Exception $e) {

@@ -8,6 +8,7 @@ use App\Services\SwiftCompatibilityService;
 use App\Services\UpdateService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -75,6 +76,9 @@ class ConfigComponent extends Component
 
     // Swift compatibility status
     public array $swiftCompatibility = [];
+    
+    // Horizon status
+    public bool $isHorizonRunning = false;
 
     // Input settings tracking
     public ?array $largeThumbnailInputSettings = null;
@@ -121,6 +125,7 @@ class ConfigComponent extends Component
         $this->initializeConfigValues();
         $this->initializeThumbnailPreview();
         $this->checkSwiftCompatibility();
+        $this->updateHorizonStatus();
 
         // Check for updates when Settings page loads
         $this->checkForUpdates();
@@ -184,6 +189,9 @@ class ConfigComponent extends Component
                     variant: 'success',
                     position: 'top right'
                 );
+                
+                // Update status
+                $this->updateHorizonStatus();
             } else {
                 Flux::toast(
                     text: 'Failed to stop Horizon. Check logs for details.',
@@ -556,19 +564,19 @@ class ConfigComponent extends Component
 
     /**
      * Schedule a Horizon restart
-     * This method schedules a job to restart Horizon, avoiding HTTP request timeouts
+     * This method terminates Horizon directly, which will auto-restart if managed by a supervisor
      */
     public function scheduleHorizonRestart(): void
     {
         try {
-            Log::info('Scheduling Horizon restart due to configuration changes');
+            Log::info('Restarting Horizon due to configuration changes');
 
             // Get the HorizonService
             $horizonService = app(\App\Services\HorizonService::class);
 
-            // Confirm Horizon is running before scheduling restart
+            // Confirm Horizon is running before restarting
             if (! $horizonService->isRunning()) {
-                Log::warning('Horizon is not running, cannot schedule restart');
+                Log::warning('Horizon is not running, cannot restart');
                 Flux::toast(text: 'Horizon not running, no restart required.',
                     heading: 'Horizon Not Running',
                     variant: 'warning',
@@ -577,19 +585,53 @@ class ConfigComponent extends Component
                 return;
             }
 
-            // Schedule the restart
-            $horizonService->scheduleRestart();
-
-            // Show success message
-            Flux::toast(text: 'Horizon restart has been scheduled to apply configuration changes.',
-                heading: 'Horizon Restart Scheduled',
-                variant: 'success',
-                position: 'top right');
+            // Terminate Horizon directly using Artisan
+            $exitCode = Artisan::call('horizon:terminate');
+            
+            if ($exitCode === 0) {
+                Log::info('Horizon terminated successfully');
+                
+                // Wait a moment for processes to clean up
+                sleep(2);
+                
+                // Start Horizon again
+                $startResult = $horizonService->start();
+                
+                if ($startResult) {
+                    Log::info('Horizon restarted successfully to apply configuration changes');
+                    
+                    // Show success message
+                    Flux::toast(text: 'Horizon has been restarted to apply configuration changes.',
+                        heading: 'Horizon Restarted',
+                        variant: 'success',
+                        position: 'top right');
+                    
+                    // Update status
+                    $this->updateHorizonStatus();
+                } else {
+                    Log::error('Failed to start Horizon after termination');
+                    
+                    Flux::toast(text: 'Horizon was stopped but failed to restart. Please start it manually.',
+                        heading: 'Horizon Restart Failed',
+                        variant: 'danger',
+                        position: 'top right');
+                    
+                    // Update status
+                    $this->updateHorizonStatus();
+                }
+            } else {
+                Log::error('Failed to terminate Horizon, exit code: ' . $exitCode);
+                
+                Flux::toast(text: 'Failed to restart Horizon. Please restart it manually.',
+                    heading: 'Horizon Restart Failed',
+                    variant: 'danger',
+                    position: 'top right');
+            }
 
         } catch (\Exception $e) {
-            Log::error('Failed to schedule Horizon restart: '.$e->getMessage());
+            Log::error('Failed to restart Horizon: '.$e->getMessage());
 
-            Flux::toast(text: 'Failed to schedule Horizon restart. Please restart it manually.',
+            Flux::toast(text: 'Failed to restart Horizon. Please restart it manually.',
                 heading: 'Horizon Restart Failed',
                 variant: 'danger',
                 position: 'top right');
@@ -617,6 +659,9 @@ class ConfigComponent extends Component
                     variant: 'success',
                     position: 'top right'
                 );
+                
+                // Update status
+                $this->updateHorizonStatus();
             } else {
                 Flux::toast(
                     text: 'Failed to restart Horizon. Check logs for details.',
@@ -624,6 +669,9 @@ class ConfigComponent extends Component
                     variant: 'danger',
                     position: 'top right'
                 );
+                
+                // Update status
+                $this->updateHorizonStatus();
             }
         } catch (\Exception $e) {
             Log::error('Error restarting Horizon: '.$e->getMessage());
@@ -657,6 +705,9 @@ class ConfigComponent extends Component
                     variant: 'success',
                     position: 'top right'
                 );
+                
+                // Update status
+                $this->updateHorizonStatus();
             } else {
                 Flux::toast(
                     text: 'Failed to start Horizon. Check logs for details.',
@@ -1416,6 +1467,15 @@ class ConfigComponent extends Component
             $this->swiftCompatibility = $service->checkCompatibility();
         }
     }
+    
+    /**
+     * Update Horizon running status
+     */
+    protected function updateHorizonStatus(): void
+    {
+        $horizonService = app(\App\Services\HorizonService::class);
+        $this->isHorizonRunning = $horizonService->isRunning();
+    }
 
     /**
      * Handle updates to config values
@@ -1434,13 +1494,15 @@ class ConfigComponent extends Component
 
     public function render()
     {
-        // Pass the Horizon status to the view
-        $horizonService = app(\App\Services\HorizonService::class);
-        $isHorizonRunning = $horizonService->isRunning();
-        $horizonProcessInfo = $horizonService->getProcessInfo();
+        // Get process info if Horizon is running
+        $horizonProcessInfo = [];
+        if ($this->isHorizonRunning) {
+            $horizonService = app(\App\Services\HorizonService::class);
+            $horizonProcessInfo = $horizonService->getProcessInfo();
+        }
 
         return view('livewire.config-component', [
-            'isHorizonRunning' => $isHorizonRunning,
+            'isHorizonRunning' => $this->isHorizonRunning,
             'horizonProcessInfo' => $horizonProcessInfo,
         ]);
     }
