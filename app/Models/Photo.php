@@ -137,14 +137,20 @@ class Photo extends Model
 
     public function getRelativePathAttribute(): string
     {
-        return str_replace('_', '/', $this->show_class_id).'/originals/'.$this->proof_number.'.'.$this->file_type;
+        // Split show_class_id into show and class parts, limiting to 2 parts
+        // This handles class names with underscores (e.g., "opening_ceremony")
+        $parts = explode('_', $this->show_class_id, 2);
+        return $parts[0].'/'.$parts[1].'/originals/'.$this->proof_number.'.'.$this->file_type;
     }
 
     public function getProofsPathAttribute(): string
     {
         $path_resolver = app(PathResolver::class);
-        $show_name = explode('_', $this->show_class_id)[0];
-        $class_name = explode('_', $this->show_class_id)[1];
+        // Split show_class_id into show and class parts, limiting to 2 parts
+        // This handles class names with underscores (e.g., "opening_ceremony")
+        $parts = explode('_', $this->show_class_id, 2);
+        $show_name = $parts[0];
+        $class_name = $parts[1];
 
         return $path_resolver->getProofsPath($show_name, $class_name);
     }

@@ -71,7 +71,10 @@ class ShowClass extends Model
 
     public function getRelativePathAttribute(): string
     {
-        return str_replace('_', '/', $this->id);
+        // Split id into show and class parts, limiting to 2 parts
+        // This handles class names with underscores (e.g., "opening_ceremony")
+        $parts = explode('_', $this->id, 2);
+        return $parts[0].'/'.$parts[1];
     }
 
     public function getOriginalsPathAttribute()
