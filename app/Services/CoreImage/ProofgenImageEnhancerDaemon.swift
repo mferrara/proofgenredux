@@ -493,6 +493,9 @@ class ImageEnhancerServer {
     private let enhancer = ProofgenImageEnhancer()
     private var listener: NWListener?
     private let port: UInt16 = 9876
+    private var lastRequestTime = Date()
+    private var idleTimer: Timer?
+    private let idleTimeoutMinutes: Int = 120 // 2 hours default
     
     func start() {
         let parameters = NWParameters.tcp
@@ -522,6 +525,9 @@ class ImageEnhancerServer {
             listener?.start(queue: .main)
             log("Server listening on port \(port)")
             
+            // Start idle timer
+            startIdleTimer(log: log)
+            
             // Keep the program running
             RunLoop.main.run()
             
@@ -546,6 +552,9 @@ class ImageEnhancerServer {
     }
     
     private func processRequest(data: Data, connection: NWConnection) {
+        // Update last request time
+        lastRequestTime = Date()
+        
         let logPath = "/Users/mikeferrara/Herd/proofgenredux/storage/logs/laravel.log"
         func log(_ message: String) {
             if let handle = FileHandle(forWritingAtPath: logPath) {
@@ -592,6 +601,49 @@ class ImageEnhancerServer {
             } else {
                 connection.cancel()
             }
+        }
+    }
+    
+    private func startIdleTimer(log: @escaping (String) -> Void) {
+        // Check for idle timeout configuration file
+        let configPath = "/Users/mikeferrara/Herd/proofgenredux/storage/core-image-idle-timeout.conf"
+        var timeoutMinutes = idleTimeoutMinutes
+        
+        if let configData = try? String(contentsOfFile: configPath, encoding: .utf8),
+           let minutes = Int(configData.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            timeoutMinutes = minutes
+        }
+        
+        // If timeout is 0, don't set up the timer
+        if timeoutMinutes == 0 {
+            log("Idle timeout disabled")
+            return
+        }
+        
+        log("Starting idle timer with \(timeoutMinutes) minute timeout")
+        
+        // Create timer that checks every minute
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
+            self?.checkIdleTimeout(timeoutMinutes: timeoutMinutes, log: log)
+        }
+    }
+    
+    private func checkIdleTimeout(timeoutMinutes: Int, log: @escaping (String) -> Void) {
+        let idleTime = Date().timeIntervalSince(lastRequestTime)
+        let idleMinutes = Int(idleTime / 60.0)
+        
+        if idleMinutes >= timeoutMinutes {
+            log("Idle timeout reached (\(idleMinutes) minutes). Shutting down daemon.")
+            
+            // Clean up PID file
+            let pidPath = "/Users/mikeferrara/Herd/proofgenredux/storage/core-image-daemon.pid"
+            try? FileManager.default.removeItem(atPath: pidPath)
+            
+            // Cancel listener
+            listener?.cancel()
+            
+            // Exit gracefully
+            exit(0)
         }
     }
 }

@@ -152,6 +152,9 @@ class CoreImageDaemonService extends ImageEnhancementService
                 unlink($pidFile);
             }
 
+            // Write idle timeout configuration file for daemon
+            $this->writeIdleTimeoutConfig();
+
             $daemonPath = app_path('Services/CoreImage/ProofgenImageEnhancerDaemon.swift');
 
             if (! file_exists($daemonPath)) {
@@ -340,6 +343,18 @@ class CoreImageDaemonService extends ImageEnhancementService
     }
 
     /**
+     * Write idle timeout configuration for daemon
+     */
+    protected function writeIdleTimeoutConfig(): void
+    {
+        $configPath = storage_path('core-image-idle-timeout.conf');
+        $idleTimeout = config('proofgen.core_image_idle_timeout', 120);
+
+        file_put_contents($configPath, (string) $idleTimeout);
+        Log::info("CoreImageDaemonService: Wrote idle timeout config: {$idleTimeout} minutes");
+    }
+
+    /**
      * Stop the daemon if it's running
      */
     public function stopDaemon(): bool
@@ -362,6 +377,12 @@ class CoreImageDaemonService extends ImageEnhancementService
 
                 return true;
             }
+        }
+
+        // Clean up config file
+        $configPath = storage_path('core-image-idle-timeout.conf');
+        if (file_exists($configPath)) {
+            unlink($configPath);
         }
 
         return false;
