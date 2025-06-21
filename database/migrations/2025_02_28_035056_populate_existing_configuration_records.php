@@ -195,20 +195,6 @@ return new class extends Migration
                 'label' => 'Web Images Quality',
                 'description' => 'The quality of web images.',
             ],
-            'web_images.font_size' => [
-                'value' => $proofgen_config['web_images']['font_size'],
-                'type' => 'integer',
-                'category' => 'web_images',
-                'label' => 'Web Images Font Size',
-                'description' => 'The font size for web images.',
-            ],
-            'web_images.bg_size' => [
-                'value' => $proofgen_config['web_images']['bg_size'],
-                'type' => 'integer',
-                'category' => 'web_images',
-                'label' => 'Web Images Background Size',
-                'description' => 'The background size for web images.',
-            ],
             'sftp.host' => [
                 'value' => $proofgen_config['sftp']['host'],
                 'type' => 'string',

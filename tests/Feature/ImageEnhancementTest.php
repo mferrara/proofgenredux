@@ -5,16 +5,16 @@ namespace Tests\Feature;
 use App\Models\Configuration;
 use App\Services\ImageEnhancementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
 class ImageEnhancementTest extends TestCase
 {
     use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Enable enhancement for testing
         Configuration::setConfig('image_enhancement_enabled', 'true', 'boolean');
         Configuration::setConfig('image_enhancement_method', 'basic_auto_levels', 'string');
@@ -27,7 +27,7 @@ class ImageEnhancementTest extends TestCase
     {
         // Reset enhancement settings
         Configuration::where('key', 'like', '%enhancement%')->delete();
-        
+
         parent::tearDown();
     }
 
@@ -36,7 +36,7 @@ class ImageEnhancementTest extends TestCase
     {
         // Force configuration override
         Configuration::overrideApplicationConfig();
-        
+
         $this->assertTrue(config('proofgen.image_enhancement_enabled'));
         $this->assertEquals('basic_auto_levels', config('proofgen.image_enhancement_method'));
         $this->assertTrue(config('proofgen.enhancement_apply_to_proofs'));
@@ -46,7 +46,7 @@ class ImageEnhancementTest extends TestCase
     public function it_can_get_enhancement_service()
     {
         $service = app(ImageEnhancementService::class);
-        
+
         $this->assertInstanceOf(ImageEnhancementService::class, $service);
     }
 
@@ -55,7 +55,7 @@ class ImageEnhancementTest extends TestCase
     {
         Configuration::setConfig('image_enhancement_enabled', 'false', 'boolean');
         Configuration::overrideApplicationConfig();
-        
+
         $this->assertFalse(config('proofgen.image_enhancement_enabled'));
     }
 
@@ -64,7 +64,7 @@ class ImageEnhancementTest extends TestCase
     {
         Configuration::setConfig('image_enhancement_method', 'smart_indoor', 'string');
         Configuration::overrideApplicationConfig();
-        
+
         $this->assertEquals('smart_indoor', config('proofgen.image_enhancement_method'));
     }
 
@@ -75,7 +75,7 @@ class ImageEnhancementTest extends TestCase
         Configuration::setConfig('enhancement_apply_to_web', 'true', 'boolean');
         Configuration::setConfig('enhancement_apply_to_highres', 'false', 'boolean');
         Configuration::overrideApplicationConfig();
-        
+
         $this->assertFalse(config('proofgen.enhancement_apply_to_proofs'));
         $this->assertTrue(config('proofgen.enhancement_apply_to_web'));
         $this->assertFalse(config('proofgen.enhancement_apply_to_highres'));

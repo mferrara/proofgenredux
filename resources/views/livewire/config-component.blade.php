@@ -9,7 +9,7 @@
             </flux:radio.group>
         </div>
 
-        <div class="mt-6 mb-24">
+        <div class="mt-6 mb-6">
             <form wire:submit="save">
             {{-- Combined Image Settings Section --}}
             @php
@@ -22,7 +22,7 @@
                     }
                 }
             @endphp
-            
+
             @if($hasImageSettings)
                 <div class="mb-8" x-data="{ activeTab: @entangle('activeTab') }">
                     <div class="text-2xl font-semibold mb-2">
@@ -72,6 +72,20 @@
                         </flux:tabs>
                     </div>
 
+                    {{-- Watermark Toggle for Thumbnails --}}
+                    @if(in_array($activeTab, ['large', 'small']))
+                        <div class="mb-4 flex items-center gap-4">
+                            <flux:checkbox 
+                                wire:model="previewWatermarkEnabled"
+                                wire:change="togglePreviewWatermark"
+                                id="preview-watermark"
+                            />
+                            <flux:label for="preview-watermark" class="text-sm">
+                                Show watermarks on preview images
+                            </flux:label>
+                        </div>
+                    @endif
+
                     <div class="space-y-6">
                         @php
                             $largeConfigs = collect($allImageConfigs['thumbnails'] ?? [])->filter(fn($c) => str_starts_with($c->key, 'thumbnails.large.'))->keyBy('key');
@@ -98,12 +112,18 @@
                                                      class="absolute inset-0 flex items-center justify-center">
                                                     <flux:icon.loading class="w-8 h-8 text-blue-500" />
                                                 </div>
-                                                
+
                                                 @if($this->isEnhancementEnabledForCurrentTab())
-                                                    <div class="absolute top-2 right-2"
-                                                         x-on:mouseenter="showUnenhanced = true"
-                                                         x-on:mouseleave="showUnenhanced = false">
-                                                        <div class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
+                                                    <div class="absolute top-2 right-2 flex items-center gap-2">
+                                                        <button type="button"
+                                                                wire:click="generateThumbnailPreviews"
+                                                                wire:loading.attr="disabled"
+                                                                class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 rounded cursor-pointer select-none transition-all hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                            <flux:icon name="arrow-path" variant="mini" class="w-3 h-3" wire:loading.class="animate-spin" wire:target="generateThumbnailPreviews" />
+                                                        </button>
+                                                        <div x-on:mouseenter="showUnenhanced = true"
+                                                             x-on:mouseleave="showUnenhanced = false"
+                                                             class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
                                                             <flux:icon.sparkles variant="mini" class="mr-1" />
                                                             <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
                                                         </div>
@@ -111,9 +131,12 @@
                                                 @endif
                                             </div>
                                             @if($largeThumbnailInfo)
-                                                <div class="mt-2 text-xs text-gray-400">
-                                                    Output: {{ $largeThumbnailInfo['dimensions'] }} • {{ $largeThumbnailInfo['size'] }}
-                                                </div>
+                                                @include('livewire.partials.preview-info-label', [
+                                                    'inputSettings' => $largeThumbnailInputSettings,
+                                                    'fileInfo' => $largeThumbnailInfo,
+                                                    'enhancementInfo' => $largeThumbnailEnhancementInfo,
+                                                    'processingTime' => $largeThumbnailProcessingTime,
+                                                ])
                                             @endif
                                         @else
                                             <div class="w-[950px] h-[950px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
@@ -204,12 +227,18 @@
                                                      class="absolute inset-0 flex items-center justify-center">
                                                     <flux:icon.loading class="w-8 h-8 text-blue-500" />
                                                 </div>
-                                                
+
                                                 @if($this->isEnhancementEnabledForCurrentTab())
-                                                    <div class="absolute top-2 right-2"
-                                                         x-on:mouseenter="showUnenhanced = true"
-                                                         x-on:mouseleave="showUnenhanced = false">
-                                                        <div class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
+                                                    <div class="absolute top-2 right-2 flex items-center gap-2">
+                                                        <button type="button"
+                                                                wire:click="generateThumbnailPreviews"
+                                                                wire:loading.attr="disabled"
+                                                                class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 rounded cursor-pointer select-none transition-all hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                            <flux:icon name="arrow-path" variant="mini" class="w-3 h-3" wire:loading.class="animate-spin" wire:target="generateThumbnailPreviews" />
+                                                        </button>
+                                                        <div x-on:mouseenter="showUnenhanced = true"
+                                                             x-on:mouseleave="showUnenhanced = false"
+                                                             class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
                                                             <flux:icon.sparkles variant="mini" class="mr-1" />
                                                             <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
                                                         </div>
@@ -217,9 +246,12 @@
                                                 @endif
                                             </div>
                                             @if($smallThumbnailInfo)
-                                                <div class="mt-2 text-xs text-gray-400">
-                                                    Output: {{ $smallThumbnailInfo['dimensions'] }} • {{ $smallThumbnailInfo['size'] }}
-                                                </div>
+                                                @include('livewire.partials.preview-info-label', [
+                                                    'inputSettings' => $smallThumbnailInputSettings,
+                                                    'fileInfo' => $smallThumbnailInfo,
+                                                    'enhancementInfo' => $smallThumbnailEnhancementInfo,
+                                                    'processingTime' => $smallThumbnailProcessingTime,
+                                                ])
                                             @endif
                                         @else
                                             <div class="w-[250px] h-[250px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
@@ -309,27 +341,25 @@
                                                          class="absolute inset-0 flex items-center justify-center">
                                                         <flux:icon.loading class="w-8 h-8 text-blue-500" />
                                                     </div>
-                                                    
+
                                                     @if($this->isEnhancementEnabledForCurrentTab())
-                                                        <div class="absolute top-2 right-2">
-                                                            <flux:badge 
-                                                                color="blue" 
-                                                                size="sm" 
-                                                                variant="solid"
-                                                                class="cursor-pointer select-none"
-                                                                x-on:mouseenter="showUnenhanced = true"
-                                                                x-on:mouseleave="showUnenhanced = false"
-                                                            >
+                                                        <div class="absolute top-2 right-2"
+                                                             x-on:mouseenter="showUnenhanced = true"
+                                                             x-on:mouseleave="showUnenhanced = false">
+                                                            <div class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
                                                                 <flux:icon.sparkles variant="mini" class="mr-1" />
-                                                                Enhanced
-                                                            </flux:badge>
+                                                                <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
+                                                            </div>
                                                         </div>
                                                     @endif
                                                 </div>
                                                 @if($webImageInfo)
-                                                    <div class="mt-2 text-xs text-gray-400">
-                                                        Output: {{ $webImageInfo['dimensions'] }} • {{ $webImageInfo['size'] }}
-                                                    </div>
+                                                    @include('livewire.partials.preview-info-label', [
+                                                        'inputSettings' => $webImageInputSettings,
+                                                        'fileInfo' => $webImageInfo,
+                                                        'enhancementInfo' => $webImageEnhancementInfo,
+                                                        'processingTime' => $webImageProcessingTime,
+                                                    ])
                                                 @endif
                                             @else
                                                 <div class="w-[600px] h-[600px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
@@ -437,7 +467,7 @@
                                                          class="absolute inset-0 flex items-center justify-center">
                                                         <flux:icon.loading class="w-8 h-8 text-blue-500" />
                                                     </div>
-                                                    
+
                                                     @if($this->isEnhancementEnabledForCurrentTab())
                                                         <div class="absolute top-2 right-2"
                                                              x-on:mouseenter="showUnenhanced = true"
@@ -450,9 +480,12 @@
                                                     @endif
                                                 </div>
                                                 @if($highresImageInfo)
-                                                    <div class="mt-2 text-xs text-gray-400">
-                                                        Output: {{ $highresImageInfo['dimensions'] }} • {{ $highresImageInfo['size'] }}
-                                                    </div>
+                                                    @include('livewire.partials.preview-info-label', [
+                                                        'inputSettings' => $highresImageInputSettings,
+                                                        'fileInfo' => $highresImageInfo,
+                                                        'enhancementInfo' => $highresImageEnhancementInfo,
+                                                        'processingTime' => $highresImageProcessingTime,
+                                                    ])
                                                 @endif
                                             @else
                                                 <div class="w-[800px] h-[800px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
@@ -545,10 +578,10 @@
                     </div>
                 </div>
             @endif
-            
+
             {{-- Enhancement Settings --}}
             @include('livewire.partials.enhancement-settings')
-            
+
             {{-- Process other non-image categories --}}
             @foreach($configurationsByCategory as $category => $configurations)
                 @if(!in_array($category, ['thumbnails', 'web_images', 'highres_images', 'enhancement']))
@@ -675,7 +708,7 @@
                                 </div>
                             </div>
                         @endif
-                        
+
                         <div class="flex justify-between items-center">
                             <div class="flex items-center gap-2">
                                 <!-- Update Status -->
@@ -687,7 +720,7 @@
                                         @if($updateInfo['update_available'])
                                             <flux:icon name="arrow-down-circle" class="w-4 h-4 text-amber-400" />
                                             <span class="text-sm text-gray-300">
-                                                Update available: 
+                                                Update available:
                                                 <span class="text-amber-400">{{ $updateInfo['latest_version'] }}</span>
                                             </span>
                                             <flux:button
@@ -703,15 +736,15 @@
                                         @else
                                             <flux:icon name="check-circle" class="w-4 h-4 text-emerald-400" />
                                             <span class="text-sm text-gray-400">
-                                                Up to date 
+                                                Up to date
                                                 <span class="text-emerald-400">{{ $updateInfo['current_version'] }}</span>
                                             </span>
                                         @endif
                                     @endif
                                 </div>
-                                
+
                                 <div class="w-px h-8 bg-zinc-600"></div>
-                                
+
                                 <!-- Horizon Control Buttons -->
                                 @if($isHorizonRunning)
                                     <flux:button
@@ -724,7 +757,7 @@
                                     >
                                         Stop
                                     </flux:button>
-                                    
+
                                     <flux:button
                                         variant="ghost"
                                         wire:click="restartHorizon"
@@ -735,18 +768,18 @@
                                     >
                                         Restart
                                     </flux:button>
-                                    
+
                                     <flux:dropdown align="top">
-                                        <flux:button 
-                                            variant="ghost" 
+                                        <flux:button
+                                            variant="ghost"
                                             icon="exclamation-triangle"
                                             class="text-amber-500 hover:text-amber-400"
                                         >
                                             Force Actions
                                         </flux:button>
-                                        
+
                                         <flux:menu>
-                                            <flux:menu.item 
+                                            <flux:menu.item
                                                 wire:click="forceKillHorizon"
                                                 wire:confirm="Are you sure you want to force kill all Horizon processes? This should only be used if normal stop doesn't work."
                                                 icon="x-circle"
@@ -806,14 +839,14 @@
             </form>
         </div>
     </div>
-    
+
     <!-- Update Progress Modal -->
     <flux:modal name="update-progress" class="max-w-2xl">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg">Application Update in Progress</flux:heading>
             </div>
-            
+
             <div>
                 @if($performingUpdate)
                     <div class="flex items-center gap-3 mb-4">
@@ -821,13 +854,13 @@
                         <span class="text-gray-300">Updating application...</span>
                     </div>
                 @endif
-                
+
                 <div class="bg-zinc-800 rounded-md p-4 max-h-96 overflow-y-auto">
                     <pre class="text-xs text-gray-400 whitespace-pre-wrap">@foreach($updateSteps as $step){{ $step }}
 @endforeach</pre>
                 </div>
             </div>
-            
+
             @if(!$performingUpdate)
                 <div class="flex gap-2">
                     <flux:spacer />
@@ -838,7 +871,7 @@
             @endif
         </div>
     </flux:modal>
-    
+
     <!-- Rollback Instructions Modal -->
     <flux:modal name="rollback-instructions" class="max-w-2xl">
         <div class="space-y-6">
@@ -848,32 +881,32 @@
                     The update failed, but a backup was created. To rollback to the previous version:
                 </flux:text>
             </div>
-            
+
             <ol class="list-decimal list-inside space-y-2 text-sm text-gray-400">
                 <li>Navigate to your application directory</li>
                 <li>Delete all contents EXCEPT the <code class="bg-zinc-800 px-1 py-0.5 rounded">/backups</code> directory</li>
                 <li>Copy the contents of the most recent backup folder back to the application directory</li>
                 <li>Restart the application</li>
             </ol>
-            
+
             @php
                 $backups = $this->getBackups();
             @endphp
-            
+
             @if(count($backups) > 0)
                 <div>
                     <h4 class="text-sm font-medium text-gray-300 mb-2">Available Backups:</h4>
                     <div class="bg-zinc-800 rounded-md p-3 space-y-1">
                         @foreach($backups as $backup)
                             <div class="text-xs text-gray-400">
-                                <span class="text-gray-300">{{ $backup['name'] }}</span> - 
+                                <span class="text-gray-300">{{ $backup['name'] }}</span> -
                                 {{ $backup['date'] }} ({{ $backup['size'] }})
                             </div>
                         @endforeach
                     </div>
                 </div>
             @endif
-            
+
             <div class="flex gap-2">
                 <flux:spacer />
                 <flux:modal.close>

@@ -145,7 +145,7 @@ class RealImageProcessingTest extends TestCase
         // Create the Show and ShowClass records in the database
         $show = Show::create([
             'id' => $this->show,
-            'name' => $this->show
+            'name' => $this->show,
         ]);
 
         ShowClass::create([

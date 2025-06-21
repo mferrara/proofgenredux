@@ -42,20 +42,6 @@ return new class extends Migration
                 'label' => 'High Resolution Images Quality',
                 'description' => 'The quality of high resolution images.',
             ],
-            'highres_images.font_size' => [
-                'value' => $proofgen_config['highres_images']['font_size'] ?? 22,
-                'type' => 'integer',
-                'category' => 'highres_images',
-                'label' => 'High Resolution Images Font Size',
-                'description' => 'The font size for high resolution images.',
-            ],
-            'highres_images.bg_size' => [
-                'value' => $proofgen_config['highres_images']['bg_size'] ?? 42,
-                'type' => 'integer',
-                'category' => 'highres_images',
-                'label' => 'High Resolution Images Background Size',
-                'description' => 'The background size for high resolution images.',
-            ],
             'sftp.highres_images_path' => [
                 'value' => $proofgen_config['sftp']['highres_images_path'] ?? '/home/forge/staging.ferraraphoto.com/app/storage/high_res_images',
                 'type' => 'path',
@@ -91,8 +77,6 @@ return new class extends Migration
             'highres_images.width',
             'highres_images.height',
             'highres_images.quality',
-            'highres_images.font_size',
-            'highres_images.bg_size',
             'sftp.highres_images_path',
         ])->delete();
     }

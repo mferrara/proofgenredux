@@ -40,8 +40,6 @@ return [
         'width' => getenv('WEB_WIDTH'),
         'height' => getenv('WEB_HEIGHT'),
         'quality' => getenv('WEB_QUALITY'),
-        'font_size' => getenv('WEB_FONT_SIZE'),
-        'bg_size' => getenv('WEB_BG_SIZE'),
     ],
 
     'generate_web_images' => [
@@ -53,8 +51,6 @@ return [
         'width' => getenv('HIGHRES_WIDTH'),
         'height' => getenv('HIGHRES_HEIGHT'),
         'quality' => getenv('HIGHRES_QUALITY'),
-        'font_size' => getenv('HIGHRES_FONT_SIZE'),
-        'bg_size' => getenv('HIGHRES_BG_SIZE'),
     ],
 
     'generate_highres_images' => [

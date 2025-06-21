@@ -2,9 +2,9 @@
 
 namespace App\Proofgen;
 
+use App\Helpers\EnhancementServiceFactory;
 use App\Models\Photo;
 use App\Services\PathResolver;
-use App\Services\ImageEnhancementService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\ImageManager;
@@ -261,15 +261,19 @@ class Image
         // determines if the image is rotated or not. 1 = normal, 3 = 180 degrees, 6 = 90 degrees, 8 = 270 degrees
         // But since we haven't had to change anything here this is likely handled automatically.
         // $image = $manager->read($full_size_image_path)->orientate();
-        
-        // Apply enhancement if enabled
-        if (config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_web')) {
-            $enhancementService = app(ImageEnhancementService::class);
-            $method = config('proofgen.image_enhancement_method', 'basic_auto_levels');
-            $image = $enhancementService->enhance($full_system_path, $method);
+
+        // Check if enhancement is enabled
+        $enhancementEnabled = config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_web');
+        $enhancementMethod = config('proofgen.image_enhancement_method', 'basic_auto_levels');
+
+        // Process image with enhancement if enabled
+        if ($enhancementEnabled) {
+            $enhancementService = EnhancementServiceFactory::getService('web images');
+            $image = $enhancementService->enhance($full_system_path, $enhancementMethod);
         } else {
             $image = $manager->read($full_system_path);
         }
+
         $web_suf = config('proofgen.web_images.suffix');
         $image_filename = pathinfo($full_system_path, PATHINFO_FILENAME);
         $web_thumb_filename = $image_filename.$web_suf.'.jpg';
@@ -325,14 +329,18 @@ class Image
 
         $manager = ImageManager::gd();
 
-        // Apply enhancement if enabled
-        if (config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_highres')) {
-            $enhancementService = app(ImageEnhancementService::class);
-            $method = config('proofgen.image_enhancement_method', 'basic_auto_levels');
-            $image = $enhancementService->enhance($full_system_path, $method);
+        // Check if enhancement is enabled
+        $enhancementEnabled = config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_highres');
+        $enhancementMethod = config('proofgen.image_enhancement_method', 'basic_auto_levels');
+
+        // Process image with enhancement if enabled
+        if ($enhancementEnabled) {
+            $enhancementService = EnhancementServiceFactory::getService('highres images');
+            $image = $enhancementService->enhance($full_system_path, $enhancementMethod);
         } else {
             $image = $manager->read($full_system_path);
         }
+
         $highres_suf = config('proofgen.highres_images.suffix');
         $image_filename = pathinfo($full_system_path, PATHINFO_FILENAME);
         $highres_thumb_filename = $image_filename.$highres_suf.'.jpg';
@@ -462,11 +470,14 @@ class Image
             throw new \Exception("Image file not found at: {$full_system_path}");
         }
 
-        // Apply enhancement if enabled
-        if (config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_proofs')) {
-            $enhancementService = app(ImageEnhancementService::class);
-            $method = config('proofgen.image_enhancement_method', 'basic_auto_levels');
-            $image = $enhancementService->enhance($full_system_path, $method);
+        // Check if enhancement is enabled
+        $enhancementEnabled = config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_proofs');
+        $enhancementMethod = config('proofgen.image_enhancement_method', 'basic_auto_levels');
+
+        // Process image with enhancement if enabled
+        if ($enhancementEnabled) {
+            $enhancementService = EnhancementServiceFactory::getService('thumbnails');
+            $image = $enhancementService->enhance($full_system_path, $enhancementMethod);
         } else {
             $image = $manager->read($full_system_path);
         }
@@ -538,17 +549,6 @@ class Image
         unset($manager);
 
         return $image_filename;
-    }
-
-    public static function watermarkWebImage()
-    {
-        $font_size = config('proofgen.web_images.font_size');
-        $background_height = config('proofgen.web_images.bg_size');
-        $foreground_opacity = config('proofgen.watermark_foreground_opacity');
-        $background_opacity = config('proofgen.watermark_background_opacity');
-        $im = imagettfJustifytext('Ferrara Photography', '', 2, 0, $background_height, 0, 0, $font_size, [255, 255, 255, $foreground_opacity], [0, 0, 0, $background_opacity]);
-
-        return $im;
     }
 
     public static function watermarkSmallProof($text, $width = 0)

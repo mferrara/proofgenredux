@@ -9,14 +9,15 @@ use Tests\TestCase;
 class ImageEnhancementServiceTest extends TestCase
 {
     private ImageEnhancementService $service;
+
     private string $testImagePath;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
-        $this->service = new ImageEnhancementService();
-        
+
+        $this->service = new ImageEnhancementService;
+
         // Create a test image
         $this->testImagePath = storage_path('app/test-image.jpg');
         $this->createTestImage();
@@ -28,7 +29,7 @@ class ImageEnhancementServiceTest extends TestCase
         if (File::exists($this->testImagePath)) {
             File::delete($this->testImagePath);
         }
-        
+
         parent::tearDown();
     }
 
@@ -36,7 +37,7 @@ class ImageEnhancementServiceTest extends TestCase
     public function it_can_apply_basic_auto_levels()
     {
         $result = $this->service->enhance($this->testImagePath, 'basic_auto_levels');
-        
+
         $this->assertNotNull($result);
         $this->assertEquals(100, $result->width());
         $this->assertEquals(100, $result->height());
@@ -47,9 +48,9 @@ class ImageEnhancementServiceTest extends TestCase
     {
         $result = $this->service->enhance($this->testImagePath, 'percentile_clipping', [
             'percentile_low' => 0.1,
-            'percentile_high' => 99.9
+            'percentile_high' => 99.9,
         ]);
-        
+
         $this->assertNotNull($result);
     }
 
@@ -57,7 +58,7 @@ class ImageEnhancementServiceTest extends TestCase
     public function it_can_apply_percentile_with_curve()
     {
         $result = $this->service->enhance($this->testImagePath, 'percentile_with_curve');
-        
+
         $this->assertNotNull($result);
     }
 
@@ -66,9 +67,9 @@ class ImageEnhancementServiceTest extends TestCase
     {
         $result = $this->service->enhance($this->testImagePath, 'clahe', [
             'clahe_clip_limit' => 2.0,
-            'clahe_grid_size' => 8
+            'clahe_grid_size' => 8,
         ]);
-        
+
         $this->assertNotNull($result);
     }
 
@@ -76,7 +77,7 @@ class ImageEnhancementServiceTest extends TestCase
     public function it_can_apply_smart_indoor_enhancement()
     {
         $result = $this->service->enhance($this->testImagePath, 'smart_indoor');
-        
+
         $this->assertNotNull($result);
     }
 
@@ -84,7 +85,7 @@ class ImageEnhancementServiceTest extends TestCase
     public function it_returns_original_image_for_unknown_method()
     {
         $result = $this->service->enhance($this->testImagePath, 'unknown_method');
-        
+
         $this->assertNotNull($result);
     }
 
@@ -92,7 +93,7 @@ class ImageEnhancementServiceTest extends TestCase
     public function it_gets_available_methods()
     {
         $methods = ImageEnhancementService::getAvailableMethods();
-        
+
         $this->assertIsArray($methods);
         $this->assertArrayHasKey('basic_auto_levels', $methods);
         $this->assertArrayHasKey('percentile_clipping', $methods);
@@ -105,7 +106,7 @@ class ImageEnhancementServiceTest extends TestCase
     {
         // Create a simple test image
         $image = imagecreatetruecolor(100, 100);
-        
+
         // Add some variation to test enhancement
         for ($x = 0; $x < 100; $x++) {
             for ($y = 0; $y < 100; $y++) {
@@ -114,7 +115,7 @@ class ImageEnhancementServiceTest extends TestCase
                 imagesetpixel($image, $x, $y, $color);
             }
         }
-        
+
         imagejpeg($image, $this->testImagePath, 90);
         imagedestroy($image);
     }

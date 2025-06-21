@@ -1,7 +1,7 @@
 <?php
 
-use Illuminate\Database\Migrations\Migration;
 use App\Models\Configuration;
+use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
@@ -18,7 +18,7 @@ return new class extends Migration
                 'type' => 'boolean',
                 'category' => 'enhancement',
                 'label' => 'Enable Image Enhancement',
-                'description' => 'Enable automatic image enhancement during processing'
+                'description' => 'Enable automatic image enhancement during processing',
             ]
         );
 
@@ -29,7 +29,7 @@ return new class extends Migration
                 'type' => 'string',
                 'category' => 'enhancement',
                 'label' => 'Enhancement Method',
-                'description' => 'Method to use for image enhancement'
+                'description' => 'Method to use for image enhancement',
             ]
         );
 
@@ -41,7 +41,7 @@ return new class extends Migration
                 'type' => 'boolean',
                 'category' => 'enhancement',
                 'label' => 'Apply to Proof Thumbnails',
-                'description' => 'Apply enhancement when generating proof thumbnails'
+                'description' => 'Apply enhancement when generating proof thumbnails',
             ]
         );
 
@@ -52,7 +52,7 @@ return new class extends Migration
                 'type' => 'boolean',
                 'category' => 'enhancement',
                 'label' => 'Apply to Web Images',
-                'description' => 'Apply enhancement when generating web images'
+                'description' => 'Apply enhancement when generating web images',
             ]
         );
 
@@ -63,7 +63,7 @@ return new class extends Migration
                 'type' => 'boolean',
                 'category' => 'enhancement',
                 'label' => 'Apply to High-Res Images',
-                'description' => 'Apply enhancement when generating high-resolution images'
+                'description' => 'Apply enhancement when generating high-resolution images',
             ]
         );
 
@@ -75,7 +75,7 @@ return new class extends Migration
                 'type' => 'float',
                 'category' => 'enhancement',
                 'label' => 'Percentile Low Threshold',
-                'description' => 'Lower percentile for clipping (0.0-1.0)'
+                'description' => 'Lower percentile for clipping (0.0-1.0)',
             ]
         );
 
@@ -86,7 +86,7 @@ return new class extends Migration
                 'type' => 'float',
                 'category' => 'enhancement',
                 'label' => 'Percentile High Threshold',
-                'description' => 'Upper percentile for clipping (99.0-100.0)'
+                'description' => 'Upper percentile for clipping (99.0-100.0)',
             ]
         );
 
@@ -97,7 +97,7 @@ return new class extends Migration
                 'type' => 'float',
                 'category' => 'enhancement',
                 'label' => 'CLAHE Clip Limit',
-                'description' => 'Contrast limiting parameter for CLAHE (1.0-4.0)'
+                'description' => 'Contrast limiting parameter for CLAHE (1.0-4.0)',
             ]
         );
 
@@ -108,7 +108,7 @@ return new class extends Migration
                 'type' => 'integer',
                 'category' => 'enhancement',
                 'label' => 'CLAHE Grid Size',
-                'description' => 'Grid size for CLAHE algorithm (4-16)'
+                'description' => 'Grid size for CLAHE algorithm (4-16)',
             ]
         );
     }
@@ -127,7 +127,7 @@ return new class extends Migration
             'enhancement_percentile_low',
             'enhancement_percentile_high',
             'enhancement_clahe_clip_limit',
-            'enhancement_clahe_grid_size'
+            'enhancement_clahe_grid_size',
         ];
 
         Configuration::whereIn('key', $keys)->delete();

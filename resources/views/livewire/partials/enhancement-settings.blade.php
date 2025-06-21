@@ -45,53 +45,58 @@
                             wire:key="{{ $enabledConfig->key }}-switch"
                         />
                     </div>
+                    
+                    {{-- Apply To Options (shown right under main toggle when enabled) --}}
+                    @if($configValues[$enabledConfig->id] && count($applyToConfigs) > 0)
+                        <div class="mt-6 pl-8">
+                            <h4 class="text-sm font-medium text-gray-300 mb-3">Apply Enhancement To:</h4>
+                            <div class="space-y-3">
+                                @foreach($applyToConfigs as $config)
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <label class="text-sm text-gray-300">{{ $config->label }}</label>
+                                            <p class="text-xs text-gray-500">{{ $config->description }}</p>
+                                        </div>
+                                        <flux:switch
+                                            wire:model.defer="configValues.{{ $config->id }}"
+                                            wire:key="{{ $config->key }}-switch"
+                                        />
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                 </div>
             @endif
 
-            {{-- Enhancement Settings (shown when enabled) --}}
-            @if($enabledConfig && $configValues[$enabledConfig->id])
-                {{-- Method Selection --}}
-                @if($methodConfig)
-                    <div class="p-6 border-b border-zinc-600">
-                        <flux:field>
-                            <flux:label>{{ $methodConfig->label }}</flux:label>
-                            <flux:select
-                                wire:model.defer="configValues.{{ $methodConfig->id }}"
-                                wire:key="{{ $methodConfig->key }}-select"
-                            >
-                                <flux:select.option value="basic_auto_levels">Basic Auto-Levels</flux:select.option>
-                                <flux:select.option value="percentile_clipping">Percentile Clipping (0.1%-99.9%)</flux:select.option>
-                                <flux:select.option value="percentile_with_curve">Percentile Clipping + S-Curve</flux:select.option>
-                                <flux:select.option value="clahe">CLAHE (Adaptive Histogram Equalization)</flux:select.option>
-                                <flux:select.option value="smart_indoor">Smart Indoor (Optimized for Horse Shows)</flux:select.option>
-                            </flux:select>
-                            <flux:description>{{ $methodConfig->description }}</flux:description>
-                        </flux:field>
-                    </div>
-                @endif
-
-                {{-- Apply To Options --}}
-                @if(count($applyToConfigs) > 0)
-                    <div class="p-6 border-b border-zinc-600">
-                        <h4 class="text-md font-medium text-gray-200 mb-4">Apply Enhancement To:</h4>
-                        <div class="space-y-3">
-                            @foreach($applyToConfigs as $config)
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <label class="text-sm text-gray-300">{{ $config->label }}</label>
-                                        <p class="text-xs text-gray-500">{{ $config->description }}</p>
-                                    </div>
-                                    <flux:switch
-                                        wire:model.defer="configValues.{{ $config->id }}"
-                                        wire:key="{{ $config->key }}-switch"
-                                    />
-                                </div>
-                            @endforeach
+            {{-- Enhancement Method Selection (shown when enabled) --}}
+            @if($enabledConfig && $configValues[$enabledConfig->id] && $methodConfig)
+                <div class="p-6 border-b border-zinc-600">
+                    <flux:field>
+                        <flux:label>{{ $methodConfig->label }}</flux:label>
+                        
+                        {{-- Method descriptions (above the select) --}}
+                        <div class="mb-3 space-y-2">
+                            <div class="p-3 bg-zinc-800 rounded-md text-sm text-gray-400">
+                                <strong class="text-gray-300">Adjustable Auto-Levels:</strong> Automatic brightness and contrast adjustment with customizable target levels and clipping points. Best for consistent corrections across image sets.
+                            </div>
+                            <div class="p-3 bg-zinc-800 rounded-md text-sm text-gray-400">
+                                <strong class="text-gray-300">Advanced Tone Mapping:</strong> Sophisticated tone control with percentile clipping, shadow/highlight adjustment, and midtone gamma control. Ideal for images needing targeted adjustments.
+                            </div>
                         </div>
-                    </div>
-                @endif
+                        
+                        <flux:select
+                            wire:model.defer="configValues.{{ $methodConfig->id }}"
+                            wire:key="{{ $methodConfig->key }}-select"
+                        >
+                            <flux:select.option value="adjustable_auto_levels">Adjustable Auto-Levels</flux:select.option>
+                            <flux:select.option value="advanced_tone_mapping">Advanced Tone Mapping</flux:select.option>
+                        </flux:select>
+                        <flux:description>{{ $methodConfig->description }}</flux:description>
+                    </flux:field>
+                </div>
 
-                {{-- Advanced Settings (Collapsible) --}}
+                {{-- Advanced Settings (directly below method selection) --}}
                 @if(count($advancedConfigs) > 0)
                     <div x-data="{ expanded: false }">
                         <button
@@ -108,22 +113,145 @@
                         </button>
 
                         <div x-show="expanded" x-collapse class="border-t border-zinc-600">
-                            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                @foreach($advancedConfigs as $config)
-                                    <flux:field>
-                                        <flux:label>{{ $config->label }}</flux:label>
-                                        <flux:input
-                                            type="{{ $config->type === 'float' ? 'number' : 'text' }}"
-                                            step="{{ $config->type === 'float' ? '0.1' : '1' }}"
-                                            wire:model.defer="configValues.{{ $config->id }}"
-                                            wire:key="{{ $config->key }}-input"
-                                        />
-                                        <flux:description>{{ $config->description }}</flux:description>
-                                        @error('configValues.'.$config->id)
-                                            <flux:error>{{ $message }}</flux:error>
-                                        @enderror
-                                    </flux:field>
-                                @endforeach
+                            <div class="p-6">
+                                {{-- Only show content if a method is selected --}}
+                                <div>
+                                    {{-- Parameter Descriptions --}}
+                                    <div class="mb-6 p-4 bg-zinc-800 rounded-md">
+                                        <h5 class="text-sm font-medium text-gray-300 mb-2">Parameter Guide:</h5>
+                                        
+                                        {{-- Show parameters based on selected method --}}
+                                        <div x-show="$wire.configValues[{{ $methodConfig->id }}] === 'adjustable_auto_levels'" x-transition class="space-y-2">
+                                            <div class="text-sm text-gray-400">
+                                                <strong class="text-gray-300">Target Brightness:</strong> The desired average brightness (0-255). Default 128 is middle gray.
+                                            </div>
+                                            <div class="text-sm text-gray-400">
+                                                <strong class="text-gray-300">Contrast Threshold:</strong> Histogram range below which contrast boost is applied (0-255).
+                                            </div>
+                                            <div class="text-sm text-gray-400">
+                                                <strong class="text-gray-300">Contrast Boost:</strong> Multiplier applied when image needs more contrast (1.0-2.0).
+                                            </div>
+                                            <div class="text-sm text-gray-400">
+                                                <strong class="text-gray-300">Black Point:</strong> Percentage of shadows to clip (0-5%).
+                                            </div>
+                                            <div class="text-sm text-gray-400">
+                                                <strong class="text-gray-300">White Point:</strong> Percentage of highlights to preserve (95-100%).
+                                            </div>
+                                        </div>
+                                        
+                                        <div x-show="$wire.configValues[{{ $methodConfig->id }}] === 'advanced_tone_mapping'" x-transition class="space-y-2">
+                                            <div class="text-sm text-gray-400">
+                                                <strong class="text-gray-300">Percentile Low/High:</strong> Controls which extreme pixels to clip. Lower values preserve more shadows/highlights.
+                                            </div>
+                                            <div class="text-sm text-gray-400">
+                                                <strong class="text-gray-300">Shadow/Highlight Adjustment:</strong> Brightens shadows or darkens highlights (-100 to +100).
+                                            </div>
+                                            <div class="text-sm text-gray-400">
+                                                <strong class="text-gray-300">Shadow/Highlight Radius:</strong> Controls the blend area for adjustments (0-100).
+                                            </div>
+                                            <div class="text-sm text-gray-400">
+                                                <strong class="text-gray-300">Midtone Gamma:</strong> Adjusts midtone brightness. Values < 1.0 darken, > 1.0 brighten.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {{-- Input Fields --}}
+                                    @php
+                                        $autoLevelsConfigs = [];
+                                        $toneMappingConfigs = [];
+                                        
+                                        // Define the order we want parameters to appear
+                                        $autoLevelsOrder = [
+                                            'auto_levels_target_brightness',
+                                            'auto_levels_contrast_threshold',
+                                            'auto_levels_contrast_boost',
+                                            'auto_levels_black_point',
+                                            'auto_levels_white_point'
+                                        ];
+                                        
+                                        $toneMappingOrder = [
+                                            'tone_mapping_percentile_low',
+                                            'tone_mapping_percentile_high',
+                                            'tone_mapping_shadow_amount',
+                                            'tone_mapping_highlight_amount',
+                                            'tone_mapping_shadow_radius',
+                                            'tone_mapping_midtone_gamma'
+                                        ];
+                                        
+                                        // Create a map for quick lookup
+                                        $configMap = [];
+                                        foreach($advancedConfigs as $config) {
+                                            $configMap[$config->key] = $config;
+                                        }
+                                        
+                                        // Build ordered arrays
+                                        foreach($autoLevelsOrder as $key) {
+                                            if (isset($configMap[$key])) {
+                                                $autoLevelsConfigs[] = $configMap[$key];
+                                            }
+                                        }
+                                        
+                                        foreach($toneMappingOrder as $key) {
+                                            if (isset($configMap[$key])) {
+                                                $toneMappingConfigs[] = $configMap[$key];
+                                            }
+                                        }
+                                    @endphp
+                                    
+                                    {{-- Adjustable Auto-Levels Parameters --}}
+                                    <div x-show="$wire.configValues[{{ $methodConfig->id }}] === 'adjustable_auto_levels'" x-transition>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            @foreach($autoLevelsConfigs as $config)
+                                                <flux:field>
+                                                    <flux:label>{{ $config->label }}</flux:label>
+                                                    <flux:input
+                                                        type="{{ $config->type === 'float' ? 'number' : 'text' }}"
+                                                        step="{{ $config->type === 'float' ? '0.1' : '1' }}"
+                                                        wire:model.defer="configValues.{{ $config->id }}"
+                                                        wire:key="{{ $config->key }}-input"
+                                                    />
+                                                    <flux:description>{{ $config->description }}</flux:description>
+                                                    @error('configValues.'.$config->id)
+                                                        <flux:error>{{ $message }}</flux:error>
+                                                    @enderror
+                                                </flux:field>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                    
+                                    {{-- Advanced Tone Mapping Parameters --}}
+                                    <div x-show="$wire.configValues[{{ $methodConfig->id }}] === 'advanced_tone_mapping'" x-transition>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            @foreach($toneMappingConfigs as $config)
+                                                <flux:field>
+                                                    <flux:label>{{ $config->label }}</flux:label>
+                                                    <flux:input
+                                                        type="{{ $config->type === 'float' ? 'number' : 'text' }}"
+                                                        step="{{ $config->type === 'float' ? '0.1' : '1' }}"
+                                                        wire:model.defer="configValues.{{ $config->id }}"
+                                                        wire:key="{{ $config->key }}-input"
+                                                    />
+                                                    <flux:description>
+                                                        {{ $config->description }}
+                                                        @if(str_contains($config->key, 'percentile_low'))
+                                                            <br><span class="text-xs">Lower values preserve more shadow detail</span>
+                                                        @elseif(str_contains($config->key, 'percentile_high'))
+                                                            <br><span class="text-xs">Higher values preserve more highlight detail</span>
+                                                        @endif
+                                                    </flux:description>
+                                                    @error('configValues.'.$config->id)
+                                                        <flux:error>{{ $message }}</flux:error>
+                                                    @enderror
+                                                </flux:field>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                    
+                                    {{-- Show message when no method is selected --}}
+                                    <div x-show="!$wire.configValues[{{ $methodConfig->id }}] || ($wire.configValues[{{ $methodConfig->id }}] !== 'adjustable_auto_levels' && $wire.configValues[{{ $methodConfig->id }}] !== 'advanced_tone_mapping')" class="text-sm text-gray-400 text-center py-8">
+                                        Please select an enhancement method above to configure its parameters.
+                                    </div>
+                                </div>{{-- End of wrapper --}}
                             </div>
                         </div>
                     </div>

@@ -4,7 +4,6 @@ namespace App\Livewire;
 
 use App\Models\Configuration;
 use App\Proofgen\Image;
-use App\Services\ImageEnhancementService;
 use App\Services\UpdateService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -52,6 +51,9 @@ class ConfigComponent extends Component
     // Active tab for image preview
     public string $activeTab = 'large';
 
+    // Watermark preview toggle
+    public bool $previewWatermarkEnabled = true;
+
     // Unenhanced preview properties for comparison
     public ?string $largeThumbnailPreviewUnenhanced = null;
 
@@ -60,6 +62,33 @@ class ConfigComponent extends Component
     public ?string $webImagePreviewUnenhanced = null;
 
     public ?string $highresImagePreviewUnenhanced = null;
+
+    // Processing time tracking for each preview type
+    public ?float $largeThumbnailProcessingTime = null;
+
+    public ?float $smallThumbnailProcessingTime = null;
+
+    public ?float $webImageProcessingTime = null;
+
+    public ?float $highresImageProcessingTime = null;
+
+    // Input settings tracking
+    public ?array $largeThumbnailInputSettings = null;
+
+    public ?array $smallThumbnailInputSettings = null;
+
+    public ?array $webImageInputSettings = null;
+
+    public ?array $highresImageInputSettings = null;
+
+    // Enhancement info tracking
+    public ?array $largeThumbnailEnhancementInfo = null;
+
+    public ?array $smallThumbnailEnhancementInfo = null;
+
+    public ?array $webImageEnhancementInfo = null;
+
+    public ?array $highresImageEnhancementInfo = null;
 
     // Update system properties
     public ?array $updateInfo = null;
@@ -314,6 +343,12 @@ class ConfigComponent extends Component
         $this->generateThumbnailPreviews();
     }
 
+    public function togglePreviewWatermark(): void
+    {
+        $this->previewWatermarkEnabled = ! $this->previewWatermarkEnabled;
+        $this->generateThumbnailPreviews();
+    }
+
     public function returnError(?string $message = null): void
     {
         if (! $message) {
@@ -438,11 +473,11 @@ class ConfigComponent extends Component
                 } elseif ($config->type === 'float') {
                     $rule[] = 'numeric';
 
-                    // Enhancement percentile validation
-                    if ($config->key === 'enhancement_percentile_low') {
+                    // Tone mapping percentile validation
+                    if ($config->key === 'tone_mapping_percentile_low') {
                         $rule[] = 'min:0.0';
                         $rule[] = 'max:1.0';
-                    } elseif ($config->key === 'enhancement_percentile_high') {
+                    } elseif ($config->key === 'tone_mapping_percentile_high') {
                         $rule[] = 'min:99.0';
                         $rule[] = 'max:100.0';
                     }
@@ -454,7 +489,7 @@ class ConfigComponent extends Component
                 } elseif ($config->type === 'string') {
                     // For enhancement method, validate against allowed values
                     if ($config->key === 'image_enhancement_method') {
-                        $rule[] = 'in:basic_auto_levels,percentile_clipping,percentile_with_curve,clahe,smart_indoor';
+                        $rule[] = 'in:adjustable_auto_levels,advanced_tone_mapping';
                     } else {
                         // For other string fields, limit string length
                         $rule[] = 'max:250';
@@ -488,6 +523,13 @@ class ConfigComponent extends Component
 
         // Refresh configurations
         $this->loadConfigurations();
+
+        // Regenerate previews with new settings
+        $this->initializeConfigValues();
+        $this->initializeTempThumbnailValues();
+        if ($this->sampleImagePath) {
+            $this->generateThumbnailPreviews();
+        }
 
         // Dispatch a success event
         Flux::toast(text: 'The settings have saved successfully.', heading: 'Settings saved', variant: 'success', position: 'top right');
@@ -736,22 +778,15 @@ class ConfigComponent extends Component
      */
     private function findSampleImage(): void
     {
-        Log::debug('ConfigComponent: Starting findSampleImage()');
-
         // First try storage/sample_images
         $sampleImagesPath = storage_path('sample_images');
 
         if (File::exists($sampleImagesPath)) {
-            Log::debug('ConfigComponent: sample_images directory exists', ['path' => $sampleImagesPath]);
             $images = File::allFiles($sampleImagesPath);
-            Log::debug('ConfigComponent: Found files in sample_images', ['count' => count($images)]);
 
             foreach ($images as $image) {
                 if (in_array(strtolower($image->getExtension()), ['jpg', 'jpeg', 'png'])) {
                     $this->sampleImagePath = $image->getPathname();
-                    Log::debug('ConfigComponent: Using sample image from sample_images directory', [
-                        'path' => $this->sampleImagePath,
-                    ]);
 
                     return;
                 }
@@ -782,10 +817,6 @@ class ConfigComponent extends Component
                         $extension = pathinfo($file, PATHINFO_EXTENSION);
                         if (in_array(strtolower($extension), ['jpg', 'jpeg', 'png'])) {
                             $this->sampleImagePath = Storage::disk('fullsize')->path($file);
-                            Log::debug('ConfigComponent: Using sample image from fullsize disk', [
-                                'path' => $this->sampleImagePath,
-                                'file' => $file,
-                            ]);
                             $found = true;
                             break;
                         }
@@ -828,37 +859,49 @@ class ConfigComponent extends Component
                 case 'large':
                     $largePreviewPath = $tempDir.'/large_preview_'.$timestamp.'.jpg';
                     $largePreviewPathUnenhanced = $tempDir.'/large_preview_unenhanced_'.$timestamp.'.jpg';
-                    $this->createPreviewThumbnail($this->sampleImagePath, $largePreviewPath, 'thumbnails', 'large', true);
+                    $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $largePreviewPath, 'thumbnails', 'large', true);
                     $this->largeThumbnailPreview = '/temp/thumbnail-preview/large_preview_'.$timestamp.'.jpg';
                     $this->largeThumbnailPreviewUnenhanced = '/temp/thumbnail-preview/large_preview_unenhanced_'.$timestamp.'.jpg';
                     $this->largeThumbnailInfo = $this->getFileInfo($largePreviewPath);
+                    $this->largeThumbnailProcessingTime = $previewData['processing_time'];
+                    $this->largeThumbnailInputSettings = $previewData['input_settings'];
+                    $this->largeThumbnailEnhancementInfo = $previewData['enhancement'];
                     break;
 
                 case 'small':
                     $smallPreviewPath = $tempDir.'/small_preview_'.$timestamp.'.jpg';
                     $smallPreviewPathUnenhanced = $tempDir.'/small_preview_unenhanced_'.$timestamp.'.jpg';
-                    $this->createPreviewThumbnail($this->sampleImagePath, $smallPreviewPath, 'thumbnails', 'small', true);
+                    $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $smallPreviewPath, 'thumbnails', 'small', true);
                     $this->smallThumbnailPreview = '/temp/thumbnail-preview/small_preview_'.$timestamp.'.jpg';
                     $this->smallThumbnailPreviewUnenhanced = '/temp/thumbnail-preview/small_preview_unenhanced_'.$timestamp.'.jpg';
                     $this->smallThumbnailInfo = $this->getFileInfo($smallPreviewPath);
+                    $this->smallThumbnailProcessingTime = $previewData['processing_time'];
+                    $this->smallThumbnailInputSettings = $previewData['input_settings'];
+                    $this->smallThumbnailEnhancementInfo = $previewData['enhancement'];
                     break;
 
                 case 'web':
                     $webPreviewPath = $tempDir.'/web_preview_'.$timestamp.'.jpg';
                     $webPreviewPathUnenhanced = $tempDir.'/web_preview_unenhanced_'.$timestamp.'.jpg';
-                    $this->createPreviewThumbnail($this->sampleImagePath, $webPreviewPath, 'web_images', null, true);
+                    $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $webPreviewPath, 'web_images', null, true);
                     $this->webImagePreview = '/temp/thumbnail-preview/web_preview_'.$timestamp.'.jpg';
                     $this->webImagePreviewUnenhanced = '/temp/thumbnail-preview/web_preview_unenhanced_'.$timestamp.'.jpg';
                     $this->webImageInfo = $this->getFileInfo($webPreviewPath);
+                    $this->webImageProcessingTime = $previewData['processing_time'];
+                    $this->webImageInputSettings = $previewData['input_settings'];
+                    $this->webImageEnhancementInfo = $previewData['enhancement'];
                     break;
 
                 case 'highres':
                     $highresPreviewPath = $tempDir.'/highres_preview_'.$timestamp.'.jpg';
                     $highresPreviewPathUnenhanced = $tempDir.'/highres_preview_unenhanced_'.$timestamp.'.jpg';
-                    $this->createPreviewThumbnail($this->sampleImagePath, $highresPreviewPath, 'highres_images', null, true);
+                    $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $highresPreviewPath, 'highres_images', null, true);
                     $this->highresImagePreview = '/temp/thumbnail-preview/highres_preview_'.$timestamp.'.jpg';
                     $this->highresImagePreviewUnenhanced = '/temp/thumbnail-preview/highres_preview_unenhanced_'.$timestamp.'.jpg';
                     $this->highresImageInfo = $this->getFileInfo($highresPreviewPath);
+                    $this->highresImageProcessingTime = $previewData['processing_time'];
+                    $this->highresImageInputSettings = $previewData['input_settings'];
+                    $this->highresImageEnhancementInfo = $previewData['enhancement'];
                     break;
             }
 
@@ -872,7 +915,7 @@ class ConfigComponent extends Component
     /**
      * Create a preview thumbnail with temporary settings
      */
-    private function createPreviewThumbnail(string $sourcePath, string $destPath, string $type, ?string $size = null, bool $generateUnenhanced = false): void
+    private function createPreviewThumbnail(string $sourcePath, string $destPath, string $type, ?string $size = null, bool $generateUnenhanced = false): array
     {
         Log::debug('createPreviewThumbnail: Reading source image', [
             'sourcePath' => $sourcePath,
@@ -883,7 +926,9 @@ class ConfigComponent extends Component
             'file_size' => file_exists($sourcePath) ? filesize($sourcePath) : 0,
         ]);
 
+        $startTime = microtime(true);
         $manager = ImageManager::gd();
+        $enhancementInfo = null;
 
         // Check if enhancement is enabled and should be applied to this image type
         $enhancementEnabled = false;
@@ -913,29 +958,56 @@ class ConfigComponent extends Component
 
         // Apply enhancement if enabled
         if ($enhancementEnabled) {
-            $enhancementService = app(ImageEnhancementService::class);
+            $enhancementService = \App\Helpers\EnhancementServiceFactory::getService('preview');
 
             // Get enhancement parameters from config values
+            // Use temporary values if we're in preview mode (not saved yet)
             $parameters = [];
-            $percentileLowId = $this->getConfigId('enhancement_percentile_low');
-            $percentileHighId = $this->getConfigId('enhancement_percentile_high');
-            $claheClipLimitId = $this->getConfigId('enhancement_clahe_clip_limit');
-            $claheGridSizeId = $this->getConfigId('enhancement_clahe_grid_size');
 
-            if ($percentileLowId && isset($this->configValues[$percentileLowId])) {
-                $parameters['percentile_low'] = $this->configValues[$percentileLowId];
+            // Note: percentile parameters are now included in tone mapping params below
+
+            // Advanced Tone Mapping parameters
+            $toneMappingParams = [
+                'tone_mapping_percentile_low',
+                'tone_mapping_percentile_high',
+                'tone_mapping_shadow_amount',
+                'tone_mapping_highlight_amount',
+                'tone_mapping_shadow_radius',
+                'tone_mapping_midtone_gamma',
+            ];
+
+            foreach ($toneMappingParams as $param) {
+                $paramId = $this->getConfigId($param);
+                if ($paramId && isset($this->configValues[$paramId])) {
+                    $parameters[$param] = $this->configValues[$paramId];
+                }
             }
-            if ($percentileHighId && isset($this->configValues[$percentileHighId])) {
-                $parameters['percentile_high'] = $this->configValues[$percentileHighId];
-            }
-            if ($claheClipLimitId && isset($this->configValues[$claheClipLimitId])) {
-                $parameters['clahe_clip_limit'] = $this->configValues[$claheClipLimitId];
-            }
-            if ($claheGridSizeId && isset($this->configValues[$claheGridSizeId])) {
-                $parameters['clahe_grid_size'] = $this->configValues[$claheGridSizeId];
+
+            // Adjustable Auto-Levels parameters
+            $autoLevelsParams = [
+                'auto_levels_target_brightness',
+                'auto_levels_contrast_threshold',
+                'auto_levels_contrast_boost',
+                'auto_levels_black_point',
+                'auto_levels_white_point',
+            ];
+
+            foreach ($autoLevelsParams as $param) {
+                $paramId = $this->getConfigId($param);
+                if ($paramId && isset($this->configValues[$paramId])) {
+                    $parameters[$param] = $this->configValues[$paramId];
+                }
             }
 
             $image = $enhancementService->enhance($sourcePath, $enhancementMethod, $parameters);
+
+            // Store enhancement info
+            $enhancementInfo = [
+                'enabled' => true,
+                'method' => $enhancementMethod,
+                'method_label' => $this->getEnhancementMethodLabel($enhancementMethod),
+                'parameters' => $this->formatEnhancementParameters($enhancementMethod, $parameters),
+            ];
         } else {
             $image = $manager->read($sourcePath);
         }
@@ -960,6 +1032,11 @@ class ConfigComponent extends Component
             ->toJpeg($quality)
             ->save($destPath);
 
+        // Apply watermark if enabled and applicable
+        if ($this->previewWatermarkEnabled && $type === 'thumbnails' && $this->shouldApplyWatermark()) {
+            $this->applyWatermarkToPreview($destPath, $size, $manager);
+        }
+
         // If enhancement is enabled and we need unenhanced version, create it too
         if ($generateUnenhanced && $enhancementEnabled) {
             // Generate unenhanced version
@@ -969,7 +1046,25 @@ class ConfigComponent extends Component
             $imageUnenhanced->scale($width, $height)
                 ->toJpeg($quality)
                 ->save($unenhancedPath);
+
+            // Apply watermark to unenhanced version too
+            if ($this->previewWatermarkEnabled && $type === 'thumbnails' && $this->shouldApplyWatermark()) {
+                $this->applyWatermarkToPreview($unenhancedPath, $size, $manager);
+            }
         }
+
+        $processingTime = microtime(true) - $startTime;
+
+        // Return the enhancement info and processing time
+        return [
+            'enhancement' => $enhancementInfo,
+            'processing_time' => $processingTime,
+            'input_settings' => [
+                'width' => $width,
+                'height' => $height,
+                'quality' => $quality,
+            ],
+        ];
     }
 
     /**
@@ -1144,6 +1239,99 @@ class ConfigComponent extends Component
             Log::error('Error getting backups: '.$e->getMessage());
 
             return [];
+        }
+    }
+
+    /**
+     * Get human-readable label for enhancement method
+     */
+    private function getEnhancementMethodLabel(string $method): string
+    {
+        return match ($method) {
+            'basic_auto_levels' => 'Basic Auto-Levels',
+            'adjustable_auto_levels' => 'Adjustable Auto-Levels',
+            'percentile_clipping' => 'Percentile Clipping',
+            'advanced_tone_mapping' => 'Advanced Tone Mapping',
+            default => $method
+        };
+    }
+
+    /**
+     * Format enhancement parameters for display
+     */
+    private function formatEnhancementParameters(string $method, array $parameters): string
+    {
+        return match ($method) {
+            'percentile_clipping', 'advanced_tone_mapping' => sprintf('%.1f%%-%.1f%%'.
+                    (($parameters['tone_mapping_shadow_amount'] ?? 0) != 0 || ($parameters['tone_mapping_highlight_amount'] ?? 0) != 0 ?
+                        ', S:%.0f H:%.0f' : ''),
+                $parameters['tone_mapping_percentile_low'] ?? 0.1,
+                $parameters['tone_mapping_percentile_high'] ?? 99.9,
+                $parameters['tone_mapping_shadow_amount'] ?? 0,
+                $parameters['tone_mapping_highlight_amount'] ?? 0),
+            'basic_auto_levels', 'adjustable_auto_levels' => sprintf('Target: %d'.
+                    (($parameters['auto_levels_black_point'] ?? 0) > 0 || ($parameters['auto_levels_white_point'] ?? 100) < 100 ?
+                        ', Clip: %.1f%%-%.1f%%' : ''),
+                $parameters['auto_levels_target_brightness'] ?? 128,
+                $parameters['auto_levels_black_point'] ?? 0,
+                $parameters['auto_levels_white_point'] ?? 100),
+            default => ''
+        };
+    }
+
+    /**
+     * Check if watermarks should be applied based on configuration
+     */
+    private function shouldApplyWatermark(): bool
+    {
+        $watermarkProofsId = $this->getConfigId('watermark_proofs');
+
+        return $watermarkProofsId && isset($this->configValues[$watermarkProofsId]) && $this->configValues[$watermarkProofsId];
+    }
+
+    /**
+     * Apply watermark to preview image
+     */
+    private function applyWatermarkToPreview(string $imagePath, string $size, ImageManager $manager): void
+    {
+        $image = $manager->read($imagePath);
+
+        // Get original filename for watermark text
+        $originalFilename = pathinfo($this->sampleImagePath, PATHINFO_FILENAME);
+
+        if ($size === 'small') {
+            // Small thumbnail watermark
+            $watermark = \App\Proofgen\Image::watermarkSmallProof($originalFilename);
+            $image->place($watermark, 'bottom-left', 10, 10)->save();
+            imagedestroy($watermark);
+        } elseif ($size === 'large') {
+            // Large thumbnail watermark
+            if ($image->width() > $image->height()) {
+                // Landscape orientation
+                $text = 'Proof# '.$originalFilename.' - Illegal to use - Ferrara Photography';
+                $watermark = \App\Proofgen\Image::watermarkLargeProof($text, $image->width());
+                $image->place($watermark, 'center')->save();
+                imagedestroy($watermark);
+            } else {
+                // Portrait orientation - two watermarks
+                $watermark_top = \App\Proofgen\Image::watermarkLargeProof(
+                    'Proof# '.$originalFilename.' - Proof# '.$originalFilename,
+                    $image->width()
+                );
+                $watermark_bot = \App\Proofgen\Image::watermarkLargeProof(
+                    'Illegal to use - Ferrara Photography',
+                    $image->width()
+                );
+
+                $bottom_offset = round($image->height() * 0.1);
+
+                $image->place($watermark_top, 'center')
+                    ->place($watermark_bot, 'bottom', 0, $bottom_offset)
+                    ->save();
+
+                imagedestroy($watermark_top);
+                imagedestroy($watermark_bot);
+            }
         }
     }
 
