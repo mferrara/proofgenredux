@@ -31,7 +31,7 @@ class ProofgenImageEnhancer {
 
     init(basePath: String = FileManager.default.currentDirectoryPath) {
         self.basePath = basePath
-        
+
         // Create Metal-backed Core Image context for GPU acceleration
         let options: [CIContextOption: Any] = [
             .workingColorSpace: colorSpace,
@@ -185,8 +185,6 @@ class ProofgenImageEnhancer {
             }
         }
 
-        logDebug("Applying advanced tone mapping with lowValue: \(stats.lowValue), highValue: \(stats.highValue)")
-
         // Use CIColorClamp to clip values outside the percentile range
         guard let clampFilter = CIFilter(name: "CIColorClamp") else { return image }
         clampFilter.setValue(image, forKey: kCIInputImageKey)
@@ -201,8 +199,6 @@ class ProofgenImageEnhancer {
         // Now apply linear stretching using an affine transform on colors
         let scale = 1.0 / (stats.highValue - stats.lowValue)
         let offset = -stats.lowValue * scale
-
-        logDebug("Applying linear stretch - scale: \(scale), offset: \(offset)")
 
         guard let matrixFilter = CIFilter(name: "CIColorMatrix") else { return clampedImage }
         matrixFilter.setValue(clampedImage, forKey: kCIInputImageKey)
@@ -255,12 +251,8 @@ class ProofgenImageEnhancer {
                     logDebug("WARNING: Both shadow and highlight are 0, filter might still apply some effect")
                 }
 
-                logDebug("Shadow/Highlight adjustment - UI values: shadow=\(shadowAmount), highlight=\(highlightAmount)")
-                logDebug("Shadow/Highlight adjustment - Filter values: shadow=\(shadowValue), highlight=\(highlightValue), radius=\(shadowRadius)")
-
                 if let adjustedImage = highlightShadowFilter.outputImage {
                     result = adjustedImage
-                    logDebug("Successfully applied shadow/highlight adjustments")
                 } else {
                     logDebug("ERROR: Shadow/highlight filter failed to produce output")
                 }
@@ -277,12 +269,10 @@ class ProofgenImageEnhancer {
 
                 if let gammaAdjusted = gammaFilter.outputImage {
                     result = gammaAdjusted
-                    logDebug("Applied gamma correction: \(midtoneGamma)")
                 }
             }
         }
 
-        logDebug("Advanced tone mapping applied successfully")
         return result
     }
 
@@ -346,9 +336,6 @@ class ProofgenImageEnhancer {
             }
         }
 
-        logDebug("calculatePercentileStats called with percentiles: \(lowPercentile)% - \(highPercentile)%")
-        logDebug("Input image extent: \(image.extent)")
-
         // Try manual histogram calculation
         let extent = image.extent
         let width = Int(extent.width)
@@ -358,8 +345,6 @@ class ProofgenImageEnhancer {
         let sampleScale = min(1.0, 500.0 / max(Double(width), Double(height)))
         let sampleWidth = Int(Double(width) * sampleScale)
         let sampleHeight = Int(Double(height) * sampleScale)
-
-        logDebug("Sampling image at \(sampleWidth)x\(sampleHeight) (scale: \(sampleScale))")
 
         // Create bitmap to read pixel data
         var pixelData = [UInt8](repeating: 0, count: sampleWidth * sampleHeight * 4)
@@ -386,8 +371,6 @@ class ProofgenImageEnhancer {
             }
         }
 
-        logDebug("Manual histogram built with \(pixelCount) pixels")
-
         // Calculate cumulative distribution
         var cumulative = [Double](repeating: 0, count: 256)
         var total: Double = 0
@@ -401,8 +384,6 @@ class ProofgenImageEnhancer {
             logDebug("ERROR: Manual histogram is empty")
             return (lowValue: 0.0, highValue: 1.0)
         }
-
-        logDebug("Manual histogram total: \(Int(total))")
 
         // Find percentile values
         let lowTarget = total * lowPercentile / 100.0
@@ -422,7 +403,6 @@ class ProofgenImageEnhancer {
         }
 
         let result = (lowValue: Double(lowIndex) / 255.0, highValue: Double(highIndex) / 255.0)
-        logDebug("Percentile stats - lowIndex: \(lowIndex), highIndex: \(highIndex), lowValue: \(result.lowValue), highValue: \(result.highValue)")
         return result
     }
 
@@ -500,7 +480,7 @@ class ImageEnhancerServer {
     private var idleTimer: Timer?
     private let idleTimeoutMinutes: Int = 120 // 2 hours default
     private let basePath: String
-    
+
     init(basePath: String) {
         self.basePath = basePath
         self.enhancer = ProofgenImageEnhancer(basePath: basePath)
@@ -527,12 +507,10 @@ class ImageEnhancerServer {
             listener = try NWListener(using: parameters, on: NWEndpoint.Port(integerLiteral: port))
 
             listener?.newConnectionHandler = { [weak self] connection in
-                log("New connection received")
                 self?.handleConnection(connection)
             }
 
             listener?.start(queue: .main)
-            log("Server listening on port \(port)")
 
             // Start idle timer
             startIdleTimer(log: log)
@@ -623,8 +601,6 @@ class ImageEnhancerServer {
             log("Idle timeout disabled")
             return
         }
-
-        log("Starting idle timer with \(timeoutMinutes) minute timeout")
 
         // Create timer that checks every minute
         idleTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in

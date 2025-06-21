@@ -1,7 +1,6 @@
 # Proofgen Redux Project Notes
 
 ## TODO items
-
 - [ ] Make favicon from the logo
 - [ ] Update web image and highres image uploads to happen _after_ the proofs are uploaded to ensure that the proofs are prioritized for upload
 - [ ] Implement something that is able to report the current filesize/storage usage of the following at the show and class levels:
