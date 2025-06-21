@@ -57,28 +57,84 @@
                     @foreach($class_folders as $key => $class_folder_data)
                         <tr class="hover:bg-gray-800/50">
                             <td class="flex items-center gap-2 min-h-8 pl-2">
-                                <flux:icon name="folder" variant="outline" class="text-yellow-500" />
-                                <a href="/show/{{ $show_id }}/class/{{ $class_folder_data['path'] }}"
-                                   class="text-indigo-500 hover:text-indigo-400 hover:underline font-medium"
-                                >
-                                    {{ $class_folder_data['path'] }}
-                                    @if($class_folder_data['show_class'] === null)
-                                        <flux:badge variant="solid" color="red" size="sm">
-                                            Not Imported
-                                        </flux:badge>
-                                    @endif
-                                </a>
-                            </td>
-                            <td class="text-right">
-                                @if($class_folder_data['show_class'])
-                                    {{ $class_folder_data['show_class']->photos()->count() }}
+                                <flux:icon name="folder" variant="outline" class="{{ $class_folder_data['is_valid'] ? 'text-yellow-500' : 'text-red-500' }}" />
+                                @if($class_folder_data['is_valid'])
+                                    <a href="/show/{{ $show_id }}/class/{{ $class_folder_data['path'] }}"
+                                       class="text-indigo-500 hover:text-indigo-400 hover:underline font-medium"
+                                    >
+                                        {{ $class_folder_data['path'] }}
+                                        @if($class_folder_data['show_class'] === null)
+                                            <flux:badge variant="solid" color="red" size="sm">
+                                                Not Imported
+                                            </flux:badge>
+                                        @endif
+                                    </a>
+                                @else
+                                    <div x-data="{ 
+                                        editing: false, 
+                                        newName: '{{ $class_folder_data['path'] }}',
+                                        originalName: '{{ $class_folder_data['path'] }}'
+                                    }" class="flex items-center gap-2">
+                                        <template x-if="!editing">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-gray-400 line-through">{{ $class_folder_data['path'] }}</span>
+                                                <flux:badge variant="solid" color="red" size="sm">
+                                                    Invalid Name
+                                                </flux:badge>
+                                                <flux:button 
+                                                    @click="editing = true; $nextTick(() => $refs.input.focus())"
+                                                    size="xs"
+                                                    variant="ghost"
+                                                >
+                                                    <flux:icon name="pencil" variant="mini" />
+                                                    Rename
+                                                </flux:button>
+                                            </div>
+                                        </template>
+                                        <template x-if="editing">
+                                            <div class="flex items-center gap-2">
+                                                <flux:input 
+                                                    x-ref="input"
+                                                    x-model="newName"
+                                                    @keydown.enter="$wire.renameClassDirectory(originalName, newName); editing = false"
+                                                    @keydown.escape="editing = false; newName = '{{ $class_folder_data['path'] }}'"
+                                                    size="sm"
+                                                    class="w-48"
+                                                />
+                                                <flux:button 
+                                                    @click="$wire.renameClassDirectory(originalName, newName); editing = false"
+                                                    size="xs"
+                                                    variant="primary"
+                                                >
+                                                    <flux:icon name="check" variant="mini" />
+                                                    Save
+                                                </flux:button>
+                                                <flux:button 
+                                                    @click="editing = false; newName = '{{ $class_folder_data['path'] }}'"
+                                                    size="xs"
+                                                    variant="ghost"
+                                                >
+                                                    Cancel
+                                                </flux:button>
+                                            </div>
+                                        </template>
+                                    </div>
                                 @endif
                             </td>
                             <td class="text-right">
-                                @if($class_folder_data['images_pending_processing_count'])
+                                @if($class_folder_data['is_valid'] && $class_folder_data['show_class'])
+                                    {{ $class_folder_data['show_class']->photos()->count() }}
+                                @elseif(!$class_folder_data['is_valid'])
+                                    <span class="text-gray-500">-</span>
+                                @endif
+                            </td>
+                            <td class="text-right">
+                                @if($class_folder_data['is_valid'] && $class_folder_data['images_pending_processing_count'])
                                     <flux:badge variant="solid" color="sky" size="sm">
                                         {{ $class_folder_data['images_pending_processing_count'] }}
                                     </flux:badge>
+                                @elseif(!$class_folder_data['is_valid'])
+                                    <span class="text-gray-500">-</span>
                                 @endif
                             </td>
                             <td class="text-right">
@@ -117,7 +173,7 @@
                             </td>
                             <td class="text-right pr-2">
                                 <div class="flex justify-end gap-2 my-0.5">
-                                    @if($class_folder_data['images_pending_processing_count'])
+                                    @if($class_folder_data['is_valid'] && $class_folder_data['images_pending_processing_count'])
                                         <flux:button
                                             wire:click="processPendingClassImages('{{ $class_folder_data['path'] }}')"
                                             x-data="{ isQueued: false }"
@@ -127,6 +183,13 @@
                                             <span x-show="!isQueued">Import</span>
                                             <span x-show="isQueued">Queued</span>
                                         </flux:button>
+                                    @elseif(!$class_folder_data['is_valid'])
+                                        <flux:tooltip content="{{ $class_folder_data['validation_error'] }}">
+                                            <flux:button size="xs" variant="outline" disabled>
+                                                <flux:icon name="exclamation-triangle" variant="mini" />
+                                                Cannot Import
+                                            </flux:button>
+                                        </flux:tooltip>
                                     @endif
                                 </div>
                             </td>

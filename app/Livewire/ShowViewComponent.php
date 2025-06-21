@@ -2,12 +2,15 @@
 
 namespace App\Livewire;
 
+use App\Helpers\DirectoryNameValidator;
 use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Jobs\ShowClass\ResetClassPhotos;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
 use Flux\Flux;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 
 class ShowViewComponent extends Component
@@ -67,19 +70,37 @@ class ShowViewComponent extends Component
             $class = explode('/', $directory);
             $class = end($class);
 
-            // Check if we have this database record
-            if (! $this->show->hasClass($class)) {
-                $this->show->addClass($class);
+            // Validate directory name
+            $is_valid_directory = DirectoryNameValidator::isValid($class);
+            $validation_error = null;
+            $suggested_name = null;
+
+            if (! $is_valid_directory) {
+                $validation_error = DirectoryNameValidator::getValidationError($class);
+                $suggested_name = DirectoryNameValidator::suggestValidName($class);
             }
 
-            // Get the model
-            $show_class_model = $this->show->classes()->where('id', $this->show->id.'_'.$class)->first();
+            $show_class_model = null;
+            $images_to_process = [];
+            $images_to_web = [];
+            $images_imported = [];
 
-            // Create the legacy class just for these counting methods that aren't yet migrated
-            $show_class = new ShowClass($this->show->id, $class, $pathResolver);
-            $images_to_process = $show_class->getImagesPendingProcessing();
-            $images_to_web = $show_class->getImagesPendingWeb();
-            $images_imported = $show_class->getImportedImages();
+            // Only process valid directories
+            if ($is_valid_directory) {
+                // Check if we have this database record
+                if (! $this->show->hasClass($class)) {
+                    $this->show->addClass($class);
+                }
+
+                // Get the model
+                $show_class_model = $this->show->classes()->where('id', $this->show->id.'_'.$class)->first();
+
+                // Create the legacy class just for these counting methods that aren't yet migrated
+                $show_class = new ShowClass($this->show->id, $class, $pathResolver);
+                $images_to_process = $show_class->getImagesPendingProcessing();
+                $images_to_web = $show_class->getImagesPendingWeb();
+                $images_imported = $show_class->getImportedImages();
+            }
 
             $folder_name = explode('/', $directory);
             $folder_name = end($folder_name);
@@ -89,6 +110,9 @@ class ShowViewComponent extends Component
                 'images_pending_web_count' => count($images_to_web),
                 'images_imported' => count($images_imported),
                 'show_class' => $show_class_model,
+                'is_valid' => $is_valid_directory,
+                'validation_error' => $validation_error,
+                'suggested_name' => $suggested_name,
             ];
         }
 
@@ -150,6 +174,20 @@ class ShowViewComponent extends Component
 
     public function processPendingClassImages(string $class_folder): void
     {
+        // Validate directory name before processing
+        if (! DirectoryNameValidator::isValid($class_folder)) {
+            $error = DirectoryNameValidator::getValidationError($class_folder);
+            $suggested = DirectoryNameValidator::suggestValidName($class_folder);
+            Flux::toast(
+                text: "Cannot import from '{$class_folder}': {$error} Suggested name: '{$suggested}'",
+                heading: 'Invalid Directory Name',
+                variant: 'danger',
+                position: 'top right'
+            );
+
+            return;
+        }
+
         ImportClassPhotos::dispatch($this->show->id, $class_folder)->onQueue('imports');
         $this->setFlashMessage($class_folder.' queued for import.');
     }
@@ -318,5 +356,64 @@ class ShowViewComponent extends Component
         }
 
         return $images;
+    }
+
+    public function renameClassDirectory(string $old_name, string $new_name): void
+    {
+        // Validate the new name
+        if (! DirectoryNameValidator::isValid($new_name)) {
+            $error = DirectoryNameValidator::getValidationError($new_name);
+            Flux::toast(
+                text: "The new name '{$new_name}' is invalid: {$error}",
+                heading: 'Invalid Directory Name',
+                variant: 'danger',
+                position: 'top right'
+            );
+
+            return;
+        }
+
+        // Check if the new directory already exists
+        $old_path = $this->working_path.'/'.$old_name;
+        $new_path = $this->working_path.'/'.$new_name;
+
+        if (Storage::disk('fullsize')->exists($new_path)) {
+            Flux::toast(
+                text: "A directory with the name '{$new_name}' already exists.",
+                heading: 'Directory Exists',
+                variant: 'danger',
+                position: 'top right'
+            );
+
+            return;
+        }
+
+        try {
+            // Rename the directory
+            if (Storage::disk('fullsize')->move($old_path, $new_path)) {
+                Flux::toast(
+                    text: "Directory renamed from '{$old_name}' to '{$new_name}'.",
+                    heading: 'Success',
+                    variant: 'success',
+                    position: 'top right'
+                );
+
+                Log::info("Renamed directory from '{$old_path}' to '{$new_path}'");
+            } else {
+                throw new \Exception('Failed to rename directory');
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to rename directory: {$e->getMessage()}", [
+                'old_path' => $old_path,
+                'new_path' => $new_path,
+            ]);
+
+            Flux::toast(
+                text: 'Failed to rename directory. Please check permissions.',
+                heading: 'Error',
+                variant: 'danger',
+                position: 'top right'
+            );
+        }
     }
 }
