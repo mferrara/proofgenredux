@@ -352,4 +352,64 @@
             </flux:button>
         </div>
     </flux:modal>
+
+    {{-- Image Preview Modal --}}
+    <flux:modal wire:model="showImageModal" name="image-preview" class="max-w-4xl">
+        @if($modalImageData)
+            <div class="space-y-4">
+                <flux:heading size="lg">
+                    Proof #{{ $modalImageData['photo']->proof_number }}
+                </flux:heading>
+                
+                <div class="bg-zinc-800 rounded-lg p-4">
+                    <img src="{{ $modalImageData['image'] }}" 
+                         alt="Proof #{{ $modalImageData['photo']->proof_number }}"
+                         class="max-w-full h-auto mx-auto rounded">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-400">File Type:</span>
+                        <span class="text-gray-200 ml-2">{{ strtoupper($modalImageData['photo']->file_type) }}</span>
+                    </div>
+                    @if($modalImageData['photo']->metadata)
+                        <div>
+                            <span class="text-gray-400">Dimensions:</span>
+                            <span class="text-gray-200 ml-2">
+                                {{ $modalImageData['photo']->metadata->width }} × {{ $modalImageData['photo']->metadata->height }} px
+                            </span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">File Size:</span>
+                            <span class="text-gray-200 ml-2">
+                                {{ $this->humanReadableFilesize($modalImageData['photo']->metadata->file_size) }}
+                            </span>
+                        </div>
+                        @if($modalImageData['photo']->metadata->camera_model)
+                            <div>
+                                <span class="text-gray-400">Camera:</span>
+                                <span class="text-gray-200 ml-2">
+                                    {{ $modalImageData['photo']->metadata->camera_model }}
+                                </span>
+                            </div>
+                        @endif
+                    @endif
+                    <div>
+                        <span class="text-gray-400">Imported:</span>
+                        <span class="text-gray-200 ml-2">
+                            {{ $modalImageData['photo']->created_at->format('m/d/Y H:i:s') }}
+                        </span>
+                    </div>
+                    @if($modalImageData['photo']->proofs_generated_at)
+                        <div>
+                            <span class="text-gray-400">Proofs Generated:</span>
+                            <span class="text-gray-200 ml-2">
+                                {{ $modalImageData['photo']->proofs_generated_at->format('m/d/Y H:i:s') }}
+                            </span>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @endif
+    </flux:modal>
 </div>

@@ -142,7 +142,11 @@
                 </td>
                 <td>
                     <div class="ml-2 text-indigo-400 font-medium">
-                        {{ $photo->proof_number }}
+                        <button type="button" 
+                                @click="$wire.showPhotoModal('{{ $photo->id }}')"
+                                class="hover:text-indigo-300 hover:underline cursor-pointer transition-colors">
+                            {{ $photo->proof_number }}
+                        </button>
                         @if($file_not_found)
                             <flux:badge color="rose" size="sm">
                                 File Not Found

@@ -67,6 +67,13 @@ class ClassViewComponent extends Component
 
     public bool $deleteFiles = false;
 
+    // Image modal properties
+    public bool $showImageModal = false;
+
+    public ?string $selectedPhotoId = null;
+
+    public ?array $modalImageData = null;
+
     public function mount(PathResolver $pathResolver): void
     {
         $this->pathResolver = $pathResolver;
@@ -664,5 +671,53 @@ class ClassViewComponent extends Component
         $this->showDeleteModal = false;
         $this->deleteFiles = false;
         $this->selectedAction = '';
+    }
+
+    /**
+     * Show photo modal with large thumbnail
+     */
+    public function showPhotoModal(string $photoId): void
+    {
+        $photo = Photo::find($photoId);
+        if (! $photo) {
+            return;
+        }
+
+        $this->selectedPhotoId = $photoId;
+
+        // Construct large thumbnail path using config suffix
+        $largeSuffix = config('proofgen.thumbnails.large.suffix', '_std');
+        $largeThumbnailPath = 'proofs/'.str_replace('originals/', '', $photo->relative_path);
+        $largeThumbnailPath = str_replace('.jpg', $largeSuffix.'.jpg', $largeThumbnailPath);
+
+        // Load image data
+        try {
+            $thumbnailData = \Illuminate\Support\Facades\Storage::disk('fullsize')->get($largeThumbnailPath);
+            $base64 = \Intervention\Image\Laravel\Facades\Image::read($thumbnailData)->toJpeg(90);
+            $this->modalImageData = [
+                'photo' => $photo,
+                'image' => 'data:image/jpeg;base64,'.base64_encode($base64),
+                'path' => $largeThumbnailPath,
+            ];
+            $this->showImageModal = true;
+        } catch (\Exception $e) {
+            // Handle error - show toast notification
+            Log::error('Failed to load large thumbnail: '.$e->getMessage());
+            Flux::toast(
+                'Failed to load large thumbnail',
+                'Error',
+                'error'
+            );
+        }
+    }
+
+    /**
+     * Close the image modal
+     */
+    public function closeImageModal(): void
+    {
+        $this->showImageModal = false;
+        $this->selectedPhotoId = null;
+        $this->modalImageData = null;
     }
 }
