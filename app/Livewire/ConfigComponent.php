@@ -158,10 +158,13 @@ class ConfigComponent extends Component
         $phpBinaryConfig = Configuration::where('key', 'php_binary_path')->first();
 
         if (! $phpBinaryConfig) {
-            // Create the configuration with the current PHP binary path
+            // Detect the current PHP binary path
+            $phpBinary = $this->detectPhpBinary();
+            
+            // Create the configuration with the detected PHP binary path
             Configuration::setConfig(
                 'php_binary_path',
-                '/Users/mikeferrara/Library/Application Support/Herd/bin/php',
+                $phpBinary,
                 'string',
                 'system',
                 'PHP Binary Path',
@@ -1490,6 +1493,63 @@ class ConfigComponent extends Component
             $service = app(SwiftCompatibilityService::class);
             $this->swiftCompatibility = $service->checkCompatibility(force: true);
         }
+    }
+
+    /**
+     * Detect the PHP binary path dynamically
+     */
+    private function detectPhpBinary(): string
+    {
+        // Try to get PHP binary from current process
+        if (defined('PHP_BINARY') && file_exists(PHP_BINARY)) {
+            return PHP_BINARY;
+        }
+
+        // Try to find PHP in common locations
+        $commonPaths = [
+            '/usr/bin/php',
+            '/usr/local/bin/php',
+            '/opt/homebrew/bin/php',
+            '/Applications/MAMP/bin/php/php*/bin/php', // MAMP
+            '/usr/local/php*/bin/php', // Custom installs
+        ];
+
+        // Check if we're running under Laravel Herd
+        $herdPaths = [
+            $_SERVER['HOME'] . '/Library/Application Support/Herd/bin/php',
+            '/Applications/Herd.app/Contents/Resources/valet/bin/php',
+        ];
+
+        // Check Herd paths first if running under Herd
+        foreach ($herdPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        // Check common paths
+        foreach ($commonPaths as $pattern) {
+            $paths = glob($pattern);
+            if ($paths) {
+                foreach ($paths as $path) {
+                    if (file_exists($path) && is_executable($path)) {
+                        return $path;
+                    }
+                }
+            }
+        }
+
+        // Try to find PHP using 'which' command
+        $result = shell_exec('which php 2>/dev/null');
+        if ($result) {
+            $path = trim($result);
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        // Default fallback
+        return 'php';
     }
 
     public function render()
