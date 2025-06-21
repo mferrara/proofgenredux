@@ -37,14 +37,14 @@ class UpdateService
      */
     public function getCurrentVersion(): ?string
     {
-        $result = Process::run('git describe --tags --abbrev=0 2>/dev/null');
+        $result = Process::path(base_path())->run('git describe --tags --abbrev=0 2>/dev/null');
 
         if ($result->successful() && ! empty($result->output())) {
             return trim($result->output());
         }
 
         // If no tags, get current commit hash
-        $result = Process::run('git rev-parse --short HEAD');
+        $result = Process::path(base_path())->run('git rev-parse --short HEAD');
 
         return $result->successful() ? 'commit-'.trim($result->output()) : null;
     }
@@ -55,7 +55,7 @@ class UpdateService
     public function checkForUpdates(): array
     {
         // Fetch latest tags from remote
-        Process::run('git fetch --tags');
+        Process::path(base_path())->run('git fetch --tags');
 
         $currentVersion = $this->getCurrentVersion();
         $latestVersion = $this->getLatestRemoteVersion();
@@ -72,14 +72,14 @@ class UpdateService
      */
     protected function getLatestRemoteVersion(): ?string
     {
-        $result = Process::run('git describe --tags --abbrev=0 $(git rev-list --tags --max-count=1) 2>/dev/null');
+        $result = Process::path(base_path())->run('git describe --tags --abbrev=0 $(git rev-list --tags --max-count=1) 2>/dev/null');
 
         if ($result->successful() && ! empty($result->output())) {
             return trim($result->output());
         }
 
         // If no tags, get latest remote commit
-        $result = Process::run('git rev-parse --short origin/main');
+        $result = Process::path(base_path())->run('git rev-parse --short origin/main');
 
         return $result->successful() ? 'commit-'.trim($result->output()) : null;
     }
@@ -113,12 +113,11 @@ class UpdateService
     protected function findComposerBinary(): ?string
     {
         // First check if there's a composer.phar in the project root (bundled with app)
-        $projectComposer = base_path('composer.phar');
-        if (file_exists($projectComposer)) {
+        if (file_exists(base_path('composer.phar'))) {
             // Make sure PHP binary is available
             $phpBinary = config('proofgen.php_binary_path', 'php');
-
-            return "{$phpBinary} {$projectComposer}";
+            // Return relative path to avoid issues with spaces in absolute paths
+            return "{$phpBinary} composer.phar";
         }
 
         // Fallback: check if composer is in PATH
@@ -174,7 +173,7 @@ class UpdateService
 
             // Step 3: Pull latest changes
             $steps[] = 'Pulling latest changes...';
-            $pullResult = Process::timeout(120)->run('git pull origin main --tags');
+            $pullResult = Process::path(base_path())->timeout(120)->run('git pull origin main --tags');
             if (! $pullResult->successful()) {
                 throw new \Exception('Git pull failed: '.$pullResult->errorOutput());
             }
@@ -183,7 +182,7 @@ class UpdateService
             $latestTag = $this->getLatestRemoteVersion();
             if ($latestTag && ! str_starts_with($latestTag, 'commit-')) {
                 $steps[] = "Checking out version {$latestTag}...";
-                $checkoutResult = Process::run("git checkout {$latestTag}");
+                $checkoutResult = Process::path(base_path())->run("git checkout {$latestTag}");
                 if (! $checkoutResult->successful()) {
                     throw new \Exception('Git checkout failed: '.$checkoutResult->errorOutput());
                 }
@@ -191,37 +190,40 @@ class UpdateService
 
             // Step 5: Install composer dependencies
             $steps[] = 'Installing composer dependencies...';
-            $composerResult = Process::timeout(300)->run("{$composerBinary} install --no-dev --optimize-autoloader");
+            // Use array syntax to properly handle paths with spaces
+            $composerCommand = explode(' ', $composerBinary);
+            $composerCommand = array_merge($composerCommand, ['install', '--no-dev', '--optimize-autoloader']);
+            $composerResult = Process::path(base_path())->timeout(300)->run($composerCommand);
             if (! $composerResult->successful()) {
                 throw new \Exception('Composer install failed: '.$composerResult->errorOutput());
             }
 
             // Step 6: Run migrations
             $steps[] = 'Running migrations...';
-            $migrateResult = Process::run('php artisan migrate --force');
+            $migrateResult = Process::path(base_path())->run('php artisan migrate --force');
             if (! $migrateResult->successful()) {
                 throw new \Exception('Migrations failed: '.$migrateResult->errorOutput());
             }
 
             // Step 7: Build frontend assets
             $steps[] = 'Building frontend assets...';
-            $npmResult = Process::timeout(300)->run('npm ci && npm run build');
+            $npmResult = Process::path(base_path())->timeout(300)->run('npm ci && npm run build');
             if (! $npmResult->successful()) {
                 throw new \Exception('NPM build failed: '.$npmResult->errorOutput());
             }
 
             // Step 8: Clear caches
             $steps[] = 'Clearing caches...';
-            Process::run('php artisan config:clear');
-            Process::run('php artisan route:clear');
-            Process::run('php artisan view:clear');
-            Process::run('php artisan cache:clear');
+            Process::path(base_path())->run('php artisan config:clear');
+            Process::path(base_path())->run('php artisan route:clear');
+            Process::path(base_path())->run('php artisan view:clear');
+            Process::path(base_path())->run('php artisan cache:clear');
 
             // Step 9: Cache config for production
             $steps[] = 'Optimizing application...';
-            Process::run('php artisan config:cache');
-            Process::run('php artisan route:cache');
-            Process::run('php artisan view:cache');
+            Process::path(base_path())->run('php artisan config:cache');
+            Process::path(base_path())->run('php artisan route:cache');
+            Process::path(base_path())->run('php artisan view:cache');
 
             // Step 10: Restart Horizon
             $steps[] = 'Starting Horizon...';
@@ -294,7 +296,7 @@ class UpdateService
      */
     protected function stopHorizon(): void
     {
-        Process::run('php artisan horizon:terminate');
+        Process::path(base_path())->run('php artisan horizon:terminate');
         sleep(5); // Give Horizon time to gracefully shut down
     }
 
@@ -304,7 +306,7 @@ class UpdateService
     protected function startHorizon(): void
     {
         // Start Horizon in the background
-        Process::run('nohup php artisan horizon > /dev/null 2>&1 &');
+        Process::path(base_path())->run('nohup php artisan horizon > /dev/null 2>&1 &');
     }
 
     /**
