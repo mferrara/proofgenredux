@@ -23,12 +23,12 @@ class SwiftCompatibilityService
         if (!$force && file_exists($cacheFile)) {
             $cached = json_decode(file_get_contents($cacheFile), true);
             if ($cached && isset($cached['checked_at'])) {
-                Log::debug('Using cached Swift compatibility check from ' . $cached['checked_at']);
+                // Log::debug('Using cached Swift compatibility check from ' . $cached['checked_at']);
                 return $cached;
             }
         }
 
-        Log::info('Performing Swift compatibility check');
+        // Log::info('Performing Swift compatibility check');
 
         $result = [
             'compatible' => false,
@@ -76,17 +76,17 @@ class SwiftCompatibilityService
         }
 
         $result['swift_available'] = true;
-        Log::debug("Swift found at: {$swiftPath}");
+        // Log::debug("Swift found at: {$swiftPath}");
 
         // Check Swift version
         $versionOutput = shell_exec('swift --version 2>&1');
         if (preg_match('/Swift version (\d+\.\d+(?:\.\d+)?)/', $versionOutput, $matches)) {
             $result['version'] = $matches[1];
-            Log::info("Swift version detected: {$result['version']}");
+            // Log::info("Swift version detected: {$result['version']}");
 
             if (version_compare($result['version'], self::MIN_SWIFT_VERSION, '>=')) {
                 $result['compatible'] = true;
-                Log::info('Swift version is compatible for Core Image enhancement');
+                // Log::info('Swift version is compatible for Core Image enhancement');
             } else {
                 $result['error'] = "Swift {$result['version']} found, but version " . self::MIN_SWIFT_VERSION . " or higher is required.";
                 Log::warning($result['error']);
@@ -112,7 +112,7 @@ class SwiftCompatibilityService
         $json = json_encode($result, JSON_PRETTY_PRINT);
         
         if (file_put_contents($cacheFile, $json) !== false) {
-            Log::debug('Swift compatibility check cached to: ' . $cacheFile);
+            // Log::debug('Swift compatibility check cached to: ' . $cacheFile);
         } else {
             Log::warning('Failed to cache Swift compatibility check');
         }
@@ -128,7 +128,7 @@ class SwiftCompatibilityService
         $cacheFile = storage_path(self::CACHE_FILE);
         if (file_exists($cacheFile)) {
             if (unlink($cacheFile)) {
-                Log::info('Swift compatibility cache cleared');
+                // Log::info('Swift compatibility cache cleared');
             } else {
                 Log::warning('Failed to clear Swift compatibility cache');
             }

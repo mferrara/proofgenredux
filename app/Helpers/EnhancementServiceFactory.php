@@ -21,7 +21,7 @@ class EnhancementServiceFactory
             try {
                 $daemonService = app(CoreImageDaemonService::class);
                 if ($daemonService->isCoreImageAvailable()) {
-                    Log::info("Using Core Image daemon for {$context} enhancement (GPU accelerated)");
+                    // Log::info("Using Core Image daemon for {$context} enhancement (GPU accelerated)");
 
                     return $daemonService;
                 }

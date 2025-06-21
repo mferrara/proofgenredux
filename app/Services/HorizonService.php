@@ -115,11 +115,11 @@ class HorizonService
     {
         try {
             // First try to terminate using Artisan::call
-            Log::debug('Terminating Horizon using Artisan::call');
+            // Log::debug('Terminating Horizon using Artisan::call');
 
             $exitCode = Artisan::call('horizon:terminate');
             $output = Artisan::output();
-            Log::debug('Horizon terminate output: '.$output);
+            // Log::debug('Horizon terminate output: '.$output);
 
             return true;
         } catch (\Exception $e) {
@@ -128,11 +128,11 @@ class HorizonService
             // Fall back to shell exec
             // Get the PHP binary path for fallback
             $phpBinary = Configuration::getPhpBinary();
-            Log::debug('Falling back to shell exec with PHP binary: '.$phpBinary);
+            // Log::debug('Falling back to shell exec with PHP binary: '.$phpBinary);
 
             // Change directory to the application root to ensure the command works
             $terminateCommand = 'cd '.base_path().' && '.escapeshellarg($phpBinary).' artisan horizon:terminate > /dev/null 2>&1';
-            Log::debug('Running command: '.$terminateCommand);
+            // Log::debug('Running command: '.$terminateCommand);
             exec($terminateCommand);
 
             return true;
@@ -177,7 +177,7 @@ class HorizonService
             
             // Check if it started successfully
             if ($this->isRunning()) {
-                Log::debug('Successfully started Horizon process');
+                // Log::debug('Successfully started Horizon process');
                 return true;
             } else {
                 Log::error('Failed to start Horizon process');
@@ -201,7 +201,7 @@ class HorizonService
         // not 'horizon' which would be processed by the Horizon worker we're restarting
         Queue::push(new \App\Jobs\RestartHorizon);
 
-        Log::info('Scheduled Horizon restart job');
+        // Log::info('Scheduled Horizon restart job');
     }
 
     /**
@@ -211,11 +211,11 @@ class HorizonService
     public function restartDirect(): bool
     {
         try {
-            Log::info('Directly restarting Horizon (without queue)');
+            // Log::info('Directly restarting Horizon (without queue)');
 
             // First terminate if running
             if ($this->isRunning()) {
-                Log::debug('Terminating existing Horizon process');
+                // Log::debug('Terminating existing Horizon process');
                 $this->terminate();
 
                 // Wait for process to stop (max 5 seconds)
@@ -234,11 +234,11 @@ class HorizonService
             }
 
             // Start Horizon
-            Log::debug('Starting Horizon');
+            // Log::debug('Starting Horizon');
             $result = $this->start();
 
             if ($result) {
-                Log::info('Horizon restarted successfully');
+                // Log::info('Horizon restarted successfully');
             } else {
                 Log::error('Failed to restart Horizon');
             }
@@ -265,7 +265,7 @@ class HorizonService
             $pids = shell_exec("ps aux | grep '[p]hp.*artisan horizon' | awk '{print $2}'");
 
             if (empty($pids)) {
-                Log::info('No Horizon processes found to kill');
+                // Log::info('No Horizon processes found to kill');
 
                 return true;
             }
@@ -274,7 +274,7 @@ class HorizonService
 
             foreach ($pidArray as $pid) {
                 if (! empty($pid) && is_numeric($pid)) {
-                    Log::debug("Killing Horizon process: $pid");
+                    // Log::debug("Killing Horizon process: $pid");
                     exec("kill -9 $pid");
                 }
             }
@@ -286,7 +286,7 @@ class HorizonService
             $remainingPids = shell_exec("ps aux | grep '[p]hp.*artisan horizon' | awk '{print $2}'");
 
             if (empty(trim($remainingPids))) {
-                Log::info('All Horizon processes killed successfully');
+                // Log::info('All Horizon processes killed successfully');
 
                 return true;
             } else {

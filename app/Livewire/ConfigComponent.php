@@ -175,7 +175,7 @@ class ConfigComponent extends Component
      */
     public function stopHorizon(): void
     {
-        Log::info('Stopping Horizon from ConfigComponent');
+        // Log::info('Stopping Horizon from ConfigComponent');
 
         try {
             // Get the HorizonService
@@ -320,7 +320,7 @@ class ConfigComponent extends Component
      */
     public function updatingTempThumbnailValues($value, $key): void
     {
-        Log::debug('updatingTempThumbnailValues called', ['key' => $key, 'value' => $value]);
+        // Log::debug('updatingTempThumbnailValues called', ['key' => $key, 'value' => $value]);
 
         // Validate thumbnail values before updating
         if (str_contains($key, '.quality')) {
@@ -343,7 +343,7 @@ class ConfigComponent extends Component
      */
     public function updatePreview(): void
     {
-        Log::debug('updatePreview called', $this->tempThumbnailValues);
+        // Log::debug('updatePreview called', $this->tempThumbnailValues);
         $this->generateThumbnailPreviews();
     }
 
@@ -551,10 +551,10 @@ class ConfigComponent extends Component
 
     public function dispatchUpdateEvent(): void
     {
-        Log::debug('dispatchUpdateEvent called');
+        // Log::debug('dispatchUpdateEvent called');
         // Emit an event to notify other components
         $this->dispatch('config-updated')->to(AppStatusBar::class);
-        Log::debug('AppStatusBar event dispatched');
+        // Log::debug('AppStatusBar event dispatched');
 
         // Check if we should restart Horizon automatically
         if (config('proofgen.auto_restart_horizon', false)) {
@@ -569,7 +569,7 @@ class ConfigComponent extends Component
     public function scheduleHorizonRestart(): void
     {
         try {
-            Log::info('Restarting Horizon due to configuration changes');
+            // Log::info('Restarting Horizon due to configuration changes');
 
             // Get the HorizonService
             $horizonService = app(\App\Services\HorizonService::class);
@@ -589,7 +589,7 @@ class ConfigComponent extends Component
             $exitCode = Artisan::call('horizon:terminate');
             
             if ($exitCode === 0) {
-                Log::info('Horizon terminated successfully');
+                // Log::info('Horizon terminated successfully');
                 
                 // Wait a moment for processes to clean up
                 sleep(2);
@@ -598,7 +598,7 @@ class ConfigComponent extends Component
                 $startResult = $horizonService->start();
                 
                 if ($startResult) {
-                    Log::info('Horizon restarted successfully to apply configuration changes');
+                    // Log::info('Horizon restarted successfully to apply configuration changes');
                     
                     // Show success message
                     Flux::toast(text: 'Horizon has been restarted to apply configuration changes.',
@@ -645,7 +645,7 @@ class ConfigComponent extends Component
      */
     public function restartHorizon(): void
     {
-        Log::info('Restarting Horizon directly from ConfigComponent');
+        // Log::info('Restarting Horizon directly from ConfigComponent');
 
         try {
             // Get the HorizonService
@@ -691,7 +691,7 @@ class ConfigComponent extends Component
      */
     public function startHorizon(): void
     {
-        Log::info('Starting Horizon from ConfigComponent');
+        // Log::info('Starting Horizon from ConfigComponent');
 
         try {
             // Get the HorizonService
@@ -811,7 +811,7 @@ class ConfigComponent extends Component
         }
 
         // Log for debugging
-        Log::debug('Initialized tempThumbnailValues', $this->tempThumbnailValues);
+        // Log::debug('Initialized tempThumbnailValues', $this->tempThumbnailValues);
     }
 
     /**
@@ -973,14 +973,14 @@ class ConfigComponent extends Component
      */
     private function createPreviewThumbnail(string $sourcePath, string $destPath, string $type, ?string $size = null, bool $generateUnenhanced = false): array
     {
-        Log::debug('createPreviewThumbnail: Reading source image', [
-            'sourcePath' => $sourcePath,
-            'destPath' => $destPath,
-            'type' => $type,
-            'size' => $size,
-            'file_exists' => file_exists($sourcePath),
-            'file_size' => file_exists($sourcePath) ? filesize($sourcePath) : 0,
-        ]);
+        // Log::debug('createPreviewThumbnail: Reading source image', [
+        //     'sourcePath' => $sourcePath,
+        //     'destPath' => $destPath,
+        //     'type' => $type,
+        //     'size' => $size,
+        //     'file_exists' => file_exists($sourcePath),
+        //     'file_size' => file_exists($sourcePath) ? filesize($sourcePath) : 0,
+        // ]);
 
         $startTime = microtime(true);
         $manager = ImageManager::gd();
@@ -1091,7 +1091,7 @@ class ConfigComponent extends Component
             $quality = (int) ($this->tempThumbnailValues[$type]['quality'] ?? config("proofgen.{$type}.quality"));
         }
 
-        Log::debug("Creating {$type}".($size ? " {$size}" : '').' preview', ['width' => $width, 'height' => $height, 'quality' => $quality]);
+        // Log::debug("Creating {$type}".($size ? " {$size}" : '').' preview', ['width' => $width, 'height' => $height, 'quality' => $quality]);
 
         // Scale and save as JPEG with quality
         $image->scale($width, $height)

@@ -73,12 +73,9 @@ class CoreImageDaemonService extends ImageEnhancementService
                                 fclose($socket);
                                 @flock($lockHandle, LOCK_UN);
                                 @fclose($lockHandle);
-                                Log::info('CoreImageDaemonService: Daemon is available and working');
 
                                 return true;
                             }
-
-                            Log::info('CoreImageDaemonService: Daemon not running, attempting to start it');
 
                             // Try to start the daemon
                             if ($this->startDaemonProcess()) {
@@ -101,7 +98,6 @@ class CoreImageDaemonService extends ImageEnhancementService
                         }
                     } else {
                         // Another process is starting the daemon, wait and retry
-                        Log::info('CoreImageDaemonService: Another process is starting the daemon, waiting...');
                         sleep(3);
 
                         // Try connecting again
@@ -123,8 +119,6 @@ class CoreImageDaemonService extends ImageEnhancementService
             } else {
                 fclose($socket);
             }
-
-            Log::info('CoreImageDaemonService: Daemon is available and working');
 
             return true;
 
@@ -157,7 +151,7 @@ class CoreImageDaemonService extends ImageEnhancementService
                     // Check if process is still running
                     $result = shell_exec("ps -p $pid");
                     if (strpos($result, $pid) !== false) {
-                        Log::info("CoreImageDaemonService: Daemon already running with PID $pid");
+                        // Log::info("CoreImageDaemonService: Daemon already running with PID $pid");
 
                         return true;
                     }
@@ -188,7 +182,7 @@ class CoreImageDaemonService extends ImageEnhancementService
             $pid = trim(shell_exec($command));
 
             if (is_numeric($pid)) {
-                Log::info("CoreImageDaemonService: Started daemon with PID $pid");
+                // Log::info("CoreImageDaemonService: Started daemon with PID $pid");
 
                 // Save PID for later management
                 file_put_contents(storage_path('core-image-daemon.pid'), $pid);
@@ -253,7 +247,9 @@ class CoreImageDaemonService extends ImageEnhancementService
             }
 
             $processingTime = microtime(true) - $startTime;
-            Log::debug("Core Image {$method} processing time: {$processingTime}s");
+            if($processingTime > 2) {
+                Log::debug("Core Image {$method} processing time: {$processingTime}s");
+            }
 
             // Load the enhanced image
             $result = $this->manager->read($tempPath);
@@ -374,7 +370,6 @@ class CoreImageDaemonService extends ImageEnhancementService
         $idleTimeout = config('proofgen.core_image_idle_timeout', 120);
 
         file_put_contents($configPath, (string) $idleTimeout);
-        Log::info("CoreImageDaemonService: Wrote idle timeout config: {$idleTimeout} minutes");
     }
 
     /**
@@ -393,7 +388,7 @@ class CoreImageDaemonService extends ImageEnhancementService
                 if (strpos($result, $pid) !== false) {
                     // Kill the process
                     shell_exec("kill $pid");
-                    Log::info("CoreImageDaemonService: Stopped daemon with PID $pid");
+                    // Log::info("CoreImageDaemonService: Stopped daemon with PID $pid");
                 }
 
                 unlink($pidFile);
