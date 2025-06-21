@@ -140,6 +140,7 @@ class Photo extends Model
         // Split show_class_id into show and class parts, limiting to 2 parts
         // This handles class names with underscores (e.g., "opening_ceremony")
         $parts = explode('_', $this->show_class_id, 2);
+
         return $parts[0].'/'.$parts[1].'/originals/'.$this->proof_number.'.'.$this->file_type;
     }
 

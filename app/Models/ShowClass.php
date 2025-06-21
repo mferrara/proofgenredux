@@ -74,6 +74,7 @@ class ShowClass extends Model
         // Split id into show and class parts, limiting to 2 parts
         // This handles class names with underscores (e.g., "opening_ceremony")
         $parts = explode('_', $this->id, 2);
+
         return $parts[0].'/'.$parts[1];
     }
 

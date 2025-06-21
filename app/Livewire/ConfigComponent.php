@@ -958,56 +958,66 @@ class ConfigComponent extends Component
 
         // Apply enhancement if enabled
         if ($enhancementEnabled) {
-            $enhancementService = \App\Helpers\EnhancementServiceFactory::getService('preview');
+            try {
+                $enhancementService = \App\Helpers\EnhancementServiceFactory::getService('preview');
 
-            // Get enhancement parameters from config values
-            // Use temporary values if we're in preview mode (not saved yet)
-            $parameters = [];
+                // Get enhancement parameters from config values
+                // Use temporary values if we're in preview mode (not saved yet)
+                $parameters = [];
 
-            // Note: percentile parameters are now included in tone mapping params below
+                // Note: percentile parameters are now included in tone mapping params below
 
-            // Advanced Tone Mapping parameters
-            $toneMappingParams = [
-                'tone_mapping_percentile_low',
-                'tone_mapping_percentile_high',
-                'tone_mapping_shadow_amount',
-                'tone_mapping_highlight_amount',
-                'tone_mapping_shadow_radius',
-                'tone_mapping_midtone_gamma',
-            ];
+                // Advanced Tone Mapping parameters
+                $toneMappingParams = [
+                    'tone_mapping_percentile_low',
+                    'tone_mapping_percentile_high',
+                    'tone_mapping_shadow_amount',
+                    'tone_mapping_highlight_amount',
+                    'tone_mapping_shadow_radius',
+                    'tone_mapping_midtone_gamma',
+                ];
 
-            foreach ($toneMappingParams as $param) {
-                $paramId = $this->getConfigId($param);
-                if ($paramId && isset($this->configValues[$paramId])) {
-                    $parameters[$param] = $this->configValues[$paramId];
+                foreach ($toneMappingParams as $param) {
+                    $paramId = $this->getConfigId($param);
+                    if ($paramId && isset($this->configValues[$paramId])) {
+                        $parameters[$param] = $this->configValues[$paramId];
+                    }
                 }
-            }
 
-            // Adjustable Auto-Levels parameters
-            $autoLevelsParams = [
-                'auto_levels_target_brightness',
-                'auto_levels_contrast_threshold',
-                'auto_levels_contrast_boost',
-                'auto_levels_black_point',
-                'auto_levels_white_point',
-            ];
+                // Adjustable Auto-Levels parameters
+                $autoLevelsParams = [
+                    'auto_levels_target_brightness',
+                    'auto_levels_contrast_threshold',
+                    'auto_levels_contrast_boost',
+                    'auto_levels_black_point',
+                    'auto_levels_white_point',
+                ];
 
-            foreach ($autoLevelsParams as $param) {
-                $paramId = $this->getConfigId($param);
-                if ($paramId && isset($this->configValues[$paramId])) {
-                    $parameters[$param] = $this->configValues[$paramId];
+                foreach ($autoLevelsParams as $param) {
+                    $paramId = $this->getConfigId($param);
+                    if ($paramId && isset($this->configValues[$paramId])) {
+                        $parameters[$param] = $this->configValues[$paramId];
+                    }
                 }
+
+                $image = $enhancementService->enhance($sourcePath, $enhancementMethod, $parameters);
+
+                // Store enhancement info
+                $enhancementInfo = [
+                    'enabled' => true,
+                    'method' => $enhancementMethod,
+                    'method_label' => $this->getEnhancementMethodLabel($enhancementMethod),
+                    'parameters' => $this->formatEnhancementParameters($enhancementMethod, $parameters),
+                ];
+            } catch (\Exception $e) {
+                Log::error('Enhancement service failed in ConfigComponent preview: '.$e->getMessage());
+                // Fall back to reading without enhancement
+                $image = $manager->read($sourcePath);
+                $enhancementInfo = [
+                    'enabled' => false,
+                    'error' => 'Enhancement failed: '.$e->getMessage(),
+                ];
             }
-
-            $image = $enhancementService->enhance($sourcePath, $enhancementMethod, $parameters);
-
-            // Store enhancement info
-            $enhancementInfo = [
-                'enabled' => true,
-                'method' => $enhancementMethod,
-                'method_label' => $this->getEnhancementMethodLabel($enhancementMethod),
-                'parameters' => $this->formatEnhancementParameters($enhancementMethod, $parameters),
-            ];
         } else {
             $image = $manager->read($sourcePath);
         }

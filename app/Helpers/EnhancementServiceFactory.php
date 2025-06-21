@@ -18,19 +18,27 @@ class EnhancementServiceFactory
     {
         // Try Core Image daemon first (macOS with Apple Silicon)
         if (PHP_OS_FAMILY === 'Darwin') {
-            $daemonService = app(CoreImageDaemonService::class);
-            if ($daemonService->isCoreImageAvailable()) {
-                Log::info("Using Core Image daemon for {$context} enhancement (GPU accelerated)");
+            try {
+                $daemonService = app(CoreImageDaemonService::class);
+                if ($daemonService->isCoreImageAvailable()) {
+                    Log::info("Using Core Image daemon for {$context} enhancement (GPU accelerated)");
 
-                return $daemonService;
+                    return $daemonService;
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to initialize Core Image daemon service: '.$e->getMessage());
             }
 
-            // Fall back to stdin/stdout Core Image service
-            $coreImageService = app(CoreImageEnhancementService::class);
-            if ($coreImageService->isCoreImageAvailable()) {
-                Log::info("Using Core Image for {$context} enhancement (GPU accelerated)");
+            try {
+                // Fall back to stdin/stdout Core Image service
+                $coreImageService = app(CoreImageEnhancementService::class);
+                if ($coreImageService->isCoreImageAvailable()) {
+                    Log::info("Using Core Image for {$context} enhancement (GPU accelerated)");
 
-                return $coreImageService;
+                    return $coreImageService;
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to initialize Core Image service: '.$e->getMessage());
             }
         }
 

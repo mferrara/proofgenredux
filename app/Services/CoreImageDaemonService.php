@@ -42,7 +42,7 @@ class CoreImageDaemonService extends ImageEnhancementService
             if (! $socket) {
                 // Use file locking to ensure only one process starts the daemon
                 $lockFile = storage_path('core-image-daemon.lock');
-                $lockHandle = fopen($lockFile, 'c');
+                $lockHandle = @fopen($lockFile, 'c');
 
                 if (! $lockHandle) {
                     Log::warning('CoreImageDaemonService: Could not create lock file');
@@ -50,61 +50,64 @@ class CoreImageDaemonService extends ImageEnhancementService
                     return false;
                 }
 
-                // Try to get exclusive lock
-                if (flock($lockHandle, LOCK_EX | LOCK_NB)) {
-                    try {
-                        // Double-check daemon isn't running now
-                        $socket = @fsockopen($this->daemonHost, $this->daemonPort, $errno, $errstr, 1);
-                        if ($socket) {
-                            fclose($socket);
-                            flock($lockHandle, LOCK_UN);
-                            fclose($lockHandle);
-                            Log::info('CoreImageDaemonService: Daemon is available and working');
+                try {
+                    // Try to get exclusive lock
+                    $gotLock = @flock($lockHandle, LOCK_EX | LOCK_NB);
 
-                            return true;
-                        }
-
-                        Log::info('CoreImageDaemonService: Daemon not running, attempting to start it');
-
-                        // Try to start the daemon
-                        if ($this->startDaemonProcess()) {
-                            // Wait a moment for it to start
-                            sleep(2);
-
-                            // Try connecting again
+                    if ($gotLock) {
+                        try {
+                            // Double-check daemon isn't running now
                             $socket = @fsockopen($this->daemonHost, $this->daemonPort, $errno, $errstr, 1);
-                            if (! $socket) {
-                                Log::warning('CoreImageDaemonService: Failed to connect to daemon after starting');
-                                flock($lockHandle, LOCK_UN);
-                                fclose($lockHandle);
+                            if ($socket) {
+                                fclose($socket);
+                                @flock($lockHandle, LOCK_UN);
+                                @fclose($lockHandle);
+                                Log::info('CoreImageDaemonService: Daemon is available and working');
 
+                                return true;
+                            }
+
+                            Log::info('CoreImageDaemonService: Daemon not running, attempting to start it');
+
+                            // Try to start the daemon
+                            if ($this->startDaemonProcess()) {
+                                // Wait a moment for it to start
+                                sleep(2);
+
+                                // Try connecting again
+                                $socket = @fsockopen($this->daemonHost, $this->daemonPort, $errno, $errstr, 1);
+                                if (! $socket) {
+                                    Log::warning('CoreImageDaemonService: Failed to connect to daemon after starting');
+
+                                    return false;
+                                }
+                                fclose($socket);
+                            } else {
                                 return false;
                             }
-                            fclose($socket);
-                        } else {
-                            flock($lockHandle, LOCK_UN);
-                            fclose($lockHandle);
+                        } finally {
+                            @flock($lockHandle, LOCK_UN);
+                        }
+                    } else {
+                        // Another process is starting the daemon, wait and retry
+                        Log::info('CoreImageDaemonService: Another process is starting the daemon, waiting...');
+                        sleep(3);
+
+                        // Try connecting again
+                        $socket = @fsockopen($this->daemonHost, $this->daemonPort, $errno, $errstr, 1);
+                        if (! $socket) {
+                            Log::warning('CoreImageDaemonService: Daemon still not available after waiting');
 
                             return false;
                         }
-                    } finally {
-                        flock($lockHandle, LOCK_UN);
-                        fclose($lockHandle);
+                        fclose($socket);
                     }
-                } else {
-                    // Another process is starting the daemon, wait and retry
-                    fclose($lockHandle);
-                    Log::info('CoreImageDaemonService: Another process is starting the daemon, waiting...');
-                    sleep(3);
+                } catch (\Exception $e) {
+                    Log::error('CoreImageDaemonService: Error during lock handling - '.$e->getMessage());
 
-                    // Try connecting again
-                    $socket = @fsockopen($this->daemonHost, $this->daemonPort, $errno, $errstr, 1);
-                    if (! $socket) {
-                        Log::warning('CoreImageDaemonService: Daemon still not available after waiting');
-
-                        return false;
-                    }
-                    fclose($socket);
+                    return false;
+                } finally {
+                    @fclose($lockHandle);
                 }
             } else {
                 fclose($socket);

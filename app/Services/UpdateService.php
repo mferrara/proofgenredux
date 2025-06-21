@@ -108,6 +108,44 @@ class UpdateService
     }
 
     /**
+     * Find the composer binary path
+     */
+    protected function findComposerBinary(): ?string
+    {
+        // First check if composer is in PATH
+        $result = Process::run('which composer');
+        if ($result->successful() && ! empty(trim($result->output()))) {
+            return trim($result->output());
+        }
+
+        // Check common locations
+        $commonPaths = [
+            '/usr/local/bin/composer',
+            '/opt/homebrew/bin/composer',
+            '/usr/bin/composer',
+            $_SERVER['HOME'].'/.composer/composer',
+            $_SERVER['HOME'].'/.composer/vendor/bin/composer',
+        ];
+
+        foreach ($commonPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        // Check if there's a composer.phar in the project root
+        $projectComposer = base_path('composer.phar');
+        if (file_exists($projectComposer)) {
+            // Make sure PHP binary is available
+            $phpBinary = config('proofgen.php_binary_path', 'php');
+
+            return "{$phpBinary} {$projectComposer}";
+        }
+
+        return null;
+    }
+
+    /**
      * Perform the update process
      */
     public function performUpdate(): array
@@ -117,6 +155,14 @@ class UpdateService
         $error = null;
 
         try {
+            // Step 0: Check for composer
+            $steps[] = 'Checking for composer...';
+            $composerBinary = $this->findComposerBinary();
+            if (! $composerBinary) {
+                throw new \Exception('Composer not found. Please ensure composer is installed and accessible in PATH or common locations.');
+            }
+            $steps[] = "Found composer at: {$composerBinary}";
+
             // Step 1: Stop Horizon
             $steps[] = 'Stopping Horizon...';
             $this->stopHorizon();
@@ -145,7 +191,7 @@ class UpdateService
 
             // Step 5: Install composer dependencies
             $steps[] = 'Installing composer dependencies...';
-            $composerResult = Process::timeout(300)->run('composer install --no-dev --optimize-autoloader');
+            $composerResult = Process::timeout(300)->run("{$composerBinary} install --no-dev --optimize-autoloader");
             if (! $composerResult->successful()) {
                 throw new \Exception('Composer install failed: '.$composerResult->errorOutput());
             }

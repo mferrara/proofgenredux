@@ -38,11 +38,12 @@ class VersionCommand extends Command
         if ($this->option('write')) {
             file_put_contents(base_path('VERSION'), $version);
             $this->info("Version {$version} written to VERSION file.");
+
             return Command::SUCCESS;
         }
 
         $this->info("Application Version: {$version}");
-        
+
         // Show clean version too if different
         $cleanVersion = VersionService::getCleanVersion();
         if ($cleanVersion !== $version) {
