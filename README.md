@@ -1,27 +1,124 @@
-# Proofgen
+# Proofgen Redux
 
-### 2024
+A Laravel application for processing event photography images, managing watermarks, and uploading to a photography sales platform.
 
-`brew install rsync` for modern version of rsync
-laravel herd
-+ redis (on herd)
-+ raise memory limit on herd/php
+## Overview
 
-## PHP Extensions required
+Proofgen Redux monitors directories containing full-size images from photographers and processes them through a configurable workflow:
 
-fileinfo
-exif
-gd
-pcntl
+1. **Image Processing Steps**:
+   - Renames files with proof numbers (configurable)
+   - Creates archive copies (configurable)
+   - Generates thumbnails with watermarks (configurable)
+   - Creates web-optimized versions (configurable)
+   - Uploads proofs & web images to remote server via SFTP/rsync (configurable)
+
+2. **Key Features**:
+   - Web-based interface using Laravel Livewire and FluxUI components
+   - Background job processing for large batches
+   - Configurable watermarks and image settings
+   - Database-driven configuration (moving away from .env files)
+   - Support for shows (events) and classes (subdivisions within shows)
+
+## Requirements
+
+### Development Environment (2024)
+- Laravel Herd
+- Redis (via Herd)
+- Raised PHP memory limit in Herd
+- `brew install rsync` for modern version of rsync
+
+### PHP Extensions
+- fileinfo
+- exif
+- gd
+- pcntl
+
+## Installation
+
+```bash
+# Install dependencies
+composer install
+npm install
+
+# Set up database
+php artisan migrate
+
+# Build frontend assets
+npm run build
+```
+
+## Development Commands
+
+```bash
+# Development server
+php artisan serve
+npm run dev
+
+# Build for production
+npm run build
+
+# Run all tests
+./vendor/bin/pest
+
+# Run a single test
+./vendor/bin/pest tests/path/to/test.php
+
+# Code style checking
+./vendor/bin/pint
+
+# Laravel artisan commands
+php artisan migrate           # Run database migrations
+php artisan make:model Name   # Create a new model
+```
+
+## Directory Structure
+
+The application expects a specific directory structure for processing images:
+
+```
+FULLSIZE_HOME_DIR/
+├── ShowName/              # e.g., "2023R41"
+│   ├── ClassID/          # e.g., "121", "127"
+│   │   ├── IMG_xxxx.jpg  # Raw images to process
+│   │   ├── originals/    # Renamed images moved here after processing
+│   │   └── proofs/       # Generated thumbnails/proofs
+```
+
+### Configuration
+- **FULLSIZE_HOME_DIR**: Base directory containing show folders
+- **ARCHIVE_HOME_DIR**: Backup location for full-size images (ideally external drive)
+
+## Main Components
+
+### Livewire Components
+- **HomeComponent**: Directory navigation
+- **ShowViewComponent**: Show-level operations
+- **ClassViewComponent**: Class-level operations
+- **ConfigComponent**: Configuration management
+
+### Core Classes
+- **Show**: Represents a photography event
+- **ShowClass**: Represents a class within a show
+- **Image**: Handles image processing
+
+### Background Jobs
+- **ImportPhoto**: Process single image
+- **GenerateThumbnails**: Create thumbnails
+- **GenerateWebImage**: Create web versions
+- **UploadProofs**: Upload to remote server
+- **ImportPhotos**: Batch process images
 
 ## Sample Images for Testing
 
 The application uses a sample image system that can automatically download test images from an S3-compatible bucket (like Digital Ocean Spaces):
 
+### Setup
+
 1. **Setup S3 bucket**:
    - Create a bucket for sample images (separate from production images)
    - Add appropriate sample files in the structure `{show}/{class}/{image.jpg}`
-   - Configure S3 credentials in `.env`
+   - Standard sample data includes shows like "2023R41" with classes "121" and "127"
 
 2. **Environment configuration**:
    ```
@@ -53,24 +150,61 @@ The application uses a sample image system that can automatically download test 
    - Set `AUTO_DOWNLOAD_SAMPLE_IMAGES=true` to auto-download when tests run
    - Tests will be skipped if images aren't available and auto-download is disabled
 
-## Getting new images into the system:
+## Testing
 
-FULLSIZE_HOME_DIR="~/Desktop/ShowPhotos"
+The application has a comprehensive test suite covering both unit and feature tests:
 
-In order to get proofgen to process images it needs to know where to look for them. The way we do
-this is by the FULLSIZE_HOME_DIR configuration variable in the .env file. Enter the full path
-to the images PARENT folder here. So, if you have a directory "~/Desktop/ShowPhotos" where you have
-"20Buckeye" - your FULLSIZE_HOME_DIR would be "~/Desktop/ShowPhotos". Proofgen will then detect
-the "20Buckeye" folder as the "Show" folder (and this will be used as the proof number prefix).
+### Unit Tests
+- **Image Class Tests**: Path parsing, file renaming, and movement during processing
+- **ShowClass Tests**: Batch operations on image collections
+- **Configuration Model Tests**: Database storage and retrieval of configuration values
+- **Configuration Service Provider Tests**: Provider registration and boot process
 
-Within this "20Buckeye" folder you'll want "class folders" which contains the full size images.
-Example of this structure would be "~/Desktop/ShowPhotos/20Buckeye/0001" where the full size images
-are inside the "0001" folder.
+### Feature Tests
+- **Image Processing Workflow Test**: Full image processing workflow simulation
 
-ARCHIVE_HOME_DIR="~/Desktop/fullsize_archive"
+### Running Tests
+```bash
+# Run all tests
+./vendor/bin/pest
 
-While proofgen processes full size images into proofs it will also copy the full size image to an
-alternate file location - for backup purposes. This _should_ be an external drive, this is the back
-up in case the main drive crashes/fails/laptop is stolen. It will copy the full size images to this
-location with the same folder format as where they came from, the only difference being these fullsize
-images will be renamed with the proof number.
+# Run specific test files or groups
+./vendor/bin/pest --filter="Proofgen"
+./vendor/bin/pest --filter="ConfigurationTest"
+./vendor/bin/pest --filter="ImageProcessingWorkflowTest"
+```
+
+## UI Framework
+
+This project uses FluxUI - a UI framework for Laravel & Livewire. The documentation is included in the `external-docs/fluxui` directory. Start with `index.md` for comprehensive component documentation.
+
+Customizations to FluxUI colors and components can be found in `/resources/css/app.css`.
+
+## Code Style Guidelines
+
+- **Formatting**: 4-space indentation, UTF-8 encoding, LF line endings
+- **PHP Version**: 8.2+
+- **Naming**: PascalCase for classes, camelCase for methods and variables
+- **Types**: Use type hints for parameters and return types
+- **Error Handling**: Use Laravel's exception handlers
+- **Framework**: Follow Laravel conventions
+- **Frontend**: Tailwind CSS 4.x, Livewire 3.x with Flux
+- **Testing**: Pest for tests, use feature and unit tests appropriately
+
+## Getting Started with Image Processing
+
+1. Set `FULLSIZE_HOME_DIR` in your `.env` file to point to your images parent folder
+2. Create a show folder (e.g., "20Buckeye") inside the FULLSIZE_HOME_DIR
+3. Create class folders (e.g., "0001") inside the show folder
+4. Place full-size images inside the class folders
+5. Access the web interface to process the images
+
+The system will detect the folders, process the images according to your configuration, and optionally upload them to the remote server.
+
+## Configuration Management
+
+The application is transitioning from `.env` file configuration to database-stored configuration via the `Configuration` model. This improves the user experience for non-technical users by providing a web interface for configuration management.
+
+## Additional Documentation
+
+For developers and AI assistants, see `CLAUDE.md` for important project instructions and `CLAUDE_NOTES.md` for detailed project notes and TODO items.
