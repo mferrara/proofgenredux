@@ -1033,8 +1033,14 @@ class ConfigComponent extends Component
             ->save($destPath);
 
         // Apply watermark if enabled and applicable
-        if ($this->previewWatermarkEnabled && $type === 'thumbnails' && $this->shouldApplyWatermark()) {
-            $this->applyWatermarkToPreview($destPath, $size, $manager);
+        if ($this->previewWatermarkEnabled) {
+            if ($type === 'thumbnails' && $this->shouldApplyWatermark()) {
+                $this->applyWatermarkToPreview($destPath, $size, $manager);
+            } elseif ($type === 'web_images') {
+                $this->applyWebImageWatermark($destPath, $manager);
+            } elseif ($type === 'highres_images') {
+                $this->applyHighresImageWatermark($destPath, $manager);
+            }
         }
 
         // If enhancement is enabled and we need unenhanced version, create it too
@@ -1048,8 +1054,14 @@ class ConfigComponent extends Component
                 ->save($unenhancedPath);
 
             // Apply watermark to unenhanced version too
-            if ($this->previewWatermarkEnabled && $type === 'thumbnails' && $this->shouldApplyWatermark()) {
-                $this->applyWatermarkToPreview($unenhancedPath, $size, $manager);
+            if ($this->previewWatermarkEnabled) {
+                if ($type === 'thumbnails' && $this->shouldApplyWatermark()) {
+                    $this->applyWatermarkToPreview($unenhancedPath, $size, $manager);
+                } elseif ($type === 'web_images') {
+                    $this->applyWebImageWatermark($unenhancedPath, $manager);
+                } elseif ($type === 'highres_images') {
+                    $this->applyHighresImageWatermark($unenhancedPath, $manager);
+                }
             }
         }
 
@@ -1333,6 +1345,50 @@ class ConfigComponent extends Component
                 imagedestroy($watermark_bot);
             }
         }
+    }
+
+    /**
+     * Apply web image watermark to preview image
+     */
+    private function applyWebImageWatermark(string $imagePath, ImageManager $manager): void
+    {
+        $image = $manager->read($imagePath);
+        $watermarkPath = storage_path('watermarks/web-image-watermark-2.png');
+
+        if (! file_exists($watermarkPath)) {
+            Log::warning('Web image watermark file not found: '.$watermarkPath);
+
+            return;
+        }
+
+        $watermark = imagecreatefrompng($watermarkPath);
+
+        // Determine average color of bottom portion
+        $averageColor = \App\Proofgen\Image::determineAverageColor($imagePath);
+        $darkness = \App\Proofgen\Image::determineWatermarkDarknessFromAverageColor(
+            $averageColor[0],
+            $averageColor[1],
+            $averageColor[2]
+        );
+
+        // Invert watermark if background is light
+        if ($darkness === 'light') {
+            imagefilter($watermark, IMG_FILTER_NEGATE);
+        }
+
+        // Place watermark at bottom with 60px offset
+        $image->place($watermark, 'bottom', 0, 60)->save();
+
+        imagedestroy($watermark);
+    }
+
+    /**
+     * Apply highres image watermark to preview image
+     */
+    private function applyHighresImageWatermark(string $imagePath, ImageManager $manager): void
+    {
+        // Highres images use the same watermark as web images
+        $this->applyWebImageWatermark($imagePath, $manager);
     }
 
     public function render()
