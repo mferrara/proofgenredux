@@ -27,3 +27,5 @@ ferrara_privatekey.pem
 /.claude/settings.local.json
 /backups
 /_fluxui_docs*
+/storage/core-image-daemon.lock
+/storage/core-image-daemon.pid
