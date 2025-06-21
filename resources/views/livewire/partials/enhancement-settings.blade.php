@@ -35,6 +35,37 @@
             {{-- Main Toggle --}}
             @if($enabledConfig)
                 <div class="p-6 border-b border-zinc-600">
+                    {{-- Swift Compatibility Warning --}}
+                    @if(PHP_OS_FAMILY === 'Darwin' && !empty($this->swiftCompatibility) && !$this->swiftCompatibility['compatible'])
+                        <div class="mb-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                            <h4 class="text-amber-400 font-semibold mb-2">Core Image Enhancement Unavailable</h4>
+                            <div class="text-sm text-gray-300">
+                                {{ $this->swiftCompatibility['error'] }}
+                                
+                                @if(!$this->swiftCompatibility['swift_available'])
+                                    <div class="mt-2">
+                                        <strong>To enable Core Image enhancement:</strong>
+                                        <ol class="list-decimal ml-5 mt-1">
+                                            <li>Install Xcode Command Line Tools:
+                                                <code class="bg-zinc-800 px-2 py-1 rounded text-xs">xcode-select --install</code>
+                                            </li>
+                                            <li>OR install Xcode from the App Store</li>
+                                        </ol>
+                                    </div>
+                                @elseif($this->swiftCompatibility['version'])
+                                    <div class="mt-2">
+                                        <strong>Current version:</strong> Swift {{ $this->swiftCompatibility['version'] }}<br>
+                                        <strong>Required version:</strong> Swift {{ $this->swiftCompatibility['minimum_version'] }} or higher
+                                    </div>
+                                @endif
+                                
+                                <div class="mt-2 text-sm text-gray-400">
+                                    Enhancement will fall back to standard image processing.
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                    
                     <div class="flex items-center justify-between">
                         <div>
                             <h3 class="text-lg font-medium text-gray-200">{{ $enabledConfig->label }}</h3>

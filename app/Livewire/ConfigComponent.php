@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Configuration;
 use App\Proofgen\Image;
+use App\Services\SwiftCompatibilityService;
 use App\Services\UpdateService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -72,6 +73,9 @@ class ConfigComponent extends Component
 
     public ?float $highresImageProcessingTime = null;
 
+    // Swift compatibility status
+    public array $swiftCompatibility = [];
+
     // Input settings tracking
     public ?array $largeThumbnailInputSettings = null;
 
@@ -116,6 +120,7 @@ class ConfigComponent extends Component
         $this->loadConfigurations();
         $this->initializeConfigValues();
         $this->initializeThumbnailPreview();
+        $this->checkSwiftCompatibility();
 
         // Check for updates when Settings page loads
         $this->checkForUpdates();
@@ -1399,6 +1404,32 @@ class ConfigComponent extends Component
     {
         // Highres images use the same watermark as web images
         $this->applyWebImageWatermark($imagePath, $manager);
+    }
+
+    /**
+     * Check Swift compatibility for Core Image enhancement
+     */
+    protected function checkSwiftCompatibility(): void
+    {
+        if (PHP_OS_FAMILY === 'Darwin') {
+            $service = app(SwiftCompatibilityService::class);
+            $this->swiftCompatibility = $service->checkCompatibility();
+        }
+    }
+
+    /**
+     * Handle updates to config values
+     */
+    public function updatedConfigValues($value, $key)
+    {
+        $configId = $key;
+        $config = Configuration::find($configId);
+        
+        // If enabling image enhancement, force a Swift check
+        if ($config && $config->key === 'image_enhancement_enabled' && $value) {
+            $service = app(SwiftCompatibilityService::class);
+            $this->swiftCompatibility = $service->checkCompatibility(force: true);
+        }
     }
 
     public function render()

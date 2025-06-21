@@ -18,15 +18,26 @@ class CoreImageDaemonService extends ImageEnhancementService
 
     protected float $timeout = 30.0;
 
-    public function __construct()
+    protected SwiftCompatibilityService $swiftService;
+
+    protected ?string $lastError = null;
+
+    public function __construct(SwiftCompatibilityService $swiftService)
     {
         parent::__construct();
+        $this->swiftService = $swiftService;
         $this->manager = ImageManager::gd();
         $this->coreImageAvailable = false;
 
-        // Check if we're on macOS
+        // Check if we're on macOS and Swift is compatible
         if (PHP_OS_FAMILY === 'Darwin') {
-            $this->coreImageAvailable = $this->checkCoreImageAvailability();
+            $compatibility = $this->swiftService->checkCompatibility();
+            if ($compatibility['compatible']) {
+                $this->coreImageAvailable = $this->checkCoreImageAvailability();
+            } else {
+                Log::warning('Swift compatibility check failed: ' . $compatibility['error']);
+                $this->lastError = $compatibility['error'];
+            }
         }
     }
 
@@ -168,8 +179,9 @@ class CoreImageDaemonService extends ImageEnhancementService
 
             // Start the daemon in the background
             $command = sprintf(
-                'nohup swift %s --daemon > %s 2>&1 & echo $!',
+                'nohup swift %s --daemon --base-path %s > %s 2>&1 & echo $!',
                 escapeshellarg($daemonPath),
+                escapeshellarg(base_path()),
                 escapeshellarg(storage_path('logs/core-image-daemon.log'))
             );
 
@@ -199,6 +211,14 @@ class CoreImageDaemonService extends ImageEnhancementService
     public function isCoreImageAvailable(): bool
     {
         return $this->coreImageAvailable;
+    }
+
+    /**
+     * Get the last error message
+     */
+    public function getLastError(): ?string
+    {
+        return $this->lastError;
     }
 
     /**

@@ -34,6 +34,58 @@ Proofgen Redux monitors directories containing full-size images from photographe
 - gd
 - pcntl
 
+## macOS Setup for Core Image Enhancement
+
+Proofgen Redux includes optional GPU-accelerated image enhancement using macOS Core Image framework. This provides significant performance improvements for image processing operations.
+
+### Requirements for Core Image Enhancement
+
+1. **macOS** (required - Core Image is macOS-specific)
+2. **Swift 5.5 or higher** (for the enhancement daemon)
+3. **Xcode Command Line Tools** or full Xcode installation
+
+### Setting up Swift Environment
+
+#### Option 1: Install Xcode Command Line Tools (Recommended)
+```bash
+# Install Command Line Tools (smaller download, ~2GB)
+xcode-select --install
+
+# Verify Swift installation
+swift --version
+```
+
+#### Option 2: Install Full Xcode
+1. Download Xcode from the Mac App Store
+2. Launch Xcode once to complete installation
+3. Accept license agreements when prompted
+
+### Verifying Core Image Compatibility
+
+```bash
+# Check Swift compatibility
+php artisan swift:check
+
+# Check Core Image daemon status
+php artisan coreimage:daemon status
+
+# Start Core Image daemon
+php artisan coreimage:daemon start
+```
+
+### Troubleshooting
+
+If Core Image enhancement is unavailable:
+1. The system will automatically fall back to standard GD image processing
+2. Check the Settings page in the web UI for compatibility warnings
+3. Review logs at `storage/logs/laravel.log` for detailed error messages
+
+### Performance Notes
+
+- Core Image provides GPU acceleration on Apple Silicon Macs (M1/M2/M3)
+- Intel Macs will use Core Image but with CPU-based processing
+- Enhancement processing is typically 2-5x faster with Core Image enabled
+
 ## Installation
 
 ```bash

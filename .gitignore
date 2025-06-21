@@ -29,3 +29,4 @@ ferrara_privatekey.pem
 /_fluxui_docs*
 /storage/core-image-daemon.lock
 /storage/core-image-daemon.pid
+/storage/swift-compatibility.json
