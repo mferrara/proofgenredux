@@ -302,6 +302,39 @@ class ShowViewComponent extends Component
         $this->setFlashMessage($count.' Highres Images queued.');
     }
 
+    public function openFolder(string $path): void
+    {
+        if (! file_exists($path)) {
+            Flux::toast(
+                text: 'Folder not found: '.$path,
+                heading: 'Error',
+                variant: 'error',
+                position: 'top right'
+            );
+
+            return;
+        }
+
+        // On Mac, use the 'open' command to open a folder in Finder
+        if (PHP_OS === 'Darwin') { // Darwin is the core of macOS
+            exec('open "'.$path.'"');
+
+            Flux::toast(
+                text: 'Opening folder in Finder',
+                heading: 'Info',
+                variant: 'success',
+                position: 'top right'
+            );
+        } else {
+            Flux::toast(
+                text: 'Opening folders is only supported on macOS',
+                heading: 'Warning',
+                variant: 'warning',
+                position: 'top right'
+            );
+        }
+    }
+
     public function resetPhotos(): void
     {
         foreach ($this->show->classes as $showClass) {

@@ -16,9 +16,18 @@
                 </div>
             </div>
 
-            @if(isset($flash_message) && strlen($flash_message))
-                <flux:badge color="green" size="lg">{{ $flash_message }}</flux:badge>
-            @endif
+            <div class="flex items-center gap-3">
+                @if(isset($flash_message) && strlen($flash_message))
+                    <flux:badge color="green" size="lg">{{ $flash_message }}</flux:badge>
+                @endif
+                
+                <flux:tooltip content="Open show folder in Finder">
+                    <div class="text-indigo-300 hover:text-indigo-400 hover:cursor-pointer hover:bg-gray-50/10 rounded-sm p-1"
+                         wire:click="openFolder('{{ $show->full_path }}')">
+                        <flux:icon.arrow-top-right-on-square class="size-5" />
+                    </div>
+                </flux:tooltip>
+            </div>
         </div>
 
         <div class="mt-4 flex flex-col gap-4">
