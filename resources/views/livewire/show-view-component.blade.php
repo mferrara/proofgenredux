@@ -49,7 +49,7 @@
                             <th>Class</th>
                             <th class="text-right">Photos Imported</th>
                             <th class="text-right">Photos to Import</th>
-                            <th class="text-right">Needs Proofs/Web Images</th>
+                            <th class="text-right">Proofs/Web/Highres</th>
                             <th class="text-right pr-2">Actions</th>
                         </tr>
                     </thead>
@@ -70,8 +70,8 @@
                                         @endif
                                     </a>
                                 @else
-                                    <div x-data="{ 
-                                        editing: false, 
+                                    <div x-data="{
+                                        editing: false,
                                         newName: '{{ $class_folder_data['path'] }}',
                                         originalName: '{{ $class_folder_data['path'] }}'
                                     }" class="flex items-center gap-2">
@@ -81,7 +81,7 @@
                                                 <flux:badge variant="solid" color="red" size="sm">
                                                     Invalid Name
                                                 </flux:badge>
-                                                <flux:button 
+                                                <flux:button
                                                     @click="editing = true; $nextTick(() => $refs.input.focus())"
                                                     size="xs"
                                                     variant="ghost"
@@ -93,7 +93,7 @@
                                         </template>
                                         <template x-if="editing">
                                             <div class="flex items-center gap-2">
-                                                <flux:input 
+                                                <flux:input
                                                     x-ref="input"
                                                     x-model="newName"
                                                     @keydown.enter="$wire.renameClassDirectory(originalName, newName); editing = false"
@@ -101,7 +101,7 @@
                                                     size="sm"
                                                     class="w-48"
                                                 />
-                                                <flux:button 
+                                                <flux:button
                                                     @click="$wire.renameClassDirectory(originalName, newName); editing = false"
                                                     size="xs"
                                                     variant="primary"
@@ -109,7 +109,7 @@
                                                     <flux:icon name="check" variant="mini" />
                                                     Save
                                                 </flux:button>
-                                                <flux:button 
+                                                <flux:button
                                                     @click="editing = false; newName = '{{ $class_folder_data['path'] }}'"
                                                     size="xs"
                                                     variant="ghost"
@@ -191,10 +191,10 @@
                                             </flux:button>
                                         </flux:tooltip>
                                     @endif
-                                    
+
                                     @if($class_folder_data['is_valid'] && $class_folder_data['show_class'])
-                                        <div x-data="{ 
-                                            renaming: false, 
+                                        <div x-data="{
+                                            renaming: false,
                                             newName: '{{ $class_folder_data['path'] }}',
                                             originalName: '{{ $class_folder_data['path'] }}'
                                         }">
@@ -202,9 +202,9 @@
                                                 <flux:button size="xs" variant="ghost" icon-only>
                                                     <flux:icon name="ellipsis-horizontal" variant="solid" />
                                                 </flux:button>
-                                                
+
                                                 <flux:navmenu>
-                                                    <flux:navmenu.item 
+                                                    <flux:navmenu.item
                                                         @click="renaming = true; $nextTick(() => $refs.renameInput.focus())"
                                                         icon="pencil"
                                                     >
@@ -212,13 +212,13 @@
                                                     </flux:navmenu.item>
                                                 </flux:navmenu>
                                             </flux:dropdown>
-                                            
+
                                             <template x-if="renaming">
                                                 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="renaming = false; newName = originalName">
                                                     <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
                                                         <flux:heading size="lg" class="mb-4">Rename Class</flux:heading>
                                                         <div class="space-y-4">
-                                                            <flux:input 
+                                                            <flux:input
                                                                 x-ref="renameInput"
                                                                 x-model="newName"
                                                                 @keydown.enter="$wire.renameImportedClass(originalName, newName); renaming = false"
@@ -226,13 +226,13 @@
                                                                 placeholder="Enter new class name"
                                                             />
                                                             <div class="flex justify-end gap-2">
-                                                                <flux:button 
+                                                                <flux:button
                                                                     @click="renaming = false; newName = originalName"
                                                                     variant="ghost"
                                                                 >
                                                                     Cancel
                                                                 </flux:button>
-                                                                <flux:button 
+                                                                <flux:button
                                                                     @click="$wire.renameImportedClass(originalName, newName); renaming = false"
                                                                     variant="primary"
                                                                 >

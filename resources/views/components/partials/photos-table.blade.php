@@ -3,51 +3,55 @@
     $photoCount = $photos->count();
 @endphp
 <div class="w-full mt-4" x-data="{
-    localSelectedPhotos: @js($selectedPhotos ?? []),
     get selectAll() {
-        return this.localSelectedPhotos.length === {{ $photoCount }};
+        return $wire.selectedPhotos.length === {{ $photoCount }};
     },
     toggleAll() {
-        if (this.localSelectedPhotos.length === {{ $photoCount }}) {
-            this.localSelectedPhotos = [];
+        if ($wire.selectedPhotos.length === {{ $photoCount }}) {
+            $wire.set('selectedPhotos', []);
         } else {
-            this.localSelectedPhotos = @js($allPhotoIds);
+            $wire.set('selectedPhotos', @js($allPhotoIds));
         }
-        $wire.set('selectedPhotos', this.localSelectedPhotos);
     },
     togglePhoto(id) {
-        const index = this.localSelectedPhotos.indexOf(id);
+        const selectedPhotos = [...$wire.selectedPhotos];
+        const index = selectedPhotos.indexOf(id);
         if (index > -1) {
-            this.localSelectedPhotos.splice(index, 1);
+            selectedPhotos.splice(index, 1);
         } else {
-            this.localSelectedPhotos.push(id);
+            selectedPhotos.push(id);
         }
-        $wire.set('selectedPhotos', this.localSelectedPhotos);
+        $wire.set('selectedPhotos', selectedPhotos);
     }
 }">
     {{-- Action bar --}}
-    <div x-show="localSelectedPhotos.length > 0"
+    <div x-show="$wire.selectedPhotos.length > 0"
          x-transition
          x-cloak
          class="mb-4 p-4 bg-gray-800 rounded-lg flex items-center gap-4">
-        <span class="text-sm">
-            <span x-text="localSelectedPhotos.length"></span> photos selected
+        <span class="text-sm whitespace-nowrap">
+            <span x-text="$wire.selectedPhotos.length"></span> 
+            <span x-text="$wire.selectedPhotos.length === 1 ? 'photo' : 'photos'"></span> 
+            selected
         </span>
-        <flux:select wire:model="selectedAction" size="sm">
-            <flux:select.option value="">Choose action...</flux:select.option>
-            <flux:select.option value="move">Move to class...</flux:select.option>
-            <flux:select.option value="delete">Delete photos</flux:select.option>
-        </flux:select>
-        <flux:button
-            wire:click="performBulkAction"
-            size="sm"
-        >
-            Apply
-        </flux:button>
+        <div class="flex items-center gap-2">
+            <flux:select wire:model="selectedAction" size="sm" class="w-40">
+                <flux:select.option value="">Choose action...</flux:select.option>
+                <flux:select.option value="move">Move to class...</flux:select.option>
+                <flux:select.option value="delete">Delete photos</flux:select.option>
+            </flux:select>
+            <flux:button
+                wire:click="performBulkAction"
+                size="sm"
+            >
+                Apply
+            </flux:button>
+        </div>
         <flux:button
             variant="ghost"
             size="sm"
-            @click="localSelectedPhotos = []; $wire.set('selectedPhotos', [])"
+            @click="$wire.set('selectedPhotos', [])"
+            class="ml-auto"
         >
             Clear selection
         </flux:button>
@@ -56,7 +60,7 @@
     <flux:table class="!text-gray-300" hover>
         <thead>
             <tr>
-                <th class="w-10">
+                <th class="w-10 pl-4">
                     <input type="checkbox"
                            :checked="selectAll"
                            @change="toggleAll()"
@@ -123,21 +127,49 @@
                     $thumbnail_base64 = null;
                 }
             @endphp
-            <tr wire:key="{{ 'image-row-'.$photo->id }}" class="@if( ! $photo->metadata || $file_not_found) bg-red-800/40 @endif">
-                <td>
+            <tr wire:key="{{ 'image-row-'.$photo->id }}" 
+                :class="{
+                    'bg-indigo-900/30': $wire.selectedPhotos.includes('{{ $photo->id }}'),
+                    'bg-red-800/40': {{ ! $photo->metadata || $file_not_found ? 'true' : 'false' }} && !$wire.selectedPhotos.includes('{{ $photo->id }}')
+                }">
+                <td class="pl-4">
                     <input type="checkbox"
                            value="{{ $photo->id }}"
-                           :checked="localSelectedPhotos.includes('{{ $photo->id }}')"
+                           :checked="$wire.selectedPhotos.includes('{{ $photo->id }}')"
                            @change="togglePhoto('{{ $photo->id }}')"
                            class="rounded">
                 </td>
                 <td>
                     @if(isset($display_thumbnail) && $display_thumbnail && $thumbnail_base64 !== null)
-                        <div class="p-1 w-48">
-                            <img src="{{ $thumbnail_base64 }}" alt="{{ $filename }}" class="rounded size-44 object-cover">
+                        @php
+                            $sizeClass = 'size-44';
+                            $wrapperWidth = 'w-48';
+                            if(isset($thumbnailSize)) {
+                                switch($thumbnailSize) {
+                                    case 'medium':
+                                        $sizeClass = 'size-56';
+                                        $wrapperWidth = 'w-60';
+                                        break;
+                                    case 'large':
+                                        $sizeClass = 'size-72';
+                                        $wrapperWidth = 'w-76';
+                                        break;
+                                }
+                            }
+                        @endphp
+                        <div class="p-1 {{ $wrapperWidth }}">
+                            <button type="button"
+                                    @click="$wire.showPhotoModal('{{ $photo->id }}')"
+                                    class="block hover:opacity-80 transition-opacity cursor-pointer">
+                                <img src="{{ $thumbnail_base64 }}" alt="{{ $filename }}" class="rounded {{ $sizeClass }} object-cover">
+                            </button>
                         </div>
                     @else
-                        <flux:icon name="photo" variant="outline" class="text-gray-400 size-32 mx-auto" />
+                        <button type="button"
+                                @click="$wire.showPhotoModal('{{ $photo->id }}')"
+                                class="block hover:opacity-80 transition-opacity cursor-pointer">
+                            <flux:icon name="photo" variant="outline" class="text-gray-400 size-32 mx-auto" />
+                        </button>
                     @endif
                 </td>
                 <td>

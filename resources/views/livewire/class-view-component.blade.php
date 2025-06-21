@@ -1,4 +1,22 @@
-<div class="px-8 py-6" wire:poll.5s>
+<div class="px-8 py-6" wire:poll.5s
+     x-data='{ 
+         thumbnailSize: localStorage.getItem("thumbnailSize") || "small",
+         viewMode: localStorage.getItem("viewMode") || "list",
+         setThumbnailSize(size) {
+             this.thumbnailSize = size;
+             localStorage.setItem("thumbnailSize", size);
+             $wire.set("thumbnailSize", size);
+         },
+         setViewMode(mode) {
+             this.viewMode = mode;
+             localStorage.setItem("viewMode", mode);
+             $wire.set("viewMode", mode);
+         }
+     }'
+     x-init='
+         $wire.set("thumbnailSize", thumbnailSize);
+         $wire.set("viewMode", viewMode);
+     '>
     <div class="max-w-6xl mx-auto">
         <div class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-3">
@@ -263,18 +281,65 @@
                     Imported Photos {{ $photos_imported->count() ? '(' . $photos_imported->count() . ')' : '' }}
                 </flux:heading>
 
-                @if(! $photos_imported->count())
-                    <flux:badge variant="solid" color="amber" size="sm">No images imported yet</flux:badge>
-                @endif
+                <div class="flex items-center gap-3">
+                    @if(! $photos_imported->count())
+                        <flux:badge variant="solid" color="amber" size="sm">No images imported yet</flux:badge>
+                    @else
+                        {{-- Thumbnail size controls --}}
+                        <flux:button.group>
+                            <flux:button
+                                x-on:click="setThumbnailSize('small')"
+                                variant="{{ $thumbnailSize === 'small' ? 'filled' : 'ghost' }}"
+                                size="sm"
+                                title="Small thumbnails"
+                            >
+                                S
+                            </flux:button>
+                            <flux:button
+                                x-on:click="setThumbnailSize('medium')"
+                                variant="{{ $thumbnailSize === 'medium' ? 'filled' : 'ghost' }}"
+                                size="sm"
+                                title="Medium thumbnails"
+                            >
+                                M
+                            </flux:button>
+                            <flux:button
+                                x-on:click="setThumbnailSize('large')"
+                                variant="{{ $thumbnailSize === 'large' ? 'filled' : 'ghost' }}"
+                                size="sm"
+                                title="Large thumbnails"
+                            >
+                                L
+                            </flux:button>
+                        </flux:button.group>
+
+                        {{-- View mode controls --}}
+                        <flux:button.group>
+                            <flux:button
+                                x-on:click="setViewMode('list')"
+                                variant="{{ $viewMode === 'list' ? 'filled' : 'ghost' }}"
+                                size="sm"
+                                title="List view"
+                                icon="list-bullet"
+                            />
+                            <flux:button
+                                x-on:click="setViewMode('grid')"
+                                variant="{{ $viewMode === 'grid' ? 'filled' : 'ghost' }}"
+                                size="sm"
+                                title="Grid view"
+                                icon="squares-2x2"
+                            />
+                        </flux:button.group>
+                    @endif
+                </div>
             </div>
 
-            <p class="text-gray-400 mb-6">
-                These images have been imported but may still require additional processing: proof generation,
-                web image generation, and uploading depending on your configuration settings.
-            </p>
-
             @if($photos->count())
-                @include('components.partials.photos-table', ['photos' => $photos, 'actions' => [], 'display_thumbnail' => true, 'details' => true, 'selectedPhotos' => $selectedPhotos])
+                @if($viewMode === 'list')
+                    @include('components.partials.photos-table', ['photos' => $photos, 'actions' => [], 'display_thumbnail' => true, 'details' => true, 'selectedPhotos' => $selectedPhotos, 'thumbnailSize' => $thumbnailSize])
+                @else
+                    @include('components.partials.photos-grid', ['photos' => $photos, 'selectedPhotos' => $selectedPhotos, 'thumbnailSize' => $thumbnailSize])
+                @endif
             @else
                 <div class="py-8 text-center">
                     <div class="mb-4">
