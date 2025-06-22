@@ -582,6 +582,9 @@
             {{-- Enhancement Settings --}}
             @include('livewire.partials.enhancement-settings')
 
+            {{-- Swift Binaries Management --}}
+            @include('livewire.partials.swift-binaries-settings')
+
             {{-- Process other non-image categories --}}
             @foreach($configurationsByCategory as $category => $configurations)
                 @if(!in_array($category, ['thumbnails', 'web_images', 'highres_images', 'enhancement']))

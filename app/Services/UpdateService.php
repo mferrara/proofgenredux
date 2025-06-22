@@ -212,20 +212,65 @@ class UpdateService
                 throw new \Exception('NPM build failed: '.$npmResult->errorOutput());
             }
 
-            // Step 8: Clear caches
+            // Step 8: Compile Swift binaries if on macOS
+            if (PHP_OS_FAMILY === 'Darwin') {
+                $steps[] = 'Checking Swift compatibility...';
+                $swiftCompatibility = app(\App\Services\SwiftCompatibilityService::class)->checkCompatibility();
+                
+                if ($swiftCompatibility['compatible']) {
+                    $steps[] = 'Compiling Swift binaries...';
+                    $swiftCompilationService = app(\App\Services\SwiftCompilationService::class);
+                    $compilationResult = $swiftCompilationService->compileAll();
+                    
+                    if ($compilationResult['success']) {
+                        $steps[] = 'Swift binaries compiled successfully';
+                        
+                        // Step 9: Restart Core Image daemon
+                        $steps[] = 'Restarting Core Image daemon...';
+                        $daemonService = app(\App\Services\CoreImageDaemonService::class);
+                        
+                        // Stop the daemon if it's running
+                        if ($daemonService->isCoreImageAvailable()) {
+                            $daemonService->stopDaemon();
+                            sleep(1); // Give it a moment to stop
+                        }
+                        
+                        // Start the daemon
+                        if ($daemonService->startDaemon()) {
+                            sleep(2); // Wait for daemon to start
+                            if ($daemonService->isCoreImageAvailable()) {
+                                $steps[] = 'Core Image daemon restarted successfully';
+                            } else {
+                                Log::warning('Core Image daemon failed to start after compilation');
+                                $steps[] = 'Warning: Core Image daemon failed to start';
+                            }
+                        } else {
+                            Log::warning('Failed to start Core Image daemon');
+                            $steps[] = 'Warning: Failed to start Core Image daemon';
+                        }
+                    } else {
+                        Log::warning('Swift compilation failed during update', ['errors' => $compilationResult['errors']]);
+                        $steps[] = 'Warning: Swift compilation failed - ' . implode(', ', $compilationResult['errors']);
+                    }
+                } else {
+                    $steps[] = 'Skipping Swift compilation (Swift not compatible)';
+                }
+            }
+
+            // Step 10: Clear caches
             $steps[] = 'Clearing caches...';
             Process::path(base_path())->run('php artisan config:clear');
             Process::path(base_path())->run('php artisan route:clear');
             Process::path(base_path())->run('php artisan view:clear');
             Process::path(base_path())->run('php artisan cache:clear');
 
-            // Step 9: Cache config for production
+            // Step 11: Cache config for production
             $steps[] = 'Optimizing application...';
             Process::path(base_path())->run('php artisan config:cache');
             Process::path(base_path())->run('php artisan route:cache');
             Process::path(base_path())->run('php artisan view:cache');
 
-            // Step 10: Restart Horizon
+            // Step 12: Restart Horizon
             $steps[] = 'Starting Horizon...';
             $this->startHorizon();
 

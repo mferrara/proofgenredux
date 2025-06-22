@@ -343,11 +343,19 @@ class ProofgenImageEnhancer {
     
     private func loadImage(from path: String) -> CIImage? {
         let url = URL(fileURLWithPath: path)
-        // Load image without applying EXIF orientation to prevent auto-rotation
-        let options: [CIImageOption: Any] = [
-            .applyOrientationProperty: false
-        ]
-        return CIImage(contentsOf: url, options: options)
+        
+        // Load the image
+        guard var image = CIImage(contentsOf: url) else {
+            return nil
+        }
+        
+        // Apply EXIF orientation if present
+        if let orientation = image.properties[kCGImagePropertyOrientation as String] as? Int32,
+           let cgOrientation = CGImagePropertyOrientation(rawValue: UInt32(orientation)) {
+            image = image.oriented(cgOrientation)
+        }
+        
+        return image
     }
     
     private func saveImage(_ image: CIImage, to path: String) throws {

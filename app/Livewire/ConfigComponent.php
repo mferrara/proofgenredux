@@ -77,6 +77,11 @@ class ConfigComponent extends Component
     // Swift compatibility status
     public array $swiftCompatibility = [];
     
+    // Swift binaries status
+    public array $swiftBinariesStatus = [];
+    
+    public bool $compilingSwiftBinaries = false;
+    
     // Horizon status
     public bool $isHorizonRunning = false;
 
@@ -125,6 +130,7 @@ class ConfigComponent extends Component
         $this->initializeConfigValues();
         $this->initializeThumbnailPreview();
         $this->checkSwiftCompatibility();
+        $this->checkSwiftBinariesStatus();
         $this->updateHorizonStatus();
 
         // Check for updates when Settings page loads
@@ -1478,6 +1484,126 @@ class ConfigComponent extends Component
     {
         $horizonService = app(\App\Services\HorizonService::class);
         $this->isHorizonRunning = $horizonService->isRunning();
+    }
+
+    /**
+     * Check Swift binaries status
+     */
+    protected function checkSwiftBinariesStatus(): void
+    {
+        if (PHP_OS_FAMILY === 'Darwin') {
+            $compilationService = app(\App\Services\SwiftCompilationService::class);
+            $this->swiftBinariesStatus = $compilationService->checkBinariesStatus();
+        }
+    }
+
+    /**
+     * Compile Swift binaries
+     */
+    public function compileSwiftBinaries(): void
+    {
+        if (PHP_OS_FAMILY !== 'Darwin') {
+            Flux::toast(
+                text: 'Swift binaries can only be compiled on macOS.',
+                heading: 'Not Available',
+                variant: 'warning',
+                position: 'top right'
+            );
+            return;
+        }
+
+        $this->compilingSwiftBinaries = true;
+
+        try {
+            $compilationService = app(\App\Services\SwiftCompilationService::class);
+            $results = $compilationService->compileAll();
+
+            if ($results['success']) {
+                Flux::toast(
+                    text: 'All Swift binaries compiled successfully!',
+                    heading: 'Compilation Complete',
+                    variant: 'success',
+                    position: 'top right'
+                );
+
+                // Check if daemon needs to be restarted
+                $daemonService = app(\App\Services\CoreImageDaemonService::class);
+                if ($daemonService->isCoreImageAvailable()) {
+                    Flux::modal('swift-restart-daemon')->show();
+                }
+            } else {
+                $errorMessage = 'Failed to compile some binaries.';
+                if (!empty($results['errors'])) {
+                    $errorMessage .= ' ' . implode(' ', $results['errors']);
+                }
+                
+                Flux::toast(
+                    text: $errorMessage,
+                    heading: 'Compilation Failed',
+                    variant: 'danger',
+                    position: 'top right'
+                );
+            }
+
+            // Refresh binaries status
+            $this->checkSwiftBinariesStatus();
+
+        } catch (\Exception $e) {
+            Log::error('Error compiling Swift binaries: ' . $e->getMessage());
+            
+            Flux::toast(
+                text: 'Error compiling Swift binaries: ' . $e->getMessage(),
+                heading: 'Compilation Failed',
+                variant: 'danger',
+                position: 'top right'
+            );
+        } finally {
+            $this->compilingSwiftBinaries = false;
+        }
+    }
+
+    /**
+     * Restart Core Image daemon after binary compilation
+     */
+    public function restartCoreImageDaemon(): void
+    {
+        try {
+            $daemonService = app(\App\Services\CoreImageDaemonService::class);
+            
+            // Stop the daemon if running
+            if ($daemonService->isCoreImageAvailable()) {
+                $daemonService->stopDaemon();
+                sleep(1);
+            }
+            
+            // Start the daemon
+            if ($daemonService->startDaemon()) {
+                sleep(2); // Wait for daemon to start
+                
+                if ($daemonService->isCoreImageAvailable()) {
+                    Flux::toast(
+                        text: 'Core Image daemon restarted successfully to use new binaries.',
+                        heading: 'Daemon Restarted',
+                        variant: 'success',
+                        position: 'top right'
+                    );
+                } else {
+                    throw new \Exception('Daemon failed to start properly');
+                }
+            } else {
+                throw new \Exception('Failed to start daemon');
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Error restarting Core Image daemon: ' . $e->getMessage());
+            
+            Flux::toast(
+                text: 'Failed to restart Core Image daemon: ' . $e->getMessage(),
+                heading: 'Restart Failed',
+                variant: 'danger',
+                position: 'top right'
+            );
+        }
     }
 
     /**
