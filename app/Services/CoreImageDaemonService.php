@@ -163,21 +163,30 @@ class CoreImageDaemonService extends ImageEnhancementService
             // Write idle timeout configuration file for daemon
             $this->writeIdleTimeoutConfig();
 
-            $daemonPath = app_path('Services/CoreImage/ProofgenImageEnhancerDaemon.swift');
-
-            if (! file_exists($daemonPath)) {
-                Log::error('CoreImageDaemonService: Daemon script not found at '.$daemonPath);
-
+            // Use compiled binary if available, otherwise fall back to Swift script
+            $compiledDaemonPath = storage_path('app/ProofgenImageEnhancerDaemon');
+            $swiftDaemonPath = app_path('Services/CoreImage/ProofgenImageEnhancerDaemon.swift');
+            
+            if (file_exists($compiledDaemonPath) && is_executable($compiledDaemonPath)) {
+                // Use compiled binary for better performance and to ensure changes are applied
+                $command = sprintf(
+                    'nohup %s --daemon --base-path %s > %s 2>&1 & echo $!',
+                    escapeshellarg($compiledDaemonPath),
+                    escapeshellarg(base_path()),
+                    escapeshellarg(storage_path('logs/core-image-daemon.log'))
+                );
+            } elseif (file_exists($swiftDaemonPath)) {
+                // Fall back to Swift script
+                $command = sprintf(
+                    'nohup swift %s --daemon --base-path %s > %s 2>&1 & echo $!',
+                    escapeshellarg($swiftDaemonPath),
+                    escapeshellarg(base_path()),
+                    escapeshellarg(storage_path('logs/core-image-daemon.log'))
+                );
+            } else {
+                Log::error('CoreImageDaemonService: Daemon not found at compiled or source path');
                 return false;
             }
-
-            // Start the daemon in the background
-            $command = sprintf(
-                'nohup swift %s --daemon --base-path %s > %s 2>&1 & echo $!',
-                escapeshellarg($daemonPath),
-                escapeshellarg(base_path()),
-                escapeshellarg(storage_path('logs/core-image-daemon.log'))
-            );
 
             $pid = trim(shell_exec($command));
 
