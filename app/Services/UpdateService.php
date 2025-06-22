@@ -109,21 +109,22 @@ class UpdateService
 
     /**
      * Find the composer binary path
+     * @return array|null Returns array of command parts or null if not found
      */
-    protected function findComposerBinary(): ?string
+    protected function findComposerBinary(): ?array
     {
         // First check if there's a composer.phar in the project root (bundled with app)
         if (file_exists(base_path('composer.phar'))) {
             // Make sure PHP binary is available
             $phpBinary = config('proofgen.php_binary_path', 'php');
-            // Return relative path to avoid issues with spaces in absolute paths
-            return "{$phpBinary} composer.phar";
+            // Return as array to handle paths with spaces
+            return [$phpBinary, 'composer.phar'];
         }
 
         // Fallback: check if composer is in PATH
         $result = Process::run('which composer');
         if ($result->successful() && ! empty(trim($result->output()))) {
-            return trim($result->output());
+            return [trim($result->output())];
         }
 
         // Check common locations
@@ -137,7 +138,7 @@ class UpdateService
 
         foreach ($commonPaths as $path) {
             if (file_exists($path) && is_executable($path)) {
-                return $path;
+                return [$path];
             }
         }
 
@@ -160,7 +161,7 @@ class UpdateService
             if (! $composerBinary) {
                 throw new \Exception('Composer not found. Please ensure composer is installed and accessible in PATH or common locations.');
             }
-            $steps[] = "Found composer at: {$composerBinary}";
+            $steps[] = "Found composer: " . implode(' ', $composerBinary);
 
             // Step 1: Stop Horizon
             $steps[] = 'Stopping Horizon...';
@@ -190,9 +191,8 @@ class UpdateService
 
             // Step 5: Install composer dependencies
             $steps[] = 'Installing composer dependencies...';
-            // Use array syntax to properly handle paths with spaces
-            $composerCommand = explode(' ', $composerBinary);
-            $composerCommand = array_merge($composerCommand, ['install', '--no-dev', '--optimize-autoloader']);
+            // composerBinary is already an array, just add the arguments
+            $composerCommand = array_merge($composerBinary, ['install', '--no-dev', '--optimize-autoloader']);
             $composerResult = Process::path(base_path())->timeout(300)->run($composerCommand);
             if (! $composerResult->successful()) {
                 throw new \Exception('Composer install failed: '.$composerResult->errorOutput());
