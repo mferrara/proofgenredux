@@ -34,19 +34,38 @@ class ShowViewComponent extends Component
 
     protected int $flash_message_max_length = 10;
 
-    protected PathResolver $pathResolver;
-
-    public function mount(PathResolver $pathResolver)
+    public function mount()
     {
-        $this->pathResolver = $pathResolver;
         $this->fullsize_base_path = config('proofgen.fullsize_home_dir');
         $this->archive_base_path = config('proofgen.archive_home_dir');
         $this->working_path = $this->show_id;
+
+        // One-time discovery of class folders on the filesystem that don't yet
+        // have a ShowClass record. Runs once on initial page load — render() is
+        // read-only after this so 5-second polling doesn't trigger DB writes.
+        $this->discoverClasses();
     }
 
     public function boot()
     {
         $this->show = \App\Models\Show::find($this->show_id);
+    }
+
+    private function discoverClasses(): void
+    {
+        $directories = Utility::getDirectoriesOfPath($this->working_path);
+        $existingClassIds = $this->show->classes()->pluck('id')->all();
+
+        foreach ($directories as $directory) {
+            $folder_name = basename($directory);
+            if (! DirectoryNameValidator::isValid($folder_name)) {
+                continue;
+            }
+            $class_id = $this->show->id.'_'.$folder_name;
+            if (! in_array($class_id, $existingClassIds, true)) {
+                $this->show->addClass($folder_name);
+            }
+        }
     }
 
     public function hydrate()
@@ -59,52 +78,38 @@ class ShowViewComponent extends Component
 
     public function render()
     {
-        // Get PathResolver instance on each render for Livewire polling
-        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $pathResolver = app(PathResolver::class);
 
         $this->working_full_path = $pathResolver->getAbsolutePath($this->working_path, $this->fullsize_base_path);
 
         $current_path_directories = Utility::getDirectoriesOfPath($this->working_path);
 
+        // Eager-load class models once instead of querying per directory.
+        $class_models = $this->show->classes()->get()->keyBy('id');
+
         $class_folders = [];
         foreach ($current_path_directories as $directory) {
-            $class = explode('/', $directory);
-            $class = end($class);
+            $folder_name = basename($directory);
 
-            // Validate directory name
-            $is_valid_directory = DirectoryNameValidator::isValid($class);
-            $validation_error = null;
-            $suggested_name = null;
-
-            if (! $is_valid_directory) {
-                $validation_error = DirectoryNameValidator::getValidationError($class);
-                $suggested_name = DirectoryNameValidator::suggestValidName($class);
-            }
+            $is_valid_directory = DirectoryNameValidator::isValid($folder_name);
+            $validation_error = $is_valid_directory ? null : DirectoryNameValidator::getValidationError($folder_name);
+            $suggested_name = $is_valid_directory ? null : DirectoryNameValidator::suggestValidName($folder_name);
 
             $show_class_model = null;
             $images_to_process = [];
             $images_to_web = [];
             $images_imported = [];
 
-            // Only process valid directories
             if ($is_valid_directory) {
-                // Check if we have this database record
-                if (! $this->show->hasClass($class)) {
-                    $this->show->addClass($class);
-                }
+                $show_class_model = $class_models->get($this->show->id.'_'.$folder_name);
 
-                // Get the model
-                $show_class_model = $this->show->classes()->where('id', $this->show->id.'_'.$class)->first();
-
-                // Create the legacy class just for these counting methods that aren't yet migrated
-                $show_class = new ShowClass($this->show->id, $class, $pathResolver);
+                // Legacy procedural ShowClass for filesystem counts (not yet migrated to model methods).
+                $show_class = new ShowClass($this->show->id, $folder_name, $pathResolver);
                 $images_to_process = $show_class->getImagesPendingProcessing();
                 $images_to_web = $show_class->getImagesPendingWeb();
                 $images_imported = $show_class->getImportedImages();
             }
 
-            $folder_name = explode('/', $directory);
-            $folder_name = end($folder_name);
             $class_folders[] = [
                 'path' => $folder_name,
                 'images_pending_processing_count' => count($images_to_process),
@@ -122,42 +127,23 @@ class ShowViewComponent extends Component
             return strcmp($a['path'], $b['path']);
         });
 
-        $photos_pending_import = $this->show->getImagesPendingImport();
-        $photos_imported = $this->show->photos()->get();
-        $photos_proofed = $this->show->photosProofed()->get();
-        $photos_pending_proofs = $this->show->photosNotProofed()->get();
-        $photos_pending_proof_uploads = $this->show->photosProofedNotUploaded()->get();
-        $photos_proofs_uploaded = $this->show->photosProofsUploaded()->get();
-        $photos_web_images_generated = $this->show->photosWebImaged()->get();
-        $photos_pending_web_images = $this->show->photosNotWebImaged()->get();
-        $photos_web_images_uploaded = $this->show->photosWebImaged()->get();
-        $photos_pending_web_image_uploads = $this->show->photosWebImagedNotUploaded()->get();
-        $photos_highres_images_generated = $this->show->photosHighresImaged()->get();
-        $photos_pending_highres_images = $this->show->photosNotHighresImaged()->get();
-        $photos_highres_images_uploaded = $this->show->photosHighresImagesUploaded()->get();
-        $photos_pending_highres_image_uploads = $this->show->photosHighresImagedNotUploaded()->get();
-
-        return view('livewire.show-view-component')
-            ->with('show', $this->show)
-            ->with('current_path_directories', $current_path_directories)
-            ->with('class_folders', $class_folders)
-            ->with('photos_pending_import', $photos_pending_import)
-            ->with('photos_imported', $photos_imported)
-            ->with('photos_proofed', $photos_proofed)
-            ->with('photos_pending_proofs', $photos_pending_proofs)
-            ->with('photos_proofs_uploaded', $photos_proofs_uploaded)
-            ->with('photos_pending_proof_uploads', $photos_pending_proof_uploads)
-            ->with('photos_web_images_generated', $photos_web_images_generated)
-            ->with('photos_pending_web_images', $photos_pending_web_images)
-            ->with('photos_web_images_uploaded', $photos_web_images_uploaded)
-            ->with('photos_pending_web_image_uploads', $photos_pending_web_image_uploads)
-            ->with('photos_highres_images_generated', $photos_highres_images_generated)
-            ->with('photos_pending_highres_images', $photos_pending_highres_images)
-            ->with('photos_highres_images_uploaded', $photos_highres_images_uploaded)
-            ->with('photos_pending_highres_image_uploads', $photos_pending_highres_image_uploads)
-            ->with('web_images_enabled', config('proofgen.generate_web_images.enabled', true))
-            ->with('highres_images_enabled', config('proofgen.generate_highres_images.enabled', true))
-            ->title($this->show->id.' - Proofgen');
+        // Pass relation Builders (not ->get()) so the action-panel partial's ->count()
+        // calls become SQL COUNT(*) instead of SELECT * + PHP count.
+        return view('livewire.show-view-component', [
+            'show' => $this->show,
+            'current_path_directories' => $current_path_directories,
+            'class_folders' => $class_folders,
+            'photos_pending_import' => $this->show->getImagesPendingImport(),
+            'photos_imported' => $this->show->photos(),
+            'photos_pending_proofs' => $this->show->photosNotProofed(),
+            'photos_pending_proof_uploads' => $this->show->photosProofedNotUploaded(),
+            'photos_pending_web_images' => $this->show->photosNotWebImaged(),
+            'photos_pending_web_image_uploads' => $this->show->photosWebImagedNotUploaded(),
+            'photos_pending_highres_images' => $this->show->photosNotHighresImaged(),
+            'photos_pending_highres_image_uploads' => $this->show->photosHighresImagedNotUploaded(),
+            'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
+            'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
+        ])->title($this->show->id.' - Proofgen');
     }
 
     public function setFlashMessage(string $message): void
@@ -308,7 +294,7 @@ class ShowViewComponent extends Component
             Flux::toast(
                 text: 'Folder not found: '.$path,
                 heading: 'Error',
-                variant: 'error',
+                variant: 'danger',
                 position: 'top right'
             );
 

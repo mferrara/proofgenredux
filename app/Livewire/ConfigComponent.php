@@ -8,7 +8,6 @@ use App\Services\SwiftCompatibilityService;
 use App\Services\UpdateService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -76,12 +75,12 @@ class ConfigComponent extends Component
 
     // Swift compatibility status
     public array $swiftCompatibility = [];
-    
+
     // Swift binaries status
     public array $swiftBinariesStatus = [];
-    
+
     public bool $compilingSwiftBinaries = false;
-    
+
     // Horizon status
     public bool $isHorizonRunning = false;
 
@@ -116,6 +115,11 @@ class ConfigComponent extends Component
         // We'll build dynamic rules in the save() method
     ];
 
+    protected $listeners = [
+        'check-for-updates' => 'checkForUpdates',
+        'regenerate-previews' => 'generateThumbnailPreviews',
+    ];
+
     protected $messages = [
         'configValues.*.integer' => 'This field must be a number.',
         'configValues.*.between' => 'Quality must be between 10 and 100.',
@@ -133,10 +137,9 @@ class ConfigComponent extends Component
         $this->checkSwiftBinariesStatus();
         $this->updateHorizonStatus();
 
-        // Check for updates when Settings page loads
-        $this->checkForUpdates();
+        // Defer the update check (git fetch) so it doesn't block initial page render
+        $this->dispatch('check-for-updates');
 
-        // Set initial load to false after mount completes
         $this->initialLoad = false;
     }
 
@@ -166,7 +169,7 @@ class ConfigComponent extends Component
         if (! $phpBinaryConfig) {
             // Detect the current PHP binary path
             $phpBinary = $this->detectPhpBinary();
-            
+
             // Create the configuration with the detected PHP binary path
             Configuration::setConfig(
                 'php_binary_path',
@@ -198,7 +201,7 @@ class ConfigComponent extends Component
                     variant: 'success',
                     position: 'top right'
                 );
-                
+
                 // Update status
                 $this->updateHorizonStatus();
             } else {
@@ -263,13 +266,8 @@ class ConfigComponent extends Component
 
     public function loadConfigurations(): void
     {
-        // Get all configurations
         $allConfigurations = Configuration::getAll();
-
-        // Group configurations by category
         $this->groupConfigurationsByCategory($allConfigurations);
-
-        // Set human-readable category labels
         $this->setCategoryLabels();
     }
 
@@ -545,47 +543,39 @@ class ConfigComponent extends Component
 
         // Refresh configurations
         $this->loadConfigurations();
-
-        // Regenerate previews with new settings
         $this->initializeConfigValues();
         $this->initializeTempThumbnailValues();
-        if ($this->sampleImagePath) {
-            $this->generateThumbnailPreviews();
-        }
 
-        // Dispatch a success event
         Flux::toast(text: 'The settings have saved successfully.', heading: 'Settings saved', variant: 'success', position: 'top right');
         $this->dispatchUpdateEvent();
+
+        // Defer preview regeneration so the save response returns immediately —
+        // enhancement (CLAHE / tone-mapping / Swift) can take several seconds per preview.
+        if ($this->sampleImagePath) {
+            $this->dispatch('regenerate-previews');
+        }
     }
 
     public function dispatchUpdateEvent(): void
     {
-        // Log::debug('dispatchUpdateEvent called');
-        // Emit an event to notify other components
         $this->dispatch('config-updated')->to(AppStatusBar::class);
-        // Log::debug('AppStatusBar event dispatched');
 
-        // Check if we should restart Horizon automatically
         if (config('proofgen.auto_restart_horizon', false)) {
             $this->scheduleHorizonRestart();
         }
     }
 
     /**
-     * Schedule a Horizon restart
-     * This method terminates Horizon directly, which will auto-restart if managed by a supervisor
+     * Queue a Horizon restart so the HTTP request returns immediately.
+     * Delegates to HorizonService::scheduleRestart() which dispatches the
+     * RestartHorizon job — that job uses the configured PHP binary path.
      */
     public function scheduleHorizonRestart(): void
     {
         try {
-            // Log::info('Restarting Horizon due to configuration changes');
-
-            // Get the HorizonService
             $horizonService = app(\App\Services\HorizonService::class);
 
-            // Confirm Horizon is running before restarting
             if (! $horizonService->isRunning()) {
-                Log::warning('Horizon is not running, cannot restart');
                 Flux::toast(text: 'Horizon not running, no restart required.',
                     heading: 'Horizon Not Running',
                     variant: 'warning',
@@ -594,51 +584,15 @@ class ConfigComponent extends Component
                 return;
             }
 
-            // Terminate Horizon directly using Artisan
-            $exitCode = Artisan::call('horizon:terminate');
-            
-            if ($exitCode === 0) {
-                // Log::info('Horizon terminated successfully');
-                
-                // Wait a moment for processes to clean up
-                sleep(2);
-                
-                // Start Horizon again
-                $startResult = $horizonService->start();
-                
-                if ($startResult) {
-                    // Log::info('Horizon restarted successfully to apply configuration changes');
-                    
-                    // Show success message
-                    Flux::toast(text: 'Horizon has been restarted to apply configuration changes.',
-                        heading: 'Horizon Restarted',
-                        variant: 'success',
-                        position: 'top right');
-                    
-                    // Update status
-                    $this->updateHorizonStatus();
-                } else {
-                    Log::error('Failed to start Horizon after termination');
-                    
-                    Flux::toast(text: 'Horizon was stopped but failed to restart. Please start it manually.',
-                        heading: 'Horizon Restart Failed',
-                        variant: 'danger',
-                        position: 'top right');
-                    
-                    // Update status
-                    $this->updateHorizonStatus();
-                }
-            } else {
-                Log::error('Failed to terminate Horizon, exit code: ' . $exitCode);
-                
-                Flux::toast(text: 'Failed to restart Horizon. Please restart it manually.',
-                    heading: 'Horizon Restart Failed',
-                    variant: 'danger',
-                    position: 'top right');
-            }
+            $horizonService->scheduleRestart();
+
+            Flux::toast(text: 'Horizon is being restarted to apply configuration changes.',
+                heading: 'Horizon Restarting',
+                variant: 'info',
+                position: 'top right');
 
         } catch (\Exception $e) {
-            Log::error('Failed to restart Horizon: '.$e->getMessage());
+            Log::error('Failed to schedule Horizon restart: '.$e->getMessage());
 
             Flux::toast(text: 'Failed to restart Horizon. Please restart it manually.',
                 heading: 'Horizon Restart Failed',
@@ -668,7 +622,7 @@ class ConfigComponent extends Component
                     variant: 'success',
                     position: 'top right'
                 );
-                
+
                 // Update status
                 $this->updateHorizonStatus();
             } else {
@@ -678,7 +632,7 @@ class ConfigComponent extends Component
                     variant: 'danger',
                     position: 'top right'
                 );
-                
+
                 // Update status
                 $this->updateHorizonStatus();
             }
@@ -714,7 +668,7 @@ class ConfigComponent extends Component
                     variant: 'success',
                     position: 'top right'
                 );
-                
+
                 // Update status
                 $this->updateHorizonStatus();
             } else {
@@ -1476,7 +1430,7 @@ class ConfigComponent extends Component
             $this->swiftCompatibility = $service->checkCompatibility();
         }
     }
-    
+
     /**
      * Update Horizon running status
      */
@@ -1509,6 +1463,7 @@ class ConfigComponent extends Component
                 variant: 'warning',
                 position: 'top right'
             );
+
             return;
         }
 
@@ -1533,10 +1488,10 @@ class ConfigComponent extends Component
                 }
             } else {
                 $errorMessage = 'Failed to compile some binaries.';
-                if (!empty($results['errors'])) {
-                    $errorMessage .= ' ' . implode(' ', $results['errors']);
+                if (! empty($results['errors'])) {
+                    $errorMessage .= ' '.implode(' ', $results['errors']);
                 }
-                
+
                 Flux::toast(
                     text: $errorMessage,
                     heading: 'Compilation Failed',
@@ -1549,10 +1504,10 @@ class ConfigComponent extends Component
             $this->checkSwiftBinariesStatus();
 
         } catch (\Exception $e) {
-            Log::error('Error compiling Swift binaries: ' . $e->getMessage());
-            
+            Log::error('Error compiling Swift binaries: '.$e->getMessage());
+
             Flux::toast(
-                text: 'Error compiling Swift binaries: ' . $e->getMessage(),
+                text: 'Error compiling Swift binaries: '.$e->getMessage(),
                 heading: 'Compilation Failed',
                 variant: 'danger',
                 position: 'top right'
@@ -1569,17 +1524,17 @@ class ConfigComponent extends Component
     {
         try {
             $daemonService = app(\App\Services\CoreImageDaemonService::class);
-            
+
             // Stop the daemon if running
             if ($daemonService->isCoreImageAvailable()) {
                 $daemonService->stopDaemon();
                 sleep(1);
             }
-            
+
             // Start the daemon
             if ($daemonService->startDaemon()) {
                 sleep(2); // Wait for daemon to start
-                
+
                 if ($daemonService->isCoreImageAvailable()) {
                     Flux::toast(
                         text: 'Core Image daemon restarted successfully to use new binaries.',
@@ -1593,12 +1548,12 @@ class ConfigComponent extends Component
             } else {
                 throw new \Exception('Failed to start daemon');
             }
-            
+
         } catch (\Exception $e) {
-            Log::error('Error restarting Core Image daemon: ' . $e->getMessage());
-            
+            Log::error('Error restarting Core Image daemon: '.$e->getMessage());
+
             Flux::toast(
-                text: 'Failed to restart Core Image daemon: ' . $e->getMessage(),
+                text: 'Failed to restart Core Image daemon: '.$e->getMessage(),
                 heading: 'Restart Failed',
                 variant: 'danger',
                 position: 'top right'
@@ -1613,11 +1568,12 @@ class ConfigComponent extends Component
     {
         $configId = $key;
         $config = Configuration::find($configId);
-        
-        // If enabling image enhancement, force a Swift check
+
         if ($config && $config->key === 'image_enhancement_enabled' && $value) {
-            $service = app(SwiftCompatibilityService::class);
-            $this->swiftCompatibility = $service->checkCompatibility(force: true);
+            if (empty($this->swiftCompatibility)) {
+                $service = app(SwiftCompatibilityService::class);
+                $this->swiftCompatibility = $service->checkCompatibility();
+            }
         }
     }
 
@@ -1642,7 +1598,7 @@ class ConfigComponent extends Component
 
         // Check if we're running under Laravel Herd
         $herdPaths = [
-            $_SERVER['HOME'] . '/Library/Application Support/Herd/bin/php',
+            $_SERVER['HOME'].'/Library/Application Support/Herd/bin/php',
             '/Applications/Herd.app/Contents/Resources/valet/bin/php',
         ];
 

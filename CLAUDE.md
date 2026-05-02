@@ -3,6 +3,22 @@
 ## Important Note
 Always check for a CLAUDE_NOTES.md file in the project root. This file contains detailed information about the project structure, components, and test setup. When starting a new session, refer to CLAUDE_NOTES.md first to understand the codebase.
 
+## Deployment & Trust Model
+This is a **single-tenant, local-desktop application**, not a multi-tenant web service:
+
+- Runs on macOS only, served by **Laravel Herd** on the user's machine. Both development and "production" are MacBooks with Herd installed.
+- Total user population is the project owner, his father, and occasionally one of his father's employees — all trusted, all known, all on local hardware.
+- There is no public network exposure, no anonymous traffic, no untrusted input vector. The "users" are also effectively the operators.
+- "Production" means *the dad's MacBook*, not a server. There is no systemd, no supervisor, no load balancer, no horizontal scaling. Process management is whatever Herd / `php artisan horizon` / Solo provides locally.
+
+### What this means for code decisions
+- **Don't write defensive code for hostile callers.** Input validation should catch *honest mistakes*, not adversarial input. Skip XSS/CSRF/SSRF paranoia, rate-limiting, abuse-mitigation, and "what if a malicious user…" branches unless there's a concrete reason.
+- **Authentication/authorization is minimal by design.** Don't add role checks, permission systems, or audit logging unless the user explicitly asks.
+- **Single-user concurrency.** No need to design for thundering-herd, distributed locks, or race conditions between users. Local file locks and simple DB transactions are sufficient.
+- **Filesystem and process assumptions are macOS-specific.** Swift binaries, Core Image daemon, Herd PHP path detection, `nohup`/`exec` semantics — all assume macOS. Don't add Linux/Windows fallbacks unless asked.
+- **"Restart Horizon," "deploy," "update" all run on the same machine the user is sitting at.** Long-running synchronous operations during a request are tolerable when they're rare admin actions; UI snappiness for routine work matters more than worst-case multi-second admin clicks.
+- **No CI/CD pipeline, no staging.** Changes go from the dev MacBook to the dad's MacBook via the in-app updater (`UpdateService`). Test locally; trust the updater.
+
 ## Build & Test Commands
 ```bash
 # Install dependencies

@@ -170,26 +170,22 @@ class ShowClass extends Model
         return $this->hasMany(Photo::class, 'show_class_id', 'id');
     }
 
+    /**
+     * Returns relationship Builders (not materialized Collections) so views
+     * can call ->count() and get a SQL COUNT(*) instead of SELECT *.
+     * Only the keys actually consumed by views are returned.
+     */
     public function processingCounts(): array
     {
-        $return['photos_imported'] = $this->photos()->get();
-
-        $return['photos_proofed'] = $this->photosProofed()->get();
-        $return['photos_pending_proofs'] = $this->photosNotProofed()->get();
-        $return['photos_proofs_uploaded'] = $this->photosProofsUploaded()->get();
-        $return['photos_pending_proof_uploads'] = $this->photosProofedNotUploaded()->get();
-
-        $return['photos_web_images_generated'] = $this->photosWebImaged()->get();
-        $return['photos_pending_web_images'] = $this->photosNotWebImaged()->get();
-        $return['photos_web_images_uploaded'] = $this->photosWebImagesUploaded()->get();
-        $return['photos_pending_web_image_uploads'] = $this->photosWebImagedNotUploaded()->get();
-
-        $return['photos_highres_images_generated'] = $this->photosHighresImaged()->get();
-        $return['photos_pending_highres_images'] = $this->photosNotHighresImaged()->get();
-        $return['photos_highres_images_uploaded'] = $this->photosHighresImagesUploaded()->get();
-        $return['photos_pending_highres_image_uploads'] = $this->photosHighresImagedNotUploaded()->get();
-
-        return $return;
+        return [
+            'photos_imported' => $this->photos(),
+            'photos_pending_proofs' => $this->photosNotProofed(),
+            'photos_pending_proof_uploads' => $this->photosProofedNotUploaded(),
+            'photos_pending_web_images' => $this->photosNotWebImaged(),
+            'photos_pending_web_image_uploads' => $this->photosWebImagedNotUploaded(),
+            'photos_pending_highres_images' => $this->photosNotHighresImaged(),
+            'photos_pending_highres_image_uploads' => $this->photosHighresImagedNotUploaded(),
+        ];
     }
 
     public function getImagesPendingImport(): array
@@ -707,7 +703,8 @@ class ShowClass extends Model
         // Check if SFTP web images path is configured
         $webImagesPath = config('proofgen.sftp.web_images_path');
         if (empty($webImagesPath)) {
-            Log::error('SFTP web images path not configured - cannot upload web images for ' . $this->id);
+            Log::error('SFTP web images path not configured - cannot upload web images for '.$this->id);
+
             return [];
         }
 
@@ -757,7 +754,8 @@ class ShowClass extends Model
         // Check if SFTP highres images path is configured
         $highresPath = config('proofgen.sftp.highres_images_path');
         if (empty($highresPath)) {
-            Log::error('SFTP highres images path not configured - cannot upload highres images for ' . $this->id);
+            Log::error('SFTP highres images path not configured - cannot upload highres images for '.$this->id);
+
             return [];
         }
 
@@ -769,12 +767,12 @@ class ShowClass extends Model
 
         $path_resolver = app(PathResolver::class);
         $command = $this->rsyncHighresImagesCommand();
-        Log::debug('Executing rsync for highres images: ' . $command);
+        Log::debug('Executing rsync for highres images: '.$command);
         exec($command, $output, $returnCode);
-        Log::debug('Rsync return code: ' . $returnCode);
-        
+        Log::debug('Rsync return code: '.$returnCode);
+
         if ($returnCode !== 0) {
-            Log::error('Rsync failed with return code: ' . $returnCode . ' for ' . $this->id);
+            Log::error('Rsync failed with return code: '.$returnCode.' for '.$this->id);
         }
 
         $uploaded_highres_images = [];
@@ -902,7 +900,8 @@ class ShowClass extends Model
         // Check if SFTP proofs path is configured
         $proofsPath = config('proofgen.sftp.path');
         if (empty($proofsPath)) {
-            Log::error('SFTP proofs path not configured - cannot upload proofs for ' . $this->id);
+            Log::error('SFTP proofs path not configured - cannot upload proofs for '.$this->id);
+
             return [];
         }
 

@@ -30,3 +30,4 @@ ferrara_privatekey.pem
 /storage/core-image-daemon.lock
 /storage/core-image-daemon.pid
 /storage/swift-compatibility.json
+/solo.yml

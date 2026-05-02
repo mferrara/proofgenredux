@@ -67,7 +67,7 @@ class HomeComponent extends Component
             Flux::toast(
                 text: 'Show name cannot be empty',
                 heading: 'Error',
-                variant: 'error',
+                variant: 'danger',
                 position: 'top right'
             );
 
@@ -79,7 +79,7 @@ class HomeComponent extends Component
             Flux::toast(
                 text: 'Show name can only contain letters, numbers, underscores and hyphens',
                 heading: 'Error',
-                variant: 'error',
+                variant: 'danger',
                 position: 'top right'
             );
 
@@ -126,14 +126,12 @@ class HomeComponent extends Component
 
     public function backDirectory()
     {
-        $path_array = explode('/', $this->working_path);
-        if (count($path_array) < 1) {
+        if ($this->working_path === '') {
             return;
         }
 
-        // Unset the last value
-        unset($path_array[count($path_array) - 1]);
-
+        $path_array = explode('/', $this->working_path);
+        array_pop($path_array);
         $this->working_path = implode('/', $path_array);
     }
 

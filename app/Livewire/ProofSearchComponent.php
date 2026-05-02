@@ -74,8 +74,8 @@ class ProofSearchComponent extends Component
             $this->selectedProofNumber = $photo->proof_number;
             $this->query = $photo->proof_number;
 
-            // Redirect to the class view page containing this proof
-            $showParts = explode('_', $photo->show_class_id);
+            // Class names can contain underscores, so split on the first underscore only.
+            $showParts = explode('_', $photo->show_class_id, 2);
             if (count($showParts) === 2) {
                 return redirect()->to('/show/'.$showParts[0].'/class/'.$showParts[1]);
             }

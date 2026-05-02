@@ -54,17 +54,32 @@ class UpdateService
      */
     public function checkForUpdates(): array
     {
-        // Fetch latest tags from remote
-        Process::path(base_path())->run('git fetch --tags');
+        try {
+            // Fetch latest tags from remote with timeout
+            $fetchProcess = Process::path(base_path())->timeout(10)->run('git fetch --tags --quiet');
 
-        $currentVersion = $this->getCurrentVersion();
-        $latestVersion = $this->getLatestRemoteVersion();
+            if (! $fetchProcess->successful()) {
+                Log::warning('Failed to fetch git tags: '.$fetchProcess->errorOutput());
+            }
 
-        return [
-            'current_version' => $currentVersion,
-            'latest_version' => $latestVersion,
-            'update_available' => $this->isUpdateAvailable($currentVersion, $latestVersion),
-        ];
+            $currentVersion = $this->getCurrentVersion();
+            $latestVersion = $this->getLatestRemoteVersion();
+
+            return [
+                'current_version' => $currentVersion,
+                'latest_version' => $latestVersion,
+                'update_available' => $this->isUpdateAvailable($currentVersion, $latestVersion),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error checking for updates: '.$e->getMessage());
+
+            return [
+                'current_version' => 'Unknown',
+                'latest_version' => 'Unknown',
+                'update_available' => false,
+                'error' => 'Failed to check for updates',
+            ];
+        }
     }
 
     /**
@@ -109,6 +124,7 @@ class UpdateService
 
     /**
      * Find the composer binary path
+     *
      * @return array|null Returns array of command parts or null if not found
      */
     protected function findComposerBinary(): ?array
@@ -117,6 +133,7 @@ class UpdateService
         if (file_exists(base_path('composer.phar'))) {
             // Make sure PHP binary is available
             $phpBinary = config('proofgen.php_binary_path', 'php');
+
             // Return as array to handle paths with spaces
             return [$phpBinary, 'composer.phar'];
         }
@@ -161,7 +178,7 @@ class UpdateService
             if (! $composerBinary) {
                 throw new \Exception('Composer not found. Please ensure composer is installed and accessible in PATH or common locations.');
             }
-            $steps[] = "Found composer: " . implode(' ', $composerBinary);
+            $steps[] = 'Found composer: '.implode(' ', $composerBinary);
 
             // Step 1: Stop Horizon
             $steps[] = 'Stopping Horizon...';
@@ -216,25 +233,25 @@ class UpdateService
             if (PHP_OS_FAMILY === 'Darwin') {
                 $steps[] = 'Checking Swift compatibility...';
                 $swiftCompatibility = app(\App\Services\SwiftCompatibilityService::class)->checkCompatibility();
-                
+
                 if ($swiftCompatibility['compatible']) {
                     $steps[] = 'Compiling Swift binaries...';
                     $swiftCompilationService = app(\App\Services\SwiftCompilationService::class);
                     $compilationResult = $swiftCompilationService->compileAll();
-                    
+
                     if ($compilationResult['success']) {
                         $steps[] = 'Swift binaries compiled successfully';
-                        
+
                         // Step 9: Restart Core Image daemon
                         $steps[] = 'Restarting Core Image daemon...';
                         $daemonService = app(\App\Services\CoreImageDaemonService::class);
-                        
+
                         // Stop the daemon if it's running
                         if ($daemonService->isCoreImageAvailable()) {
                             $daemonService->stopDaemon();
                             sleep(1); // Give it a moment to stop
                         }
-                        
+
                         // Start the daemon
                         if ($daemonService->startDaemon()) {
                             sleep(2); // Wait for daemon to start
@@ -250,7 +267,7 @@ class UpdateService
                         }
                     } else {
                         Log::warning('Swift compilation failed during update', ['errors' => $compilationResult['errors']]);
-                        $steps[] = 'Warning: Swift compilation failed - ' . implode(', ', $compilationResult['errors']);
+                        $steps[] = 'Warning: Swift compilation failed - '.implode(', ', $compilationResult['errors']);
                     }
                 } else {
                     $steps[] = 'Skipping Swift compilation (Swift not compatible)';

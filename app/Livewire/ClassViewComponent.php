@@ -52,7 +52,7 @@ class ClassViewComponent extends Component
 
     public bool $local_proofs_sync_performed = false;
 
-    protected PathResolver $pathResolver;
+    public bool $existing_photos_import_performed = false;
 
     // Bulk action properties
     public array $selectedPhotos = [];
@@ -80,15 +80,15 @@ class ClassViewComponent extends Component
     // Thumbnail size property
     public string $thumbnailSize = 'small';
 
-    public function mount(PathResolver $pathResolver): void
+    public function mount(): void
     {
-        $this->pathResolver = $pathResolver;
+        $pathResolver = app(PathResolver::class);
         $this->fullsize_base_path = config('proofgen.fullsize_home_dir');
         $this->archive_base_path = config('proofgen.archive_home_dir');
         $this->working_path = $this->show.'/'.$this->class;
-        $this->proofs_path = $this->pathResolver->getProofsPath($this->show, $this->class);
-        $this->web_images_path = $this->pathResolver->getWebImagesPath($this->show, $this->class);
-        $this->highres_images_path = $this->pathResolver->getHighresImagesPath($this->show, $this->class);
+        $this->proofs_path = $pathResolver->getProofsPath($this->show, $this->class);
+        $this->web_images_path = $pathResolver->getWebImagesPath($this->show, $this->class);
+        $this->highres_images_path = $pathResolver->getHighresImagesPath($this->show, $this->class);
     }
 
     public function boot(): void
@@ -105,6 +105,13 @@ class ClassViewComponent extends Component
     public function loadShowClass(): void
     {
         $this->showClass = \App\Models\ShowClass::with('photos')->find($this->show.'_'.$this->class);
+
+        // One-time discovery / sync. Each flag persists across Livewire requests
+        // so the 5-second poll doesn't keep re-scanning the filesystem.
+        if (! $this->existing_photos_import_performed) {
+            $this->showClass->importExistingPhotosFromOriginalsDirectory();
+            $this->existing_photos_import_performed = true;
+        }
         if (! $this->local_web_image_sync_performed) {
             $this->showClass->localWebImageSync();
             $this->local_web_image_sync_performed = true;
@@ -117,52 +124,15 @@ class ClassViewComponent extends Component
 
     public function render()
     {
-        $pre_existing_photos_imported = $this->showClass->importExistingPhotosFromOriginalsDirectory();
-
-        // If we imported any photos, we need to load the show class again
-        if ($pre_existing_photos_imported > 0) {
-            $this->loadShowClass();
-        }
-
-        $photos_pending_import = $this->showClass->getImagesPendingImport();
-
-        $counts = $this->showClass->processingCounts();
-
-        $photos_imported = $counts['photos_imported'];
-        $photos_proofed = $counts['photos_proofed'];
-        $photos_pending_proofs = $counts['photos_pending_proofs'];
-        $photos_proofs_uploaded = $counts['photos_proofs_uploaded'];
-        $photos_pending_proof_uploads = $counts['photos_pending_proof_uploads'];
-        $photos_web_images_generated = $counts['photos_web_images_generated'];
-        $photos_pending_web_images = $counts['photos_pending_web_images'];
-        $photos_web_images_uploaded = $counts['photos_web_images_uploaded'];
-        $photos_pending_web_image_uploads = $counts['photos_pending_web_image_uploads'];
-        $photos_highres_images_generated = $counts['photos_highres_images_generated'];
-        $photos_pending_highres_images = $counts['photos_pending_highres_images'];
-        $photos_highres_images_uploaded = $counts['photos_highres_images_uploaded'];
-        $photos_pending_highres_image_uploads = $counts['photos_pending_highres_image_uploads'];
-
-        return view('livewire.class-view-component')
-            ->with('show', $this->showModel)
-            ->with('show_class', $this->showClass)
-            ->with('photos', $this->showClass->photos()->with('metadata')->get())
-            ->with('photos_pending_import', $photos_pending_import)
-            ->with('photos_imported', $photos_imported)
-            ->with('photos_proofed', $photos_proofed)
-            ->with('photos_pending_proofs', $photos_pending_proofs)
-            ->with('photos_proofs_uploaded', $photos_proofs_uploaded)
-            ->with('photos_pending_proof_uploads', $photos_pending_proof_uploads)
-            ->with('photos_web_images_generated', $photos_web_images_generated)
-            ->with('photos_pending_web_images', $photos_pending_web_images)
-            ->with('photos_web_images_uploaded', $photos_web_images_uploaded)
-            ->with('photos_pending_web_image_uploads', $photos_pending_web_image_uploads)
-            ->with('photos_highres_images_generated', $photos_highres_images_generated)
-            ->with('photos_pending_highres_images', $photos_pending_highres_images)
-            ->with('photos_highres_images_uploaded', $photos_highres_images_uploaded)
-            ->with('photos_pending_highres_image_uploads', $photos_pending_highres_image_uploads)
-            ->with('web_images_enabled', config('proofgen.generate_web_images.enabled', true))
-            ->with('highres_images_enabled', config('proofgen.generate_highres_images.enabled', true))
-            ->title($this->show.' '.$this->class.' - Proofgen');
+        return view('livewire.class-view-component', [
+            'show' => $this->showModel,
+            'show_class' => $this->showClass,
+            'photos' => $this->showClass->photos()->with('metadata')->get(),
+            'photos_pending_import' => $this->showClass->getImagesPendingImport(),
+            ...$this->showClass->processingCounts(),
+            'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
+            'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
+        ])->title($this->show.' '.$this->class.' - Proofgen');
     }
 
     public function setFlashMessage(string $message): void
@@ -229,7 +199,7 @@ class ClassViewComponent extends Component
             Flux::toast(
                 text: 'Photo not found',
                 heading: 'Error',
-                variant: 'error',
+                variant: 'danger',
                 position: 'top right'
             );
         }
@@ -237,7 +207,7 @@ class ClassViewComponent extends Component
 
     public function importPendingImages(): void
     {
-        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $pathResolver = app(PathResolver::class);
         $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $count = $show_class->processPendingImages();
         $this->setFlashMessage($count.' Images queued for import.');
@@ -248,7 +218,7 @@ class ClassViewComponent extends Component
      */
     public function processImage($image_path): void
     {
-        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $pathResolver = app(PathResolver::class);
         $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $show_class->processImage($image_path);
         $this->setFlashMessage($image_path.' Processed.');
@@ -337,7 +307,7 @@ class ClassViewComponent extends Component
         }
 
         // Get PathResolver instance for this request
-        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $pathResolver = app(PathResolver::class);
         $web_images_path = $pathResolver->getWebImagesPath($this->showModel->name, $this->showClass->name);
         $photoService = app(PhotoService::class);
         try {
@@ -356,7 +326,7 @@ class ClassViewComponent extends Component
                 Flux::toast(
                     text: 'Web image generation failed',
                     heading: 'Error',
-                    variant: 'error',
+                    variant: 'danger',
                     position: 'top right'
                 );
             }
@@ -391,7 +361,7 @@ class ClassViewComponent extends Component
         }
 
         // Get PathResolver instance for this request
-        $pathResolver = $this->pathResolver ?? app(PathResolver::class);
+        $pathResolver = app(PathResolver::class);
         $highres_images_path = $pathResolver->getHighresImagesPath($this->showModel->name, $this->showClass->name);
         $photoService = app(PhotoService::class);
         try {
@@ -410,7 +380,7 @@ class ClassViewComponent extends Component
                 Flux::toast(
                     text: 'Highres image generation failed',
                     heading: 'Error',
-                    variant: 'error',
+                    variant: 'danger',
                     position: 'top right'
                 );
             }
@@ -558,7 +528,7 @@ class ClassViewComponent extends Component
             Flux::toast(
                 text: 'Folder not found: '.$path,
                 heading: 'Error',
-                variant: 'error',
+                variant: 'danger',
                 position: 'top right'
             );
 
@@ -613,7 +583,12 @@ class ClassViewComponent extends Component
     public function moveSelectedPhotos(): void
     {
         if (empty($this->targetClass)) {
-            Flux::toast('Please select a target class', 'Error', 'error');
+            Flux::toast(
+                text: 'Please select a target class',
+                heading: 'Error',
+                variant: 'danger',
+                position: 'top right'
+            );
 
             return;
         }
@@ -623,15 +598,21 @@ class ClassViewComponent extends Component
 
         if (count($results['success']) > 0) {
             Flux::toast(
-                count($results['success']).' photos moved successfully',
-                'Success',
-                'success'
+                text: count($results['success']).' photos moved successfully',
+                heading: 'Success',
+                variant: 'success',
+                position: 'top right'
             );
         }
 
         if (count($results['errors']) > 0) {
-            foreach ($results['errors'] as $photoId => $error) {
-                Flux::toast($error, 'Error', 'error');
+            foreach ($results['errors'] as $error) {
+                Flux::toast(
+                    text: $error,
+                    heading: 'Error',
+                    variant: 'danger',
+                    position: 'top right'
+                );
             }
         }
 
@@ -667,9 +648,10 @@ class ClassViewComponent extends Component
         }
 
         Flux::toast(
-            $deletedCount.' photos deleted',
-            'Success',
-            'success'
+            text: $deletedCount.' photos deleted',
+            heading: 'Success',
+            variant: 'success',
+            position: 'top right'
         );
 
         // Reset state
@@ -710,9 +692,10 @@ class ClassViewComponent extends Component
             // Handle error - show toast notification
             Log::error('Failed to load large thumbnail: '.$e->getMessage());
             Flux::toast(
-                'Failed to load large thumbnail',
-                'Error',
-                'error'
+                text: 'Failed to load large thumbnail',
+                heading: 'Error',
+                variant: 'danger',
+                position: 'top right'
             );
         }
     }
