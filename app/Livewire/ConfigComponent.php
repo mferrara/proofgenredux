@@ -1646,6 +1646,6 @@ class ConfigComponent extends Component
         return view('livewire.config-component', [
             'isHorizonRunning' => $this->isHorizonRunning,
             'horizonProcessInfo' => $horizonProcessInfo,
-        ]);
+        ])->title('Settings - Proofgen');
     }
 }

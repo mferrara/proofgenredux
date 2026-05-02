@@ -1,872 +1,505 @@
-<div class="px-8 py-4">
-    <div class="flex flex-col justify-start gap-y-2">
-        <div class="flex flex-row justify-start items-center gap-x-4">
-            <div class="text-4xl font-semibold">Application Settings</div>
-            <flux:radio.group x-data variant="segmented" x-model="$flux.appearance">
-                <flux:radio value="light" icon="sun" />
-                <flux:radio value="dark" icon="moon" />
-                <flux:radio value="system" icon="computer-desktop" />
-            </flux:radio.group>
-        </div>
+<div class="px-6 lg:px-10 py-6 max-w-[1400px] mx-auto">
+    @php
+        $hasImageSettings = false;
+        $allImageConfigs = [];
+        foreach(['thumbnails', 'web_images', 'highres_images'] as $cat) {
+            if(isset($configurationsByCategory[$cat])) {
+                $hasImageSettings = true;
+                $allImageConfigs[$cat] = $configurationsByCategory[$cat];
+            }
+        }
+        $hasEnhancement = isset($configurationsByCategory['enhancement']);
+        $tailCategories = collect($configurationsByCategory)
+            ->reject(fn ($_, $cat) => in_array($cat, ['thumbnails', 'web_images', 'highres_images', 'enhancement']))
+            ->all();
+    @endphp
 
-        <div class="mt-6 mb-6">
-            <form wire:submit="save">
-            {{-- Combined Image Settings Section --}}
-            @php
-                $hasImageSettings = false;
-                $allImageConfigs = [];
-                foreach(['thumbnails', 'web_images', 'highres_images'] as $cat) {
-                    if(isset($configurationsByCategory[$cat])) {
-                        $hasImageSettings = true;
-                        $allImageConfigs[$cat] = $configurationsByCategory[$cat];
+    {{-- Header --}}
+    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <flux:heading size="xl" level="1" class="!text-3xl !font-semibold tracking-tight">Settings</flux:heading>
+            <flux:text class="mt-1 max-w-xl">
+                Configure how images are processed, enhanced, and uploaded — and manage system services.
+            </flux:text>
+        </div>
+        <flux:radio.group x-data variant="segmented" x-model="$flux.appearance" size="sm">
+            <flux:radio value="light" icon="sun" />
+            <flux:radio value="dark" icon="moon" />
+            <flux:radio value="system" icon="computer-desktop" />
+        </flux:radio.group>
+    </div>
+
+    <form wire:submit="save">
+        {{-- Sticky section navigation --}}
+        <nav x-data="{
+                active: 'images',
+                scrollTo(id) {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        this.active = id;
                     }
+                },
+                init() {
+                    const sections = Array.from(document.querySelectorAll('section[data-section]'));
+                    if (!sections.length) return;
+                    const observer = new IntersectionObserver((entries) => {
+                        entries.forEach((entry) => {
+                            if (entry.isIntersecting) {
+                                this.active = entry.target.id;
+                            }
+                        });
+                    }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+                    sections.forEach((s) => observer.observe(s));
                 }
+             }"
+             x-init="init()"
+             class="sticky top-0 z-20 -mx-6 lg:-mx-10 px-6 lg:px-10 py-3 mb-8
+                    bg-white/85 dark:bg-zinc-950/85 backdrop-blur-md
+                    border-b border-zinc-200 dark:border-zinc-800">
+            <div class="flex flex-wrap items-center gap-1.5 text-sm">
+                @php
+                    $navItems = collect();
+                    if ($hasImageSettings) $navItems->push(['id' => 'images', 'label' => 'Images']);
+                    if ($hasEnhancement) $navItems->push(['id' => 'enhancement', 'label' => 'Enhancement']);
+                    if (PHP_OS_FAMILY === 'Darwin') $navItems->push(['id' => 'swift', 'label' => 'Swift Binaries']);
+                    foreach ($tailCategories as $category => $_) {
+                        $navItems->push([
+                            'id' => 'cat-' . $category,
+                            'label' => $categoryLabels[$category] ?? ucfirst($category),
+                        ]);
+                    }
+                    $navItems->push(['id' => 'services', 'label' => 'Services']);
+                @endphp
+                @foreach($navItems as $item)
+                    <button type="button"
+                            @click="scrollTo('{{ $item['id'] }}')"
+                            :class="active === '{{ $item['id'] }}'
+                                ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
+                                : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800'"
+                            class="px-3 py-1.5 rounded-full font-medium transition-colors">
+                        {{ $item['label'] }}
+                    </button>
+                @endforeach
+            </div>
+        </nav>
+
+        {{-- Image Settings --}}
+        @if($hasImageSettings)
+            @php
+                $largeConfigs = collect($allImageConfigs['thumbnails'] ?? [])->filter(fn($c) => str_starts_with($c->key, 'thumbnails.large.'))->values();
+                $smallConfigs = collect($allImageConfigs['thumbnails'] ?? [])->filter(fn($c) => str_starts_with($c->key, 'thumbnails.small.'))->values();
+                $webConfigs = $allImageConfigs['web_images'] ?? [];
+                $highresConfigs = $allImageConfigs['highres_images'] ?? [];
+                $webEnabledConfig = collect($webConfigs)->firstWhere('key', 'generate_web_images.enabled');
+                $highresEnabledConfig = collect($highresConfigs)->firstWhere('key', 'generate_highres_images.enabled');
             @endphp
 
-            @if($hasImageSettings)
-                <div class="mb-8" x-data="{ activeTab: @entangle('activeTab') }">
-                    <div class="text-2xl font-semibold mb-2">
-                        Image Settings
+            <section id="images" data-section class="scroll-mt-20 mb-14" x-data="{ activeTab: @entangle('activeTab') }">
+                <div class="mb-4 flex items-center justify-between gap-4">
+                    <div>
+                        <flux:heading size="lg" level="2">Image Settings</flux:heading>
+                        <flux:text class="mt-1">
+                            Tweak dimensions and quality. Live previews regenerate as you change values — save to persist.
+                        </flux:text>
+                    </div>
+                </div>
+
+                @if(!$sampleImagePath)
+                    <div class="mb-4 flex gap-3 rounded-lg border border-amber-300/60 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10 px-4 py-3">
+                        <flux:icon name="photo" class="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div class="text-sm">
+                            <div class="font-medium text-amber-900 dark:text-amber-200">No sample image available</div>
+                            <div class="mt-0.5 text-amber-800/90 dark:text-amber-300/80">
+                                Add images to <code class="font-mono text-xs px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20">storage/sample_images</code>
+                                to enable live previews, or run
+                                <code class="font-mono text-xs px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20">php artisan proofgen:download-samples</code>.
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                {{-- Tabs --}}
+                <div class="mb-6">
+                    <flux:tabs variant="segmented">
+                        <flux:tab name="large" wire:click="updateActiveTab('large')" x-bind:selected="activeTab === 'large'">Large Thumbnails</flux:tab>
+                        <flux:tab name="small" wire:click="updateActiveTab('small')" x-bind:selected="activeTab === 'small'">Small Thumbnails</flux:tab>
+                        <flux:tab name="web" wire:click="updateActiveTab('web')" x-bind:selected="activeTab === 'web'">Web Images</flux:tab>
+                        <flux:tab name="highres" wire:click="updateActiveTab('highres')" x-bind:selected="activeTab === 'highres'">High Resolution</flux:tab>
+                    </flux:tabs>
+                </div>
+
+                {{-- Watermark toggle (thumbnails only) --}}
+                @if(in_array($activeTab, ['large', 'small']))
+                    <div class="mb-4 flex items-center gap-3">
+                        <flux:checkbox
+                            wire:model="previewWatermarkEnabled"
+                            wire:change="togglePreviewWatermark"
+                            id="preview-watermark"
+                            label="Show watermarks on preview images"
+                        />
+                    </div>
+                @endif
+
+                {{-- Large --}}
+                <div x-show="activeTab === 'large'" x-transition>
+                    @include('livewire.partials.image-preview-card', [
+                        'title' => 'Large Thumbnail Preview',
+                        'preview' => $largeThumbnailPreview,
+                        'unenhanced' => $largeThumbnailPreviewUnenhanced,
+                        'info' => $largeThumbnailInfo,
+                        'inputSettings' => $largeThumbnailInputSettings,
+                        'enhancementInfo' => $largeThumbnailEnhancementInfo,
+                        'processingTime' => $largeThumbnailProcessingTime,
+                        'tempPath' => 'thumbnails.large',
+                        'placeholderSize' => 'w-[600px] h-[600px]',
+                        'showRegenerate' => true,
+                        'sampleImagePath' => $sampleImagePath,
+                        'enhancementOn' => $this->isEnhancementEnabledForCurrentTab(),
+                    ])
+                    @include('livewire.partials.settings-grid', [
+                        'sectionTitle' => 'Large Thumbnail Settings',
+                        'configs' => $largeConfigs,
+                    ])
+                </div>
+
+                {{-- Small --}}
+                <div x-show="activeTab === 'small'" x-transition>
+                    @include('livewire.partials.image-preview-card', [
+                        'title' => 'Small Thumbnail Preview',
+                        'preview' => $smallThumbnailPreview,
+                        'unenhanced' => $smallThumbnailPreviewUnenhanced,
+                        'info' => $smallThumbnailInfo,
+                        'inputSettings' => $smallThumbnailInputSettings,
+                        'enhancementInfo' => $smallThumbnailEnhancementInfo,
+                        'processingTime' => $smallThumbnailProcessingTime,
+                        'tempPath' => 'thumbnails.small',
+                        'placeholderSize' => 'w-[250px] h-[250px]',
+                        'showRegenerate' => true,
+                        'sampleImagePath' => $sampleImagePath,
+                        'enhancementOn' => $this->isEnhancementEnabledForCurrentTab(),
+                    ])
+                    @include('livewire.partials.settings-grid', [
+                        'sectionTitle' => 'Small Thumbnail Settings',
+                        'configs' => $smallConfigs,
+                    ])
+                </div>
+
+                {{-- Web --}}
+                <div x-show="activeTab === 'web'" x-transition>
+                    @include('livewire.partials.image-preview-card', [
+                        'title' => 'Web Image Preview',
+                        'preview' => $webImagePreview,
+                        'unenhanced' => $webImagePreviewUnenhanced,
+                        'info' => $webImageInfo,
+                        'inputSettings' => $webImageInputSettings,
+                        'enhancementInfo' => $webImageEnhancementInfo,
+                        'processingTime' => $webImageProcessingTime,
+                        'tempPath' => 'web_images',
+                        'placeholderSize' => 'w-[600px] h-[600px]',
+                        'showRegenerate' => false,
+                        'sampleImagePath' => $sampleImagePath,
+                        'enhancementOn' => $this->isEnhancementEnabledForCurrentTab(),
+                    ])
+                    @include('livewire.partials.settings-grid', [
+                        'sectionTitle' => 'Web Image Settings',
+                        'configs' => collect($webConfigs)->reject(fn($c) => $c->key === 'generate_web_images.enabled')->values(),
+                        'enabledConfig' => $webEnabledConfig,
+                    ])
+                </div>
+
+                {{-- Highres --}}
+                <div x-show="activeTab === 'highres'" x-transition>
+                    @include('livewire.partials.image-preview-card', [
+                        'title' => 'High Resolution Image Preview',
+                        'preview' => $highresImagePreview,
+                        'unenhanced' => $highresImagePreviewUnenhanced,
+                        'info' => $highresImageInfo,
+                        'inputSettings' => $highresImageInputSettings,
+                        'enhancementInfo' => $highresImageEnhancementInfo,
+                        'processingTime' => $highresImageProcessingTime,
+                        'tempPath' => 'highres_images',
+                        'placeholderSize' => 'w-[800px] h-[800px]',
+                        'showRegenerate' => false,
+                        'sampleImagePath' => $sampleImagePath,
+                        'enhancementOn' => $this->isEnhancementEnabledForCurrentTab(),
+                    ])
+                    @include('livewire.partials.settings-grid', [
+                        'sectionTitle' => 'High Resolution Image Settings',
+                        'configs' => collect($highresConfigs)->reject(fn($c) => $c->key === 'generate_highres_images.enabled')->values(),
+                        'enabledConfig' => $highresEnabledConfig,
+                    ])
+                </div>
+            </section>
+        @endif
+
+        {{-- Enhancement --}}
+        @if($hasEnhancement)
+            <section id="enhancement" data-section class="scroll-mt-20 mb-14">
+                @include('livewire.partials.enhancement-settings')
+            </section>
+        @endif
+
+        {{-- Swift Binaries --}}
+        @if(PHP_OS_FAMILY === 'Darwin')
+            <section id="swift" data-section class="scroll-mt-20 mb-14">
+                @include('livewire.partials.swift-binaries-settings')
+            </section>
+        @endif
+
+        {{-- Other categories --}}
+        @foreach($tailCategories as $category => $configurations)
+            <section id="cat-{{ $category }}" data-section class="scroll-mt-20 mb-14">
+                <flux:heading size="lg" level="2" class="mb-4">
+                    {{ $categoryLabels[$category] ?? ucfirst($category) }}
+                </flux:heading>
+
+                <flux:card class="!p-0 overflow-hidden">
+                    <div class="divide-y divide-zinc-200 dark:divide-white/10">
+                        @foreach($configurations as $config)
+                            <div class="px-5 py-4 grid grid-cols-12 gap-4 items-start">
+                                <div class="col-span-12 sm:col-span-5">
+                                    <div class="text-sm font-medium text-zinc-900 dark:text-white">
+                                        {{ $config->label ?? $config->key }}
+                                    </div>
+                                    @if($config->description)
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                            {{ $config->description }}
+                                        </div>
+                                    @endif
+                                    @if(isset($configSources[$config->id]))
+                                        <div class="mt-2">
+                                            @if($configSources[$config->id] === 'database_override')
+                                                <flux:badge color="indigo" size="sm" icon="bolt">Overrides .env</flux:badge>
+                                            @elseif($configSources[$config->id] === 'same_in_both')
+                                                <flux:badge color="emerald" size="sm" icon="check">Matches .env</flux:badge>
+                                            @elseif($configSources[$config->id] === 'database_only')
+                                                <flux:badge color="amber" size="sm" icon="exclamation-triangle">Database only</flux:badge>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <div class="col-span-12 sm:col-span-7">
+                                    @if($config->is_private)
+                                        <div class="text-sm text-zinc-500 italic">Hidden</div>
+                                    @elseif($config->type === 'boolean')
+                                        <flux:switch
+                                            wire:model.live="configValues.{{ $config->id }}"
+                                            wire:key="{{ $config->key }}-switch"
+                                            :label="$config->value ? 'Enabled' : 'Disabled'"
+                                        />
+                                    @else
+                                        <flux:input
+                                            type="text"
+                                            wire:model.defer="configValues.{{ $config->id }}"
+                                            wire:key="{{ $config->key }}-input"
+                                            wire:dirty.class="!border-amber-400 dark:!border-amber-500"
+                                            class="max-w-md"
+                                        />
+                                        @error('configValues.'.$config->id)
+                                            <flux:error class="mt-1">{{ $message }}</flux:error>
+                                        @enderror
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </flux:card>
+            </section>
+        @endforeach
+
+        {{-- Services: Updates + Background workers --}}
+        <section id="services" data-section class="scroll-mt-20 mb-14">
+            <flux:heading size="lg" level="2" class="mb-4">Services</flux:heading>
+
+            <div class="grid gap-6 md:grid-cols-2">
+                {{-- Updates --}}
+                <flux:card>
+                    <div class="flex items-center justify-between mb-3">
+                        <flux:heading size="base">Updates</flux:heading>
+                        @if($checkingForUpdates)
+                            <flux:icon.loading class="w-4 h-4 text-zinc-400" />
+                        @elseif($updateInfo && $updateInfo['update_available'])
+                            <flux:badge color="amber" size="sm">Update available</flux:badge>
+                        @elseif($updateInfo)
+                            <flux:badge color="emerald" size="sm" icon="check">Up to date</flux:badge>
+                        @endif
                     </div>
 
-                        @if(!$sampleImagePath)
-                            <div class="bg-amber-900/20 border border-amber-600/50 rounded-md p-4 mb-4">
-                                <div class="flex items-center gap-2">
-                                    <flux:icon name="exclamation-triangle" class="w-5 h-5 text-amber-600" />
-                                    <p class="text-amber-200">No sample image found for preview. Add images to storage/sample_images or process some images first.</p>
-                                </div>
+                    @if($updateInfo)
+                        <div class="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
+                            <div>Current: <span class="font-mono text-zinc-900 dark:text-white">{{ $updateInfo['current_version'] ?? 'Unknown' }}</span></div>
+                            @if($updateInfo['update_available'])
+                                <div>Latest: <span class="font-mono text-amber-600 dark:text-amber-400">{{ $updateInfo['latest_version'] }}</span></div>
+                            @endif
+                        </div>
+
+                        @if($updateInfo['update_available'])
+                            <div class="mt-4 flex gap-2">
+                                <flux:button
+                                    type="button"
+                                    variant="primary"
+                                    icon="arrow-down-tray"
+                                    wire:click="performUpdate"
+                                    wire:loading.attr="disabled"
+                                    wire:target="performUpdate"
+                                >
+                                    Update now
+                                </flux:button>
+                                <flux:button
+                                    type="button"
+                                    variant="ghost"
+                                    icon="arrow-path"
+                                    wire:click="checkForUpdates"
+                                    wire:loading.attr="disabled"
+                                    wire:target="checkForUpdates"
+                                >
+                                    Re-check
+                                </flux:button>
+                            </div>
+                        @else
+                            <div class="mt-4">
+                                <flux:button
+                                    type="button"
+                                    variant="ghost"
+                                    icon="arrow-path"
+                                    wire:click="checkForUpdates"
+                                    wire:loading.attr="disabled"
+                                    wire:target="checkForUpdates"
+                                >
+                                    Check for updates
+                                </flux:button>
                             </div>
                         @endif
+                    @else
+                        <flux:text>Checking for updates…</flux:text>
+                    @endif
+                </flux:card>
 
-                    {{-- Tab Navigation --}}
-                    <div class="mb-6">
-                        <flux:tabs variant="segmented">
-                            <flux:tab
-                                name="large"
-                                wire:click="updateActiveTab('large')"
-                                x-bind:selected="activeTab === 'large'"
-                            >
-                                Large Thumbnails
-                            </flux:tab>
-                            <flux:tab
-                                name="small"
-                                wire:click="updateActiveTab('small')"
-                                x-bind:selected="activeTab === 'small'"
-                            >
-                                Small Thumbnails
-                            </flux:tab>
-                            <flux:tab
-                                name="web"
-                                wire:click="updateActiveTab('web')"
-                                x-bind:selected="activeTab === 'web'"
-                            >
-                                Web Images
-                            </flux:tab>
-                            <flux:tab
-                                name="highres"
-                                wire:click="updateActiveTab('highres')"
-                                x-bind:selected="activeTab === 'highres'"
-                            >
-                                High Resolution
-                            </flux:tab>
-                        </flux:tabs>
+                {{-- Background workers (Horizon) --}}
+                <flux:card>
+                    <div class="flex items-center justify-between mb-3">
+                        <flux:heading size="base">Background Workers</flux:heading>
+                        @if($isHorizonRunning)
+                            <flux:badge color="emerald" size="sm" icon="bolt">Running</flux:badge>
+                        @else
+                            <flux:badge color="zinc" size="sm">Stopped</flux:badge>
+                        @endif
                     </div>
 
-                    {{-- Watermark Toggle for Thumbnails --}}
-                    @if(in_array($activeTab, ['large', 'small']))
-                        <div class="mb-4 flex items-center gap-4">
-                            <flux:checkbox 
-                                wire:model="previewWatermarkEnabled"
-                                wire:change="togglePreviewWatermark"
-                                id="preview-watermark"
-                            />
-                            <flux:label for="preview-watermark" class="text-sm">
-                                Show watermarks on preview images
-                            </flux:label>
-                        </div>
+                    @if($isHorizonRunning && isset($horizonProcessInfo['main_process']))
+                        <dl class="grid grid-cols-3 gap-3 text-xs mb-4">
+                            <div>
+                                <dt class="text-zinc-500 dark:text-zinc-500">PID</dt>
+                                <dd class="font-mono text-zinc-900 dark:text-white">{{ $horizonProcessInfo['main_process']['pid'] ?? '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-zinc-500 dark:text-zinc-500">CPU</dt>
+                                <dd class="font-mono text-zinc-900 dark:text-white">{{ $horizonProcessInfo['main_process']['cpu'] ?? '—' }}%</dd>
+                            </div>
+                            <div>
+                                <dt class="text-zinc-500 dark:text-zinc-500">Memory</dt>
+                                <dd class="font-mono text-zinc-900 dark:text-white">{{ $horizonProcessInfo['main_process']['memory'] ?? '—' }}%</dd>
+                            </div>
+                            <div>
+                                <dt class="text-zinc-500 dark:text-zinc-500">Supervisors</dt>
+                                <dd class="font-mono text-zinc-900 dark:text-white">{{ $horizonProcessInfo['supervisor_count'] ?? 0 }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-zinc-500 dark:text-zinc-500">Workers</dt>
+                                <dd class="font-mono text-zinc-900 dark:text-white">{{ $horizonProcessInfo['worker_count'] ?? 0 }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-zinc-500 dark:text-zinc-500">Total</dt>
+                                <dd class="font-mono text-zinc-900 dark:text-white">{{ $horizonProcessInfo['total_processes'] ?? 0 }}</dd>
+                            </div>
+                        </dl>
                     @endif
 
-                    <div class="space-y-6">
-                        @php
-                            $largeConfigs = collect($allImageConfigs['thumbnails'] ?? [])->filter(fn($c) => str_starts_with($c->key, 'thumbnails.large.'))->keyBy('key');
-                            $smallConfigs = collect($allImageConfigs['thumbnails'] ?? [])->filter(fn($c) => str_starts_with($c->key, 'thumbnails.small.'))->keyBy('key');
-                            $webConfigs = $allImageConfigs['web_images'] ?? [];
-                            $highresConfigs = $allImageConfigs['highres_images'] ?? [];
-                        @endphp
-
-                            {{-- Large Thumbnail Tab Content --}}
-                            <div x-show="activeTab === 'large'" x-transition>
-                                {{-- Large Preview Section --}}
-                                @if($sampleImagePath)
-                                    <div class="bg-zinc-800 rounded-md p-6 mb-6">
-                                        <h3 class="text-lg font-medium text-gray-200 mb-4">Large Thumbnail Preview</h3>
-                                        @if($largeThumbnailPreview)
-                                            <div class="relative inline-block" x-data="{ showUnenhanced: false }">
-                                                <img x-bind:src="showUnenhanced && @js($largeThumbnailPreviewUnenhanced) ? @js($largeThumbnailPreviewUnenhanced) : @js($largeThumbnailPreview)"
-                                                     alt="Large thumbnail preview"
-                                                     class="border border-zinc-600 rounded transition-all duration-200"
-                                                     x-bind:class="{ 'border-amber-500': showUnenhanced }"
-                                                     wire:loading.class="opacity-50"
-                                                     wire:target="updatePreview,updateActiveTab">
-                                                <div wire:loading.delay wire:target="updatePreview,updateActiveTab"
-                                                     class="absolute inset-0 flex items-center justify-center">
-                                                    <flux:icon.loading class="w-8 h-8 text-blue-500" />
-                                                </div>
-
-                                                @if($this->isEnhancementEnabledForCurrentTab())
-                                                    <div class="absolute top-2 right-2 flex items-center gap-2">
-                                                        <button type="button"
-                                                                wire:click="generateThumbnailPreviews"
-                                                                wire:loading.attr="disabled"
-                                                                class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 rounded cursor-pointer select-none transition-all hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                                                            <flux:icon name="arrow-path" variant="mini" class="w-3 h-3" wire:loading.class="animate-spin" wire:target="generateThumbnailPreviews" />
-                                                        </button>
-                                                        <div x-on:mouseenter="showUnenhanced = true"
-                                                             x-on:mouseleave="showUnenhanced = false"
-                                                             class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
-                                                            <flux:icon.sparkles variant="mini" class="mr-1" />
-                                                            <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
-                                                        </div>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                            @if($largeThumbnailInfo)
-                                                @include('livewire.partials.preview-info-label', [
-                                                    'inputSettings' => $largeThumbnailInputSettings,
-                                                    'fileInfo' => $largeThumbnailInfo,
-                                                    'enhancementInfo' => $largeThumbnailEnhancementInfo,
-                                                    'processingTime' => $largeThumbnailProcessingTime,
-                                                ])
-                                            @endif
-                                        @else
-                                            <div class="w-[950px] h-[950px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
-                                                <flux:icon.loading class="w-8 h-8 text-gray-500" />
-                                            </div>
-                                        @endif
-
-                                        {{-- Large Preview Controls --}}
-                                        <div class="mt-4 flex items-end gap-4">
-                                            <div>
-                                                <label class="block text-xs text-gray-400 mb-1">Width</label>
-                                                <flux:input
-                                                    type="text"
-                                                    wire:model="tempThumbnailValues.thumbnails.large.width"
-                                                    wire:change="updatePreview"
-                                                    class="w-24"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label class="block text-xs text-gray-400 mb-1">Height</label>
-                                                <flux:input
-                                                    type="text"
-                                                    wire:model="tempThumbnailValues.thumbnails.large.height"
-                                                    wire:change="updatePreview"
-                                                    class="w-24"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label class="block text-xs text-gray-400 mb-1">Quality (10-100)</label>
-                                                <flux:input
-                                                    type="text"
-                                                    wire:model="tempThumbnailValues.thumbnails.large.quality"
-                                                    wire:change="updatePreview"
-                                                    class="w-24"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endif
-
-                                {{-- Large Thumbnail Settings --}}
-                                <div class="bg-zinc-700 rounded-md overflow-hidden">
-                                    <div class="bg-zinc-800 px-6 py-3">
-                                        <h3 class="text-lg font-medium text-gray-200">Large Thumbnail Settings</h3>
-                                    </div>
-                                    <div class="p-6">
-                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            @foreach($largeConfigs as $config)
-                                                <flux:field>
-                                                    <flux:label>{{ $config->label ?? $config->key }}</flux:label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model.defer="configValues.{{ $config->id }}"
-                                                        wire:key="{{ $config->key }}-input"
-                                                        placeholder="{{ str_contains($config->key, 'width') || str_contains($config->key, 'height') ? 'e.g. 950' : (str_contains($config->key, 'quality') ? '10-100' : '') }}"
-                                                    />
-                                                    @if($config->description)
-                                                        <flux:description>
-                                                            {{ $config->description }}
-                                                            @if(str_contains($config->key, 'quality')) (10-100) @endif
-                                                        </flux:description>
-                                                    @endif
-                                                    @error('configValues.'.$config->id)
-                                                        <flux:error>{{ $message }}</flux:error>
-                                                    @enderror
-                                                </flux:field>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {{-- Small Thumbnail Tab Content --}}
-                            <div x-show="activeTab === 'small'" x-transition>
-                                {{-- Small Preview Section --}}
-                                @if($sampleImagePath)
-                                    <div class="bg-zinc-800 rounded-md p-6 mb-6">
-                                        <h3 class="text-lg font-medium text-gray-200 mb-4">Small Thumbnail Preview</h3>
-                                        @if($smallThumbnailPreview)
-                                            <div class="relative inline-block" x-data="{ showUnenhanced: false }">
-                                                <img x-bind:src="showUnenhanced && @js($smallThumbnailPreviewUnenhanced) ? @js($smallThumbnailPreviewUnenhanced) : @js($smallThumbnailPreview)"
-                                                     alt="Small thumbnail preview"
-                                                     class="border border-zinc-600 rounded transition-all duration-200"
-                                                     x-bind:class="{ 'border-amber-500': showUnenhanced }"
-                                                     wire:loading.class="opacity-50"
-                                                     wire:target="updatePreview,updateActiveTab">
-                                                <div wire:loading.delay wire:target="updatePreview,updateActiveTab"
-                                                     class="absolute inset-0 flex items-center justify-center">
-                                                    <flux:icon.loading class="w-8 h-8 text-blue-500" />
-                                                </div>
-
-                                                @if($this->isEnhancementEnabledForCurrentTab())
-                                                    <div class="absolute top-2 right-2 flex items-center gap-2">
-                                                        <button type="button"
-                                                                wire:click="generateThumbnailPreviews"
-                                                                wire:loading.attr="disabled"
-                                                                class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 rounded cursor-pointer select-none transition-all hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                                                            <flux:icon name="arrow-path" variant="mini" class="w-3 h-3" wire:loading.class="animate-spin" wire:target="generateThumbnailPreviews" />
-                                                        </button>
-                                                        <div x-on:mouseenter="showUnenhanced = true"
-                                                             x-on:mouseleave="showUnenhanced = false"
-                                                             class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
-                                                            <flux:icon.sparkles variant="mini" class="mr-1" />
-                                                            <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
-                                                        </div>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                            @if($smallThumbnailInfo)
-                                                @include('livewire.partials.preview-info-label', [
-                                                    'inputSettings' => $smallThumbnailInputSettings,
-                                                    'fileInfo' => $smallThumbnailInfo,
-                                                    'enhancementInfo' => $smallThumbnailEnhancementInfo,
-                                                    'processingTime' => $smallThumbnailProcessingTime,
-                                                ])
-                                            @endif
-                                        @else
-                                            <div class="w-[250px] h-[250px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
-                                                <flux:icon.loading class="w-8 h-8 text-gray-500" />
-                                            </div>
-                                        @endif
-
-                                        {{-- Small Preview Controls --}}
-                                        <div class="mt-4 flex items-end gap-4">
-                                            <div>
-                                                <label class="block text-xs text-gray-400 mb-1">Width</label>
-                                                <flux:input
-                                                    type="text"
-                                                    wire:model="tempThumbnailValues.thumbnails.small.width"
-                                                    wire:change="updatePreview"
-                                                    class="w-24"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label class="block text-xs text-gray-400 mb-1">Height</label>
-                                                <flux:input
-                                                    type="text"
-                                                    wire:model="tempThumbnailValues.thumbnails.small.height"
-                                                    wire:change="updatePreview"
-                                                    class="w-24"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label class="block text-xs text-gray-400 mb-1">Quality (10-100)</label>
-                                                <flux:input
-                                                    type="text"
-                                                    wire:model="tempThumbnailValues.thumbnails.small.quality"
-                                                    wire:change="updatePreview"
-                                                    class="w-24"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endif
-
-                                {{-- Small Thumbnail Settings --}}
-                                <div class="bg-zinc-700 rounded-md overflow-hidden">
-                                    <div class="bg-zinc-800 px-6 py-3">
-                                        <h3 class="text-lg font-medium text-gray-200">Small Thumbnail Settings</h3>
-                                    </div>
-                                    <div class="p-6">
-                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            @foreach($smallConfigs as $config)
-                                                <flux:field>
-                                                    <flux:label>{{ $config->label ?? $config->key }}</flux:label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model.defer="configValues.{{ $config->id }}"
-                                                        wire:key="{{ $config->key }}-input"
-                                                        placeholder="{{ str_contains($config->key, 'width') || str_contains($config->key, 'height') ? 'e.g. 250' : (str_contains($config->key, 'quality') ? '10-100' : '') }}"
-                                                    />
-                                                    @if($config->description)
-                                                        <flux:description>
-                                                            {{ $config->description }}
-                                                            @if(str_contains($config->key, 'quality')) (10-100) @endif
-                                                        </flux:description>
-                                                    @endif
-                                                    @error('configValues.'.$config->id)
-                                                        <flux:error>{{ $message }}</flux:error>
-                                                    @enderror
-                                                </flux:field>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                        {{-- Web Images Tab Content --}}
-                        <div x-show="activeTab === 'web'" x-transition>
-                                    {{-- Web Images Preview Section --}}
-                                    @if($sampleImagePath)
-                                        <div class="bg-zinc-800 rounded-md p-6 mb-6">
-                                            <h3 class="text-lg font-medium text-gray-200 mb-4">Web Image Preview</h3>
-                                            @if($webImagePreview)
-                                                <div class="relative inline-block" x-data="{ showUnenhanced: false }">
-                                                    <img x-bind:src="showUnenhanced && @js($webImagePreviewUnenhanced) ? @js($webImagePreviewUnenhanced) : @js($webImagePreview)"
-                                                         alt="Web image preview"
-                                                         class="border border-zinc-600 rounded"
-                                                         wire:loading.class="opacity-50"
-                                                         wire:target="updatePreview,updateActiveTab">
-                                                    <div wire:loading.delay wire:target="updatePreview,updateActiveTab"
-                                                         class="absolute inset-0 flex items-center justify-center">
-                                                        <flux:icon.loading class="w-8 h-8 text-blue-500" />
-                                                    </div>
-
-                                                    @if($this->isEnhancementEnabledForCurrentTab())
-                                                        <div class="absolute top-2 right-2"
-                                                             x-on:mouseenter="showUnenhanced = true"
-                                                             x-on:mouseleave="showUnenhanced = false">
-                                                            <div class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
-                                                                <flux:icon.sparkles variant="mini" class="mr-1" />
-                                                                <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
-                                                            </div>
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                                @if($webImageInfo)
-                                                    @include('livewire.partials.preview-info-label', [
-                                                        'inputSettings' => $webImageInputSettings,
-                                                        'fileInfo' => $webImageInfo,
-                                                        'enhancementInfo' => $webImageEnhancementInfo,
-                                                        'processingTime' => $webImageProcessingTime,
-                                                    ])
-                                                @endif
-                                            @else
-                                                <div class="w-[600px] h-[600px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
-                                                    <flux:icon.loading class="w-8 h-8 text-gray-500" />
-                                                </div>
-                                            @endif
-
-                                            {{-- Web Images Preview Controls --}}
-                                            <div class="mt-4 flex items-end gap-4">
-                                                <div>
-                                                    <label class="block text-xs text-gray-400 mb-1">Width</label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model="tempThumbnailValues.web_images.width"
-                                                        wire:change="updatePreview"
-                                                        class="w-24"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label class="block text-xs text-gray-400 mb-1">Height</label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model="tempThumbnailValues.web_images.height"
-                                                        wire:change="updatePreview"
-                                                        class="w-24"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label class="block text-xs text-gray-400 mb-1">Quality (10-100)</label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model="tempThumbnailValues.web_images.quality"
-                                                        wire:change="updatePreview"
-                                                        class="w-24"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @endif
-
-                                {{-- Web Images Settings --}}
-                                <div class="bg-zinc-700 rounded-md overflow-hidden">
-                                    <div class="bg-zinc-800 px-6 py-3 flex items-center justify-between">
-                                        <h3 class="text-lg font-medium text-gray-200">Web Image Settings</h3>
-                                        @php
-                                            $webEnabledConfig = collect($webConfigs)->firstWhere('key', 'generate_web_images.enabled');
-                                        @endphp
-                                        @if($webEnabledConfig)
-                                            <div class="flex items-center gap-3">
-                                                <flux:label for="web-images-enabled-toggle" class="text-sm text-gray-300">
-                                                    {{ $webEnabledConfig->label ?? 'Enable Web Images' }}
-                                                </flux:label>
-                                                <flux:switch
-                                                    id="web-images-enabled-toggle"
-                                                    wire:model.defer="configValues.{{ $webEnabledConfig->id }}"
-                                                    wire:key="{{ $webEnabledConfig->key }}-switch"
-                                                />
-                                            </div>
-                                        @endif
-                                    </div>
-                                    <div class="p-6">
-                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            @foreach($webConfigs as $config)
-                                                @if($config->key !== 'generate_web_images.enabled')
-                                                    <flux:field>
-                                                        <flux:label>{{ $config->label ?? $config->key }}</flux:label>
-                                                        <flux:input
-                                                            type="text"
-                                                            wire:model.defer="configValues.{{ $config->id }}"
-                                                            wire:key="{{ $config->key }}-input"
-                                                            placeholder="{{ str_contains($config->key, 'width') || str_contains($config->key, 'height') ? 'e.g. 1200' : (str_contains($config->key, 'quality') ? '10-100' : '') }}"
-                                                        />
-                                                        @if($config->description)
-                                                            <flux:description>
-                                                                {{ $config->description }}
-                                                                @if(str_contains($config->key, 'quality')) (10-100) @endif
-                                                            </flux:description>
-                                                        @endif
-                                                        @error('configValues.'.$config->id)
-                                                            <flux:error>{{ $message }}</flux:error>
-                                                        @enderror
-                                                    </flux:field>
-                                                @endif
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                </div>
-                        </div>
-
-                        {{-- High Resolution Images Tab Content --}}
-                        <div x-show="activeTab === 'highres'" x-transition>
-                                    {{-- High Resolution Images Preview Section --}}
-                                    @if($sampleImagePath)
-                                        <div class="bg-zinc-800 rounded-md p-6 mb-6">
-                                            <h3 class="text-lg font-medium text-gray-200 mb-4">High Resolution Image Preview</h3>
-                                            @if($highresImagePreview)
-                                                <div class="relative inline-block" x-data="{ showUnenhanced: false }">
-                                                    <img x-bind:src="showUnenhanced && @js($highresImagePreviewUnenhanced) ? @js($highresImagePreviewUnenhanced) : @js($highresImagePreview)"
-                                                         alt="High resolution image preview"
-                                                         class="border border-zinc-600 rounded max-w-full transition-all duration-200"
-                                                         x-bind:class="{ 'border-amber-500': showUnenhanced }"
-                                                         wire:loading.class="opacity-50"
-                                                         wire:target="updatePreview,updateActiveTab">
-                                                    <div wire:loading.delay wire:target="updatePreview,updateActiveTab"
-                                                         class="absolute inset-0 flex items-center justify-center">
-                                                        <flux:icon.loading class="w-8 h-8 text-blue-500" />
-                                                    </div>
-
-                                                    @if($this->isEnhancementEnabledForCurrentTab())
-                                                        <div class="absolute top-2 right-2"
-                                                             x-on:mouseenter="showUnenhanced = true"
-                                                             x-on:mouseleave="showUnenhanced = false">
-                                                            <div class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded cursor-pointer select-none transition-all hover:bg-blue-700">
-                                                                <flux:icon.sparkles variant="mini" class="mr-1" />
-                                                                <span x-text="showUnenhanced ? 'Original' : 'Enhanced'"></span>
-                                                            </div>
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                                @if($highresImageInfo)
-                                                    @include('livewire.partials.preview-info-label', [
-                                                        'inputSettings' => $highresImageInputSettings,
-                                                        'fileInfo' => $highresImageInfo,
-                                                        'enhancementInfo' => $highresImageEnhancementInfo,
-                                                        'processingTime' => $highresImageProcessingTime,
-                                                    ])
-                                                @endif
-                                            @else
-                                                <div class="w-[800px] h-[800px] bg-zinc-700 border border-zinc-600 rounded flex items-center justify-center">
-                                                    <flux:icon.loading class="w-8 h-8 text-gray-500" />
-                                                </div>
-                                            @endif
-
-                                            {{-- High Resolution Images Preview Controls --}}
-                                            <div class="mt-4 flex items-end gap-4">
-                                                <div>
-                                                    <label class="block text-xs text-gray-400 mb-1">Width</label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model="tempThumbnailValues.highres_images.width"
-                                                        wire:change="updatePreview"
-                                                        class="w-24"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label class="block text-xs text-gray-400 mb-1">Height</label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model="tempThumbnailValues.highres_images.height"
-                                                        wire:change="updatePreview"
-                                                        class="w-24"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label class="block text-xs text-gray-400 mb-1">Quality (10-100)</label>
-                                                    <flux:input
-                                                        type="text"
-                                                        wire:model="tempThumbnailValues.highres_images.quality"
-                                                        wire:change="updatePreview"
-                                                        class="w-24"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @endif
-
-                                {{-- High Resolution Images Settings --}}
-                                <div class="bg-zinc-700 rounded-md overflow-hidden">
-                                    <div class="bg-zinc-800 px-6 py-3 flex items-center justify-between">
-                                        <h3 class="text-lg font-medium text-gray-200">High Resolution Image Settings</h3>
-                                        @php
-                                            $highresEnabledConfig = collect($highresConfigs)->firstWhere('key', 'generate_highres_images.enabled');
-                                        @endphp
-                                        @if($highresEnabledConfig)
-                                            <div class="flex items-center gap-3">
-                                                <flux:label for="highres-images-enabled-toggle" class="text-sm text-gray-300">
-                                                    {{ $highresEnabledConfig->label ?? 'Enable High Resolution Images' }}
-                                                </flux:label>
-                                                <flux:switch
-                                                    id="highres-images-enabled-toggle"
-                                                    wire:model.defer="configValues.{{ $highresEnabledConfig->id }}"
-                                                    wire:key="{{ $highresEnabledConfig->key }}-switch"
-                                                />
-                                            </div>
-                                        @endif
-                                    </div>
-                                    <div class="p-6">
-                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            @foreach($highresConfigs as $config)
-                                                @if($config->key !== 'generate_highres_images.enabled')
-                                                    <flux:field>
-                                                        <flux:label>{{ $config->label ?? $config->key }}</flux:label>
-                                                        <flux:input
-                                                            type="text"
-                                                            wire:model.defer="configValues.{{ $config->id }}"
-                                                            wire:key="{{ $config->key }}-input"
-                                                            placeholder="{{ str_contains($config->key, 'width') || str_contains($config->key, 'height') ? 'e.g. 2400' : (str_contains($config->key, 'quality') ? '10-100' : '') }}"
-                                                        />
-                                                        @if($config->description)
-                                                            <flux:description>
-                                                                {{ $config->description }}
-                                                                @if(str_contains($config->key, 'quality')) (10-100) @endif
-                                                            </flux:description>
-                                                        @endif
-                                                        @error('configValues.'.$config->id)
-                                                            <flux:error>{{ $message }}</flux:error>
-                                                        @enderror
-                                                    </flux:field>
-                                                @endif
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                </div>
-                                </div>
-                        </div>
+                    <div class="flex flex-wrap gap-2">
+                        @if($isHorizonRunning)
+                            <flux:button type="button" variant="ghost" icon="stop" wire:click="stopHorizon" wire:loading.attr="disabled" wire:target="stopHorizon">Stop</flux:button>
+                            <flux:button type="button" variant="ghost" icon="arrow-path" wire:click="restartHorizon" wire:loading.attr="disabled" wire:target="restartHorizon">Restart</flux:button>
+                            <flux:dropdown>
+                                <flux:button type="button" variant="ghost" icon="exclamation-triangle">Force…</flux:button>
+                                <flux:menu>
+                                    <flux:menu.item
+                                        wire:click="forceKillHorizon"
+                                        wire:confirm="Force kill all Horizon processes? Use only if normal stop didn't work."
+                                        icon="x-circle"
+                                        variant="danger"
+                                    >
+                                        Force kill all processes
+                                    </flux:menu.item>
+                                </flux:menu>
+                            </flux:dropdown>
+                        @else
+                            <flux:button type="button" variant="primary" icon="play" wire:click="startHorizon" wire:loading.attr="disabled" wire:target="startHorizon">Start</flux:button>
+                        @endif
                     </div>
+
+                    <div class="mt-4 pt-4 border-t border-zinc-200 dark:border-white/10">
+                        <label class="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 cursor-pointer">
+                            <flux:checkbox
+                                id="auto_restart_horizon"
+                                wire:model.live="configValues.{{ $this->getConfigId('auto_restart_horizon') }}"
+                            />
+                            <span>Auto-restart when settings change</span>
+                        </label>
+                    </div>
+                </flux:card>
+            </div>
+        </section>
+
+        {{-- Floating save bar (only when dirty) --}}
+        <div wire:dirty.class.remove="translate-y-full opacity-0 pointer-events-none"
+             wire:target="configValues"
+             class="fixed bottom-0 left-0 right-0 z-30 transition-all duration-300
+                    translate-y-full opacity-0 pointer-events-none">
+            <div class="mx-auto max-w-3xl m-4 rounded-xl
+                        bg-white/95 dark:bg-zinc-900/95 backdrop-blur
+                        border border-zinc-200 dark:border-white/10
+                        shadow-2xl shadow-black/20
+                        px-5 py-3 flex items-center justify-between gap-4">
+                <div class="flex items-center gap-2 text-sm">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                    </span>
+                    <span class="font-medium text-zinc-900 dark:text-white">Unsaved changes</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <flux:button type="button" variant="ghost" wire:click="cancel" wire:target="configValues">
+                        Discard
+                    </flux:button>
+                    <flux:button type="submit" variant="primary" icon="check">
+                        Save changes
+                    </flux:button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    {{-- Update Progress Modal --}}
+    <flux:modal name="update-progress" class="max-w-2xl">
+        <div class="space-y-6">
+            <flux:heading size="lg">Application Update in Progress</flux:heading>
+
+            @if($performingUpdate)
+                <div class="flex items-center gap-3">
+                    <flux:icon.loading class="w-5 h-5 text-blue-500" />
+                    <flux:text>Updating application…</flux:text>
                 </div>
             @endif
 
-            {{-- Enhancement Settings --}}
-            @include('livewire.partials.enhancement-settings')
-
-            {{-- Swift Binaries Management --}}
-            @include('livewire.partials.swift-binaries-settings')
-
-            {{-- Process other non-image categories --}}
-            @foreach($configurationsByCategory as $category => $configurations)
-                @if(!in_array($category, ['thumbnails', 'web_images', 'highres_images', 'enhancement']))
-                    {{-- Regular table layout for other categories --}}
-                    <div class="mb-8">
-                        <div class="text-2xl font-semibold mb-2">
-                            {{ $categoryLabels[$category] ?? ucfirst($category) }}
-                        </div>
-
-                        <div class="bg-zinc-700 rounded-md overflow-hidden">
-                            <table class="min-w-full divide-y divide-zinc-600">
-                                <thead class="bg-zinc-800">
-                                <tr>
-                                    <th scope="col" class="w-80 px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                                        Setting
-                                    </th>
-                                    <th scope="col" class="w-120 px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                                        Value
-                                    </th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                                        Description
-                                    </th>
-                                </tr>
-                                </thead>
-                                <tbody class="bg-zinc-700 divide-y divide-zinc-600">
-                                @foreach($configurations as $config)
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-200">
-                                            {{ $config->label ?? $config->key }}
-                                        </div>
-                                        <div class="text-xs text-gray-400">
-                                            {{ $config->key }}
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4">
-                                        @if($config->is_private)
-                                            <div class="text-sm text-gray-400 italic">Hidden</div>
-                                        @else
-                                            @if($config->type === 'boolean')
-                                                <div class="flex flex-row items-center gap-x-2 my-auto">
-                                                <flux:switch
-                                                    wire:model.live="configValues.{{ $config->id }}"
-                                                    wire:key="{{ $config->key }}-switch"
-                                                />
-                                                @if($config->value)
-                                                    <div class="text-sm text-success">
-                                                        Enabled
-                                                    </div>
-                                                @else
-                                                    <div class="text-sm text-error">
-                                                        Disabled
-                                                    </div>
-                                                @endif
-                                                </div>
-                                            @else
-                                                <div class="flex flex-row items-center text-sm">
-                                                    <flux:input
-                                                        type="text"
-                                                        class:input="{{ $config->type === 'integer' ? '!w-18 !text-right' : ''  }} {{ ($config->type === 'string') ? '!w-28' : '' }}"
-                                                        wire:model.defer="configValues.{{ $config->id }}"
-                                                        wire:key="{{ $config->key }}-input"
-                                                        wire:dirty.class="!border-warning-border !text-warning"
-                                                    />
-                                                </div>
-                                                <div class="@error('configValues.'.$config->id) text-error @endif text-sm mt-1">
-                                                    @error('configValues.'.$config->id) {{ $message }} @enderror
-                                                </div>
-                                            @endif
-                                        @endif
-                                    </td>
-                                    <td class="px-6 py-4">
-                                        <div class="text-sm text-gray-300">
-                                            {{ $config->description }} ({{ $config->type }})
-
-                                            @if(isset($configSources[$config->id]))
-                                                <div class="mt-1 text-xs">
-                                                    @if($configSources[$config->id] === 'database_override')
-                                                        <span class="text-indigo-400">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                                            </svg>
-                                                            Database value overrides .env value
-                                                        </span>
-                                                    @elseif($configSources[$config->id] === 'same_in_both')
-                                                        <span class="text-emerald-400">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                                            </svg>
-                                                            Same in database and .env
-                                                        </span>
-                                                    @elseif($configSources[$config->id] === 'database_only')
-                                                        <span class="text-amber-400">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                            </svg>
-                                                            Only in database (not in .env)
-                                                        </span>
-                                                    @endif
-                                                </div>
-                                            @endif
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                @endif
-            @endforeach
-                <div class="fixed bottom-0 left-0 right-0 bg-zinc-800/90 shadow-lg border-t border-zinc-700 p-4 z-50 transition-all duration-300 ease-in-out transform translate-y-0">
-                    <div class="max-w-7xl mx-auto">
-                        <!-- Horizon Process Info -->
-                        @if($isHorizonRunning && isset($horizonProcessInfo['main_process']))
-                            <div class="mb-3 text-xs text-gray-400">
-                                <div class="flex gap-4">
-                                    <span>PID: {{ $horizonProcessInfo['main_process']['pid'] ?? 'N/A' }}</span>
-                                    <span>CPU: {{ $horizonProcessInfo['main_process']['cpu'] ?? 'N/A' }}%</span>
-                                    <span>Memory: {{ $horizonProcessInfo['main_process']['memory'] ?? 'N/A' }}%</span>
-                                    <span>Supervisors: {{ $horizonProcessInfo['supervisor_count'] ?? 0 }}</span>
-                                    <span>Workers: {{ $horizonProcessInfo['worker_count'] ?? 0 }}</span>
-                                    <span>Total Processes: {{ $horizonProcessInfo['total_processes'] ?? 0 }}</span>
-                                </div>
-                            </div>
-                        @endif
-
-                        <div class="flex justify-between items-center">
-                            <div class="flex items-center gap-2">
-                                <!-- Update Status -->
-                                <div class="flex items-center gap-3 mr-6 px-4 py-2 bg-zinc-700/50 rounded-md">
-                                    @if($checkingForUpdates)
-                                        <flux:icon.loading class="w-4 h-4 text-blue-400" />
-                                        <span class="text-sm text-gray-400">Checking for updates...</span>
-                                    @elseif($updateInfo)
-                                        @if($updateInfo['update_available'])
-                                            <flux:icon name="arrow-down-circle" class="w-4 h-4 text-amber-400" />
-                                            <span class="text-sm text-gray-300">
-                                                Update available:
-                                                <span class="text-amber-400">{{ $updateInfo['latest_version'] }}</span>
-                                            </span>
-                                            <flux:button
-                                                variant="ghost"
-                                                size="sm"
-                                                wire:click="performUpdate"
-                                                wire:loading.attr="disabled"
-                                                wire:target="performUpdate"
-                                                class="text-amber-400 hover:text-amber-300"
-                                            >
-                                                Update Now
-                                            </flux:button>
-                                        @else
-                                            <flux:icon name="check-circle" class="w-4 h-4 text-emerald-400" />
-                                            <span class="text-sm text-gray-400">
-                                                Up to date
-                                                <span class="text-emerald-400">{{ $updateInfo['current_version'] }}</span>
-                                            </span>
-                                        @endif
-                                    @endif
-                                </div>
-
-                                <div class="w-px h-8 bg-zinc-600"></div>
-
-                                <!-- Horizon Control Buttons -->
-                                @if($isHorizonRunning)
-                                    <flux:button
-                                        variant="ghost"
-                                        wire:click="stopHorizon"
-                                        wire:loading.attr="disabled"
-                                        wire:target="stopHorizon"
-                                        icon="stop"
-                                        class="text-red-500 hover:text-red-400"
-                                    >
-                                        Stop
-                                    </flux:button>
-
-                                    <flux:button
-                                        variant="ghost"
-                                        wire:click="restartHorizon"
-                                        wire:loading.attr="disabled"
-                                        wire:target="restartHorizon"
-                                        icon="arrow-path"
-                                        class="text-blue-400 hover:text-blue-300"
-                                    >
-                                        Restart
-                                    </flux:button>
-
-                                    <flux:dropdown align="top">
-                                        <flux:button
-                                            variant="ghost"
-                                            icon="exclamation-triangle"
-                                            class="text-amber-500 hover:text-amber-400"
-                                        >
-                                            Force Actions
-                                        </flux:button>
-
-                                        <flux:menu>
-                                            <flux:menu.item
-                                                wire:click="forceKillHorizon"
-                                                wire:confirm="Are you sure you want to force kill all Horizon processes? This should only be used if normal stop doesn't work."
-                                                icon="x-circle"
-                                                variant="danger"
-                                            >
-                                                Force Kill All Processes
-                                            </flux:menu.item>
-                                        </flux:menu>
-                                    </flux:dropdown>
-                                @else
-                                    <flux:button
-                                        variant="ghost"
-                                        wire:click="startHorizon"
-                                        wire:loading.attr="disabled"
-                                        wire:target="startHorizon"
-                                        icon="play"
-                                        class="text-green-500 hover:text-green-400"
-                                    >
-                                        Start Horizon
-                                    </flux:button>
-                                @endif
-
-                                <div class="inline-flex items-center gap-2 ml-4">
-                                    <!-- Auto-restart Horizon checkbox -->
-                                <flux:checkbox
-                                    id="auto_restart_horizon"
-                                    wire:model.live="configValues.{{ $this->getConfigId('auto_restart_horizon') }}"
-                                    class="text-blue-500"
-                                />
-                                <label for="auto_restart_horizon" class="text-sm text-gray-300">Auto-restart Horizon when settings change</label>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center gap-x-4">
-                            <flux:button
-                                variant="ghost"
-                                wire:click="cancel"
-                                wire:target="configValues"
-                                wire:dirty.class="!bg-zinc-50/10 hover:!bg-warning/20 !text-white"
-                                wire:dirty.attr.remove="disabled"
-                                disabled
-                            >
-                                Undo Changes
-                            </flux:button>
-                            <flux:button
-                                wire:click="save"
-                                wire:target="configValues"
-                                wire:dirty.class="!bg-info/80 hover:!bg-info !text-white"
-                                wire:dirty.attr.remove="disabled"
-                                disabled
-                            >
-                                Save Changes
-                            </flux:button>
-                        </div>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Update Progress Modal -->
-    <flux:modal name="update-progress" class="max-w-2xl">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">Application Update in Progress</flux:heading>
-            </div>
-
-            <div>
-                @if($performingUpdate)
-                    <div class="flex items-center gap-3 mb-4">
-                        <flux:icon.loading class="w-5 h-5 text-blue-500" />
-                        <span class="text-gray-300">Updating application...</span>
-                    </div>
-                @endif
-
-                <div class="bg-zinc-800 rounded-md p-4 max-h-96 overflow-y-auto">
-                    <pre class="text-xs text-gray-400 whitespace-pre-wrap">@foreach($updateSteps as $step){{ $step }}
+            <div class="bg-zinc-50 dark:bg-zinc-800 rounded-md p-4 max-h-96 overflow-y-auto border border-zinc-200 dark:border-white/10">
+                <pre class="text-xs text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono">@foreach($updateSteps as $step){{ $step }}
 @endforeach</pre>
-                </div>
             </div>
 
             @if(!$performingUpdate)
-                <div class="flex gap-2">
-                    <flux:spacer />
+                <div class="flex justify-end">
                     <flux:modal.close>
                         <flux:button variant="primary">Close</flux:button>
                     </flux:modal.close>
@@ -875,43 +508,37 @@
         </div>
     </flux:modal>
 
-    <!-- Rollback Instructions Modal -->
+    {{-- Rollback Instructions Modal --}}
     <flux:modal name="rollback-instructions" class="max-w-2xl">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Update Failed - Rollback Instructions</flux:heading>
-                <flux:text class="mt-2">
-                    The update failed, but a backup was created. To rollback to the previous version:
-                </flux:text>
+                <flux:heading size="lg">Update Failed — Rollback Instructions</flux:heading>
+                <flux:text class="mt-2">A backup was created before the update. To restore:</flux:text>
             </div>
 
-            <ol class="list-decimal list-inside space-y-2 text-sm text-gray-400">
+            <ol class="list-decimal list-inside space-y-1.5 text-sm text-zinc-600 dark:text-zinc-400">
                 <li>Navigate to your application directory</li>
-                <li>Delete all contents EXCEPT the <code class="bg-zinc-800 px-1 py-0.5 rounded">/backups</code> directory</li>
-                <li>Copy the contents of the most recent backup folder back to the application directory</li>
+                <li>Delete all contents EXCEPT the <code class="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded font-mono text-xs">/backups</code> directory</li>
+                <li>Copy the contents of the most recent backup folder back</li>
                 <li>Restart the application</li>
             </ol>
 
-            @php
-                $backups = $this->getBackups();
-            @endphp
-
+            @php $backups = $this->getBackups(); @endphp
             @if(count($backups) > 0)
                 <div>
-                    <h4 class="text-sm font-medium text-gray-300 mb-2">Available Backups:</h4>
-                    <div class="bg-zinc-800 rounded-md p-3 space-y-1">
+                    <flux:heading size="base" class="mb-2">Available Backups</flux:heading>
+                    <div class="bg-zinc-50 dark:bg-zinc-800 rounded-md p-3 space-y-1 border border-zinc-200 dark:border-white/10">
                         @foreach($backups as $backup)
-                            <div class="text-xs text-gray-400">
-                                <span class="text-gray-300">{{ $backup['name'] }}</span> -
-                                {{ $backup['date'] }} ({{ $backup['size'] }})
+                            <div class="text-xs text-zinc-600 dark:text-zinc-400 font-mono">
+                                <span class="text-zinc-900 dark:text-white">{{ $backup['name'] }}</span>
+                                — {{ $backup['date'] }} ({{ $backup['size'] }})
                             </div>
                         @endforeach
                     </div>
                 </div>
             @endif
 
-            <div class="flex gap-2">
-                <flux:spacer />
+            <div class="flex justify-end">
                 <flux:modal.close>
                     <flux:button variant="primary">Close</flux:button>
                 </flux:modal.close>
@@ -923,9 +550,7 @@
 <script>
     document.addEventListener('livewire:initialized', () => {
         Livewire.on('reload-page-delayed', () => {
-            setTimeout(() => {
-                window.location.reload();
-            }, 5000);
+            setTimeout(() => window.location.reload(), 5000);
         });
     });
 </script>
