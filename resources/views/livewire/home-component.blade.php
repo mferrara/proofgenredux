@@ -1,120 +1,125 @@
-<div class="px-8 py-6">
-    <div class="mt-2 mx-auto max-w-4xl flex flex-col justify-start">
-        <div class="flex flex-row justify-between items-center">
-            <flux:heading size="xl" class="mb-6">Select Show</flux:heading>
-            <flux:modal.trigger name="create-show">
-                <flux:button size="sm" variant="ghost" class="!text-indigo-400/80 ml-3 hover:cursor-pointer">
-                    Create Show
-                </flux:button>
-            </flux:modal.trigger>
+<div class="px-6 lg:px-10 py-6 max-w-4xl mx-auto">
+    <div class="mb-6 flex items-end justify-between gap-4">
+        <div>
+            <flux:heading size="xl" level="1" class="!text-3xl !font-semibold tracking-tight">Shows</flux:heading>
+            <flux:text class="mt-1">
+                Browse photography events stored in <code class="font-mono text-xs">{{ $fullsize_base_path }}</code>.
+            </flux:text>
         </div>
+        <flux:modal.trigger name="create-show">
+            <flux:button variant="primary" icon="plus">Create Show</flux:button>
+        </flux:modal.trigger>
+    </div>
 
-        <!-- Create Show Modal -->
-        <flux:modal
-            name="create-show"
-            class="max-w-md"
-            x-on:close="$wire.set('newShowName', '')"
-            x-on:shown="setTimeout(() => document.querySelector('#create-show-input').focus(), 100)"
-        >
-            <div class="space-y-6">
-                <flux:heading size="lg">Create New Show</flux:heading>
-                <p class="text-gray-400">Enter a folder name for the new show. This will create a directory in the base folder.</p>
+    {{-- Create Show Modal --}}
+    <flux:modal
+        name="create-show"
+        class="max-w-md"
+        x-on:close="$wire.set('newShowName', '')"
+        x-on:shown="setTimeout(() => document.querySelector('#create-show-input').focus(), 100)"
+    >
+        <div class="space-y-6">
+            <flux:heading size="lg">Create new show</flux:heading>
+            <flux:text>Enter a folder name for the new show. This creates a directory in the base folder.</flux:text>
 
-                <form wire:submit="createShow" class="space-y-4" x-on:keydown.enter.prevent="$event.target.form?.requestSubmit()">
+            <form wire:submit="createShow" class="space-y-4" x-on:keydown.enter.prevent="$event.target.form?.requestSubmit()">
+                <flux:field>
+                    <flux:label>Show name</flux:label>
                     <flux:input
                         id="create-show-input"
                         wire:model.live="newShowName"
-                        label="Show Name"
-                        placeholder="Enter show name (no spaces)"
+                        placeholder="e.g. 2026R12"
                         x-data="{}"
                         x-on:keydown="if ($event.key === ' ') $event.preventDefault()"
                         pattern="[A-Za-z0-9_\-]+"
                         title="Show name can only contain letters, numbers, underscores and hyphens"
                         required
                     />
-                    <div class="text-xs text-gray-500">Use letters, numbers, underscores and hyphens only</div>
+                    <flux:description>Letters, numbers, underscores, and hyphens only — no spaces.</flux:description>
+                </flux:field>
 
-                    <div class="flex justify-end gap-3 pt-2">
-                        <flux:modal.close>
-                            <flux:button variant="ghost">Cancel</flux:button>
-                        </flux:modal.close>
+                <div class="flex justify-end gap-2 pt-2">
+                    <flux:modal.close>
+                        <flux:button variant="ghost">Cancel</flux:button>
+                    </flux:modal.close>
+                    <flux:button type="submit" variant="primary">Create show</flux:button>
+                </div>
+            </form>
+        </div>
+    </flux:modal>
 
-                        <flux:button
-                            type="submit"
-                            variant="primary"
-                        >
-                            Create Show
-                        </flux:button>
-                    </div>
-                </form>
-            </div>
-        </flux:modal>
+    @php
+        $visibleDirectories = collect($top_level_directories)
+            ->reject(fn ($dir) => in_array(basename($dir), ['proofs', 'web_images', 'highres_images']))
+            ->values();
+    @endphp
 
-        <div class="grid gap-3">
-            @foreach($top_level_directories as $directory)
-                @if($directory === 'web_images' || $directory === 'proofs' || $directory === 'highres_images') @continue @endif
+    @if($visibleDirectories->isEmpty())
+        <flux:card class="!p-10 text-center">
+            <flux:icon name="folder-open" class="size-12 mx-auto text-zinc-400 dark:text-zinc-500 mb-3" />
+            <flux:heading size="base" class="!font-medium">No shows available</flux:heading>
+            <flux:text class="mt-1">
+                Create a show with the button above, or add a folder directly to
+                <code class="font-mono text-xs">{{ $fullsize_base_path }}</code>.
+            </flux:text>
+        </flux:card>
+    @else
+        <div class="space-y-2">
+            @foreach($visibleDirectories as $directory)
                 @php
-                    $folder_name = explode('/', $directory);
-                    $folder_name = end($folder_name);
-                    $show = null;
-                    $show_pending_images = 0;
-                    if(isset($shows[$folder_name])) {
-                        $show = $shows[$folder_name];
-                        $show_pending_images = collect($show->getImagesPendingImport());
-                    }
+                    $folder_name = basename($directory);
+                    $show = $shows[$folder_name] ?? null;
+                    $pendingImports = $show ? collect($show->getImagesPendingImport()) : collect();
+                    $isImported = $show !== null;
                 @endphp
 
-                <div class="pl-2 flex flex-row justify-between items-center py-2 px-3
-                bg-gray-800/50 rounded-md hover:bg-gray-800/80 transition-colors
-                ">
-                    <div class="flex flex-row items-center gap-x-3">
-                        @if(isset($shows[$folder_name]))
-                            <flux:icon name="folder" variant="outline" class="text-yellow-500" />
-                            <a href="/show/{{ $folder_name }}" class="text-lg font-medium text-indigo-400 hover:text-indigo-300 hover:underline">
+                <div class="group flex items-center justify-between gap-3 rounded-lg px-4 py-3
+                            border border-zinc-200 dark:border-white/10
+                            bg-white dark:bg-white/[0.04]
+                            hover:bg-zinc-50 dark:hover:bg-white/[0.07]
+                            transition-colors">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <flux:icon
+                            name="folder"
+                            variant="outline"
+                            class="size-5 shrink-0 {{ $isImported ? 'text-amber-500' : 'text-zinc-400 dark:text-zinc-600' }}"
+                        />
+                        @if($isImported)
+                            <a href="/show/{{ $folder_name }}"
+                               class="font-medium text-zinc-900 dark:text-white hover:underline underline-offset-2 truncate">
                                 {{ $folder_name }}
                             </a>
                         @else
-                            <flux:icon name="folder" variant="outline" class="text-yellow-500/40" />
-                            <div class="text-lg font-medium text-indigo-400/40 hover:text-indigo-300 hover:line-through hover:cursor-not-allowed">{{ $folder_name }}</div>
+                            <span class="font-medium text-zinc-500 dark:text-zinc-500 truncate">
+                                {{ $folder_name }}
+                            </span>
                         @endif
                     </div>
-                    <div class="flex flex-row items-center justify-end gap-x-2">
-                        @if(isset($shows[$folder_name]))
-                            <flux:badge color="cyan" size="sm">
-                                {{ $shows[$folder_name]->classes()->count() }} {{ str('Class')->plural($shows[$folder_name]->classes()->count()) }}
+
+                    <div class="flex items-center gap-2 shrink-0">
+                        @if($isImported)
+                            <flux:badge color="zinc" size="sm">
+                                {{ $show->classes()->count() }} {{ str('Class')->plural($show->classes()->count()) }}
                             </flux:badge>
-                            @if($show && $show->photos->count() > 0)
+                            @if($show->photos->count() > 0)
                                 <flux:badge color="sky" size="sm">
-                                    {{ $show->photos->count() }} {{ str('Photo')->plural($show->photos->count()) }}
+                                    {{ number_format($show->photos->count()) }} {{ str('Photo')->plural($show->photos->count()) }}
                                 </flux:badge>
                             @endif
-                            @if($show && $show_pending_images->count())
+                            @if($pendingImports->count())
                                 <flux:badge color="amber" size="sm">
-                                    {{ $show_pending_images->count() }} {{ str('Image')->plural($show_pending_images->count()) }} to import
+                                    {{ $pendingImports->count() }} pending
                                 </flux:badge>
                             @endif
-                        @endif
-                        @if( !isset($shows[$folder_name]))
-                            <flux:badge color="cyan" size="sm">
-                                Show not imported
-                            </flux:badge>
-                            <flux:button wire:click="createShow('{!! $folder_name !!}')" size="xs" class="ml-3 hover:cursor-pointer">
+                        @else
+                            <flux:badge color="zinc" size="sm">Not imported</flux:badge>
+                            <flux:button wire:click="createShow('{!! $folder_name !!}')" size="xs" variant="primary">
                                 Import
                             </flux:button>
                         @endif
                     </div>
                 </div>
             @endforeach
-
-            @if(count($top_level_directories) === 0 || (count($top_level_directories) === 3 && in_array('web_images', $top_level_directories) && in_array('proofs', $top_level_directories) && in_array('highres_images', $top_level_directories)))
-                <div class="py-8 text-center">
-                    <div class="mb-4">
-                        <flux:icon name="folder-open" variant="outline" class="text-gray-400 size-12 mx-auto" />
-                    </div>
-                    <flux:heading class="text-gray-400">No shows available</flux:heading>
-                    <p class="text-gray-500 text-sm mt-2">Create a new directory in the root folder to get started</p>
-                </div>
-            @endif
         </div>
-    </div>
+    @endif
 </div>
