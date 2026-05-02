@@ -3,7 +3,7 @@
 ## TODO items
 - [ ] Consolidate artisan commands that aren't in the proofgen namespace into the proofgen namespace (e.g., `php artisan coreimage:daemon start|stop|restart` and `php artisan swift:compile`)
 - [ ] Make favicon from the logo
-- [ ] Update web image and highres image uploads to happen _after_ the proofs are uploaded to ensure that the proofs are prioritized for upload
+- [x] Update web image and highres image uploads to happen _after_ the proofs are uploaded to ensure that the proofs are prioritized for upload (chained at the class level via Bus::chain in 2026-05; show-level upload is synchronous and already proofs-first)
 - [ ] Implement something that is able to report the current filesize/storage usage of the following at the show and class levels:
   - [ ] Fullsize images
   - [ ] Proofs

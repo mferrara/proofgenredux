@@ -467,28 +467,24 @@ class ClassViewComponent extends Component
 
     public function uploadPendingProofsAndWebImages(): void
     {
-        // Photos pending proof uploads
-        $photos_proofed_not_uploaded = $this->showClass->photosProofedNotUploaded()->get();
-        $photos_queued_for_upload = 0;
-        if ($photos_proofed_not_uploaded->count()) {
-            UploadProofs::dispatch($this->show, $this->class);
-            $photos_queued_for_upload = $photos_proofed_not_uploaded->count();
-        }
+        $photos_queued_for_upload = $this->showClass->photosProofedNotUploaded()->count();
+        $web_images_queued_for_upload = $this->showClass->photosWebImagedNotUploaded()->count();
+        $highres_images_queued_for_upload = $this->showClass->photosHighresImagedNotUploaded()->count();
 
-        // Photos pending web image uploads
-        $photos_web_images_not_uploaded = $this->showClass->photosWebImagedNotUploaded()->get();
-        $web_images_queued_for_upload = 0;
-        if ($photos_web_images_not_uploaded->count()) {
-            UploadWebImages::dispatch($this->show, $this->class);
-            $web_images_queued_for_upload = $photos_web_images_not_uploaded->count();
+        // Chain the uploads so proofs hit the server first (they're customer-visible);
+        // web/highres can take longer and shouldn't block the proofs going up.
+        $jobs = [];
+        if ($photos_queued_for_upload > 0) {
+            $jobs[] = new UploadProofs($this->show, $this->class);
         }
-
-        // Photos pending highres image uploads
-        $photos_highres_images_not_uploaded = $this->showClass->photosHighresImagedNotUploaded()->get();
-        $highres_images_queued_for_upload = 0;
-        if ($photos_highres_images_not_uploaded->count()) {
-            UploadHighresImages::dispatch($this->show, $this->class);
-            $highres_images_queued_for_upload = $photos_highres_images_not_uploaded->count();
+        if ($web_images_queued_for_upload > 0) {
+            $jobs[] = new UploadWebImages($this->show, $this->class);
+        }
+        if ($highres_images_queued_for_upload > 0) {
+            $jobs[] = new UploadHighresImages($this->show, $this->class);
+        }
+        if (! empty($jobs)) {
+            \Illuminate\Support\Facades\Bus::chain($jobs)->dispatch();
         }
 
         $message = '';
