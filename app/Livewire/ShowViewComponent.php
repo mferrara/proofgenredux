@@ -224,7 +224,7 @@ class ShowViewComponent extends Component
         $this->setFlashMessage($flash_message);
     }
 
-    public function uploadPendingProofs(string $show_folder): void
+    public function uploadPendingProofs(): void
     {
         \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\Show\UploadShowProofs($this->show->id));
         $this->setFlashMessage('Proof uploads queued for '.$this->show->id.'.');
