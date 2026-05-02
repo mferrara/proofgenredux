@@ -23,8 +23,6 @@ class ServerConnectionComponent extends Component
 
     public bool $server_connection_test_result = false;
 
-    public bool $horizon_is_running = false;
-
     public function mount(): void
     {
         $this->host = config('proofgen.sftp.host');
@@ -37,7 +35,8 @@ class ServerConnectionComponent extends Component
     public function testConnection(): void
     {
         $this->debug_output = '';
-        // Try to get a directory listing from the base path
+        $this->paths_found = [];
+
         try {
             $listing = Storage::disk('remote_proofs')->directories();
         } catch (\Throwable $e) {
@@ -46,26 +45,18 @@ class ServerConnectionComponent extends Component
 
             return;
         }
-        $this->server_connection_test_result = true;
 
-        $paths_found = [];
-        // Get and store the paths of only the directories
-        foreach ($listing as $item) {
-            $paths_found[] = $item;
-        }
-        if (count($paths_found)) {
-            $this->debug_output = 'Connection successful';
-        } else {
-            $this->debug_output = 'Connection successful, but no items found in the remote directory.';
-        }
-        $this->paths_found = $paths_found;
+        $this->server_connection_test_result = true;
+        $this->paths_found = $listing;
+
+        $this->debug_output = count($listing) > 0
+            ? 'Connection successful'
+            : 'Connection successful, but no items found in the remote directory.';
     }
 
     public function render()
     {
-        // Determine if Horizon is running and set flag
-        $this->horizon_is_running = app()->bound('horizon') && app('horizon')->running();
-
-        return view('livewire.server-connection-component');
+        return view('livewire.server-connection-component')
+            ->title('Server Connection - Proofgen');
     }
 }

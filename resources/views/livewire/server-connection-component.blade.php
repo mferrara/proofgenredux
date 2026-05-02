@@ -1,51 +1,95 @@
-<div class="px-8 py-4">
-
-    <div class="mt-4 mx-8 flex flex-col justify-start gap-y-2">
-        <div class="flex flex-row justify-start items-center gap-x-4">
-            <div class="text-4xl font-semibold">Server Configuration</div>
-        </div>
-
-        <div class="mt-4 w-1/3 flex flex-col gap-y-1">
-            <div class="flex flex-row justify-between items-center gap-x-4 px-1">
-                <div class="text-xl font-semibold text-gray-300">Current Settings</div>
-                <flux:button wire:click="testConnection" size="xs">Test Connection</flux:button>
-            </div>
-            <div class="p-4 bg-gray-600 text-gray-900 rounded-md">
-                <div class="grid grid-cols-2 gap-y-1 text-gray-200">
-                    <div class="text-lg font-semibold">Server </div><div class="text-right text-yellow-500/80">{{ $host }}</div>
-                    <div class="text-lg font-semibold">Port </div><div class="text-right text-yellow-500/80">{{ $port }}</div>
-                    <div class="text-lg font-semibold">Username </div><div class="text-right text-yellow-500/80">{{ $username }}</div>
-                    <div class="text-lg font-semibold">Proofs Path </div><div>&nbsp;</div>
-                    <div class="text-right text-yellow-500/80">{{ $proofs_path }}</div>
-                </div>
-            </div>
-            <div class="flex flex-col gap-y-4">
-                <div wire:loading wire:target="testConnection"
-                     class="p-4 bg-blue-50 text-blue-900 rounded-md animate-pulse">
-                    Running...
-                </div>
-            </div>
-            @if($debug_output !== '')
-                <div class="flex flex-col gap-y-2">
-                    <div class="p-4 @if($server_connection_test_result) bg-green-50 text-green-900 @else bg-red-50 text-red-900 @endif rounded-md">
-                        {{ $debug_output }}
-                    </div>
-                </div>
-            @endif
-            @if($paths_found)
-                <div class="p-4 bg-green-50 text-green-900 rounded-md">
-                    <div class="text-lg font-semibold border-b mb-1">Folders/Shows Found</div>
-                    <div class="flex flex-col gap-y-1 text-gray-600">
-                        @foreach($paths_found as $path)
-                            <div class=""> - {{ $path }}</div>
-                        @endforeach
-                    </div>
-                    <div class="mt-2 px-2 text-green-700">
-                        These are the folders that were found on the configured server. Each of these should represent a
-                        show or photo shoot of some sort. If that's not the case, something isn't right.
-                    </div>
-                </div>
-            @endif
-        </div>
+<div class="px-6 lg:px-10 py-6 max-w-3xl mx-auto">
+    <div class="mb-6">
+        <flux:heading size="xl" level="1" class="!text-3xl !font-semibold tracking-tight">Server Connection</flux:heading>
+        <flux:text class="mt-1">
+            Verify the SFTP credentials in
+            <flux:link href="{{ route('settings') }}#cat-sftp">Settings → Server (SFTP)</flux:link>
+            can reach the configured proofs path.
+        </flux:text>
     </div>
+
+    {{-- Current settings (read-only) --}}
+    <flux:card class="!p-0 overflow-hidden mb-4">
+        <div class="px-5 py-3 border-b border-zinc-200 dark:border-white/10 flex items-center justify-between bg-zinc-50/50 dark:bg-white/[0.02]">
+            <flux:heading size="base">Current settings</flux:heading>
+            <flux:button
+                type="button"
+                wire:click="testConnection"
+                wire:loading.attr="disabled"
+                wire:target="testConnection"
+                variant="primary"
+                size="sm"
+                icon="signal"
+            >
+                <span wire:loading.remove wire:target="testConnection">Test connection</span>
+                <span wire:loading wire:target="testConnection">Testing…</span>
+            </flux:button>
+        </div>
+
+        <dl class="divide-y divide-zinc-200 dark:divide-white/10">
+            <div class="px-5 py-3 grid grid-cols-3 gap-4 items-center">
+                <dt class="text-sm font-medium text-zinc-900 dark:text-white">Host</dt>
+                <dd class="col-span-2 font-mono text-sm text-zinc-700 dark:text-zinc-300">
+                    {{ $host ?: '—' }}<span class="text-zinc-400 dark:text-zinc-500">:{{ $port }}</span>
+                </dd>
+            </div>
+            <div class="px-5 py-3 grid grid-cols-3 gap-4 items-center">
+                <dt class="text-sm font-medium text-zinc-900 dark:text-white">Username</dt>
+                <dd class="col-span-2 font-mono text-sm text-zinc-700 dark:text-zinc-300">{{ $username ?: '—' }}</dd>
+            </div>
+            <div class="px-5 py-3 grid grid-cols-3 gap-4 items-start">
+                <dt class="text-sm font-medium text-zinc-900 dark:text-white">Key path</dt>
+                <dd class="col-span-2 font-mono text-sm text-zinc-700 dark:text-zinc-300 break-all">{{ $key_path ?: '—' }}</dd>
+            </div>
+            <div class="px-5 py-3 grid grid-cols-3 gap-4 items-start">
+                <dt class="text-sm font-medium text-zinc-900 dark:text-white">Proofs path</dt>
+                <dd class="col-span-2 font-mono text-sm text-zinc-700 dark:text-zinc-300 break-all">{{ $proofs_path ?: '—' }}</dd>
+            </div>
+        </dl>
+    </flux:card>
+
+    {{-- Test result --}}
+    @if($debug_output !== '')
+        @if($server_connection_test_result)
+            <div class="mb-4 flex gap-3 rounded-lg px-4 py-3
+                        bg-emerald-50 dark:bg-emerald-500/10
+                        border border-emerald-200/60 dark:border-emerald-500/20">
+                <flux:icon name="check-circle" class="size-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div class="text-sm text-emerald-900 dark:text-emerald-200/90">
+                    {{ $debug_output }}
+                </div>
+            </div>
+        @else
+            <div class="mb-4 flex gap-3 rounded-lg px-4 py-3
+                        bg-rose-50 dark:bg-rose-500/10
+                        border border-rose-200/60 dark:border-rose-500/20">
+                <flux:icon name="x-circle" class="size-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                <div class="text-sm text-rose-900 dark:text-rose-200/90 break-all">
+                    {{ $debug_output }}
+                </div>
+            </div>
+        @endif
+    @endif
+
+    {{-- Folders found --}}
+    @if($paths_found)
+        <flux:card>
+            <flux:heading size="base" class="mb-1">Folders found on the server</flux:heading>
+            <flux:text class="mb-4">
+                Each folder should represent a show. If something here looks unexpected, the proofs path may be misconfigured.
+            </flux:text>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                @foreach($paths_found as $path)
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-md
+                                bg-zinc-50 dark:bg-white/[0.04]
+                                border border-zinc-200 dark:border-white/10
+                                font-mono text-xs text-zinc-700 dark:text-zinc-300 truncate">
+                        <flux:icon name="folder" class="size-3.5 text-amber-500 shrink-0" />
+                        <span class="truncate">{{ basename($path) }}</span>
+                    </div>
+                @endforeach
+            </div>
+        </flux:card>
+    @endif
 </div>
