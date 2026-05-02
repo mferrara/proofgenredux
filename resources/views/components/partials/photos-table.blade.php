@@ -28,36 +28,28 @@
     <div x-show="$wire.selectedPhotos.length > 0"
          x-transition
          x-cloak
-         class="mb-4 p-4 bg-gray-800 rounded-lg flex items-center gap-4">
-        <span class="text-sm whitespace-nowrap">
-            <span x-text="$wire.selectedPhotos.length"></span> 
-            <span x-text="$wire.selectedPhotos.length === 1 ? 'photo' : 'photos'"></span> 
+         class="mb-4 px-4 py-3 rounded-lg flex flex-wrap items-center gap-3
+                bg-zinc-100 dark:bg-white/[0.06]
+                border border-zinc-200 dark:border-white/10">
+        <span class="text-sm whitespace-nowrap text-zinc-900 dark:text-white">
+            <span x-text="$wire.selectedPhotos.length"></span>
+            <span x-text="$wire.selectedPhotos.length === 1 ? 'photo' : 'photos'"></span>
             selected
         </span>
         <div class="flex items-center gap-2">
-            <flux:select wire:model="selectedAction" size="sm" class="w-40">
-                <flux:select.option value="">Choose action...</flux:select.option>
-                <flux:select.option value="move">Move to class...</flux:select.option>
+            <flux:select wire:model="selectedAction" size="sm" class="w-44">
+                <flux:select.option value="">Choose action…</flux:select.option>
+                <flux:select.option value="move">Move to class…</flux:select.option>
                 <flux:select.option value="delete">Delete photos</flux:select.option>
             </flux:select>
-            <flux:button
-                wire:click="performBulkAction"
-                size="sm"
-            >
-                Apply
-            </flux:button>
+            <flux:button wire:click="performBulkAction" size="sm" variant="primary">Apply</flux:button>
         </div>
-        <flux:button
-            variant="ghost"
-            size="sm"
-            @click="$wire.set('selectedPhotos', [])"
-            class="ml-auto"
-        >
+        <flux:button variant="ghost" size="sm" @click="$wire.set('selectedPhotos', [])" class="ml-auto">
             Clear selection
         </flux:button>
     </div>
 
-    <flux:table class="!text-gray-300" hover>
+    <flux:table hover>
         <thead>
             <tr>
                 <th class="w-10 pl-4">
@@ -127,10 +119,10 @@
                     $thumbnail_base64 = null;
                 }
             @endphp
-            <tr wire:key="{{ 'image-row-'.$photo->id }}" 
+            <tr wire:key="{{ 'image-row-'.$photo->id }}"
                 :class="{
-                    'bg-indigo-900/30': $wire.selectedPhotos.includes('{{ $photo->id }}'),
-                    'bg-red-800/40': {{ ! $photo->metadata || $file_not_found ? 'true' : 'false' }} && !$wire.selectedPhotos.includes('{{ $photo->id }}')
+                    'bg-blue-50 dark:bg-blue-500/10': $wire.selectedPhotos.includes('{{ $photo->id }}'),
+                    'bg-rose-50 dark:bg-rose-500/10': {{ ! $photo->metadata || $file_not_found ? 'true' : 'false' }} && !$wire.selectedPhotos.includes('{{ $photo->id }}')
                 }">
                 <td class="pl-4">
                     <input type="checkbox"
@@ -168,21 +160,19 @@
                         <button type="button"
                                 @click="$wire.showPhotoModal('{{ $photo->id }}')"
                                 class="block hover:opacity-80 transition-opacity cursor-pointer">
-                            <flux:icon name="photo" variant="outline" class="text-gray-400 size-32 mx-auto" />
+                            <flux:icon name="photo" variant="outline" class="text-zinc-400 dark:text-zinc-600 size-32 mx-auto" />
                         </button>
                     @endif
                 </td>
                 <td>
-                    <div class="ml-2 text-indigo-400 font-medium">
+                    <div class="ml-2 flex items-center gap-2">
                         <button type="button"
                                 @click="$wire.showPhotoModal('{{ $photo->id }}')"
-                                class="hover:text-indigo-300 hover:underline cursor-pointer transition-colors">
+                                class="font-mono font-medium text-zinc-900 dark:text-white hover:underline underline-offset-2 cursor-pointer">
                             {{ $photo->proof_number }}
                         </button>
                         @if($file_not_found)
-                            <flux:badge color="rose" size="sm">
-                                File Not Found
-                            </flux:badge>
+                            <flux:badge color="rose" size="sm">File not found</flux:badge>
                         @endif
                     </div>
                 </td>
@@ -289,9 +279,9 @@
                     </div>
                 </td>
                 <td class="text-right pr-1 text-sm">
-                    <div class="flex flex-col gap-y-1 text-gray-500 text-xs">
+                    <div class="flex flex-col gap-y-1 text-zinc-500 dark:text-zinc-500 text-xs">
                         @if($shot_at)
-                            <div class="text-gray-400">
+                            <div class="text-zinc-700 dark:text-zinc-300">
                                 Photo Taken: {{ $photo->metadata->exif_timestamp->format('m/d/Y H:i:s') }}
                             </div>
                         @endif

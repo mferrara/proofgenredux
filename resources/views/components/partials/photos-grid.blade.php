@@ -28,41 +28,29 @@
     <div x-show="$wire.selectedPhotos.length > 0"
          x-transition
          x-cloak
-         class="mb-4 p-4 bg-gray-800 rounded-lg flex items-center gap-4">
-        <span class="text-sm whitespace-nowrap">
+         class="mb-4 px-4 py-3 rounded-lg flex flex-wrap items-center gap-3
+                bg-zinc-100 dark:bg-white/[0.06]
+                border border-zinc-200 dark:border-white/10">
+        <span class="text-sm whitespace-nowrap text-zinc-900 dark:text-white">
             <span x-text="$wire.selectedPhotos.length"></span>
             <span x-text="$wire.selectedPhotos.length === 1 ? 'photo' : 'photos'"></span>
             selected
         </span>
         <div class="flex items-center gap-2">
-            <flux:select wire:model="selectedAction" size="sm" class="w-40">
-                <flux:select.option value="">Choose action...</flux:select.option>
-                <flux:select.option value="move">Move to class...</flux:select.option>
+            <flux:select wire:model="selectedAction" size="sm" class="w-44">
+                <flux:select.option value="">Choose action…</flux:select.option>
+                <flux:select.option value="move">Move to class…</flux:select.option>
                 <flux:select.option value="delete">Delete photos</flux:select.option>
             </flux:select>
-            <flux:button
-                wire:click="performBulkAction"
-                size="sm"
-            >
-                Apply
-            </flux:button>
+            <flux:button wire:click="performBulkAction" size="sm" variant="primary">Apply</flux:button>
         </div>
-        <flux:button
-            variant="ghost"
-            size="sm"
-            @click="$wire.set('selectedPhotos', [])"
-        >
+        <flux:button variant="ghost" size="sm" @click="$wire.set('selectedPhotos', [])">
             Clear selection
         </flux:button>
-        <div class="ml-auto">
-            <label class="flex items-center text-sm">
-                <input type="checkbox"
-                       :checked="selectAll"
-                       @change="toggleAll()"
-                       class="rounded mr-2">
-                Select all
-            </label>
-        </div>
+        <label class="ml-auto inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
+            <flux:checkbox :checked="selectAll" @change="toggleAll()" />
+            <span>Select all</span>
+        </label>
     </div>
 
     {{-- Photo grid --}}
@@ -122,27 +110,31 @@
                 }
             @endphp
             <div wire:key="{{ 'grid-item-'.$photo->id }}"
-                 class="relative group bg-gray-800 rounded-lg overflow-hidden transition-all duration-200 hover:shadow-lg"
+                 class="relative group rounded-lg overflow-hidden transition-all duration-200
+                        bg-zinc-100 dark:bg-zinc-800
+                        border border-zinc-200 dark:border-white/10"
                  :class="{
-                     'ring-4 ring-indigo-500': $wire.selectedPhotos.includes('{{ $photo->id }}'),
-                     'ring-2 ring-red-600': {{ ! $photo->metadata || $file_not_found ? 'true' : 'false' }} && !$wire.selectedPhotos.includes('{{ $photo->id }}'),
-                     'hover:ring-2 hover:ring-indigo-400': !$wire.selectedPhotos.includes('{{ $photo->id }}')
+                     'ring-2 ring-blue-500': $wire.selectedPhotos.includes('{{ $photo->id }}'),
+                     'ring-2 ring-rose-500': {{ ! $photo->metadata || $file_not_found ? 'true' : 'false' }} && !$wire.selectedPhotos.includes('{{ $photo->id }}'),
+                     'hover:ring-1 hover:ring-zinc-300 dark:hover:ring-zinc-500': !$wire.selectedPhotos.includes('{{ $photo->id }}')
                  }">
                 {{-- Selection checkbox overlay --}}
-                <div class="absolute top-3 left-3 z-30">
+                <div class="absolute top-2.5 left-2.5 z-30">
                     <input type="checkbox"
                            value="{{ $photo->id }}"
                            :checked="$wire.selectedPhotos.includes('{{ $photo->id }}')"
                            @change="togglePhoto('{{ $photo->id }}')"
-                           class="rounded shadow-lg bg-gray-800/80 border-gray-600 focus:ring-indigo-500"
+                           class="rounded shadow-lg bg-white/90 dark:bg-zinc-900/90 border-zinc-300 dark:border-zinc-600 focus:ring-blue-500"
                            @click.stop>
                 </div>
 
                 {{-- Proof number overlay --}}
-                <div class="absolute top-3 right-3 z-30">
-                    <flux:badge color="indigo" size="sm" class="shadow-lg !bg-indigo-600/70">
-                        {{ $photo->proof_number }}
-                    </flux:badge>
+                <div class="absolute top-2.5 right-2.5 z-30">
+                    <span class="font-mono text-xs px-2 py-0.5 rounded shadow-lg
+                                 bg-zinc-900/85 text-white
+                                 backdrop-blur-sm">
+                        #{{ $photo->proof_number }}
+                    </span>
                 </div>
 
                 {{-- Status badges overlay (moved to top area on hover) --}}
@@ -177,32 +169,32 @@
                 {{-- Thumbnail image (clickable) --}}
                 <button type="button"
                         @click="$wire.showPhotoModal('{{ $photo->id }}')"
-                        class="block w-full aspect-square bg-gray-900 cursor-pointer">
+                        class="block w-full aspect-square bg-zinc-200 dark:bg-zinc-900 cursor-pointer">
                     @if($thumbnail_base64 !== null)
                         <img src="{{ $thumbnail_base64 }}"
                              alt="{{ $filename }}"
                              class="w-full h-full object-cover">
                     @else
                         <div class="w-full h-full flex items-center justify-center">
-                            <flux:icon name="photo" variant="outline" class="text-gray-600 size-16" />
+                            <flux:icon name="photo" variant="outline" class="text-zinc-400 dark:text-zinc-700 size-16" />
                         </div>
                     @endif
                 </button>
 
                 {{-- Hover info overlay --}}
                 <div class="absolute inset-0 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black/40"></div>
-                    <div class="absolute bottom-0 left-0 right-0 p-3 text-xs text-gray-100">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 right-0 p-3 text-xs text-zinc-100">
                         @if($photo->metadata)
                             <div class="flex justify-between items-center mb-1">
                                 <span class="font-medium">{{ $this->humanReadableFilesize($photo->metadata->file_size) }}</span>
                                 <span class="font-medium">{{ $photo->metadata->megapixels }}MP</span>
                             </div>
                             @if($photo->metadata->camera_model)
-                                <div class="truncate text-gray-200">{{ $photo->metadata->camera_model }}</div>
+                                <div class="truncate text-zinc-200">{{ $photo->metadata->camera_model }}</div>
                             @endif
                         @endif
-                        <div class="text-gray-200 mt-1">
+                        <div class="text-zinc-200 mt-1">
                             {{ $photo->created_at->format('M d, H:i') }}
                         </div>
                     </div>

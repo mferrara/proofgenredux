@@ -1,5 +1,5 @@
 <div class="w-full mt-4">
-    <flux:table class="!text-gray-300" hover>
+    <flux:table hover>
         <thead>
             <tr>
                 <th class="@if(isset($display_thumbnail) && $display_thumbnail) w-24 @else w-8 @endif"></th>
@@ -68,11 +68,11 @@
                             <img src="{{ $thumbnail_base64 }}" alt="{{ $filename }}" class="rounded size-16 object-cover">
                         </div>
                     @else
-                        <flux:icon name="photo" variant="outline" class="text-gray-400" />
+                        <flux:icon name="photo" variant="outline" class="text-zinc-400 dark:text-zinc-500" />
                     @endif
                 </td>
                 <td>
-                    <span class="text-indigo-400 font-medium">
+                    <span class="font-mono text-sm text-zinc-900 dark:text-zinc-200">
                         {{ $filename }}
                     </span>
                 </td>
