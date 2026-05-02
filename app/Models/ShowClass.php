@@ -487,7 +487,7 @@ class ShowClass extends Model
         $local_full_path = $path_resolver->getAbsolutePath($this->web_images_path, config('proofgen.fullsize_home_dir').'/').'/';
         $dry_run = $dry_run === true ? '--dry-run' : '';
 
-        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
+        return 'rsync -avz '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
             $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.web_images_path').
             '/'.$this->remote_web_images_path;
     }
@@ -498,7 +498,7 @@ class ShowClass extends Model
         $local_full_path = $path_resolver->getAbsolutePath($this->proofs_path, config('proofgen.fullsize_home_dir').'/').'/';
         $dry_run = $dry_run === true ? '--dry-run' : '';
 
-        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
+        return 'rsync -avz '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
             $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.path').
             '/'.$this->remote_proofs_path;
     }
@@ -509,7 +509,7 @@ class ShowClass extends Model
         $local_full_path = $path_resolver->getAbsolutePath($this->highres_images_path, config('proofgen.fullsize_home_dir').'/').'/';
         $dry_run = $dry_run === true ? '--dry-run' : '';
 
-        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
+        return 'rsync -avz '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
             $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.highres_images_path').
             '/'.$this->remote_highres_images_path;
     }

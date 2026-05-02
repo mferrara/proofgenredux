@@ -1,0 +1,46 @@
+<?php
+
+namespace App\Jobs\Show;
+
+use App\Models\Show;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use Throwable;
+
+class UploadShowProofs implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public string $show_id;
+
+    public int $tries = 5;
+
+    public int $timeout = 1800; // 30 minutes — full-show rsync can be long
+
+    public function __construct(string $show_id)
+    {
+        $this->show_id = $show_id;
+    }
+
+    public function handle(): void
+    {
+        $show = Show::find($this->show_id);
+        if (! $show) {
+            Log::warning('UploadShowProofs: show '.$this->show_id.' not found');
+
+            return;
+        }
+
+        $uploaded = $show->proofUploads();
+        Log::info('UploadShowProofs: uploaded '.count($uploaded).' proofs for '.$this->show_id);
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        Log::error('UploadShowProofs failed for '.$this->show_id.': '.$exception?->getMessage());
+    }
+}

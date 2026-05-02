@@ -133,7 +133,7 @@ class Show extends Model
         $dry_run = $dry_run === true ? '--dry-run' : '';
         $remote_proofs_path = $path_resolver->getShowRemoteProofsPath($this->id);
 
-        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
+        return 'rsync -avz '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
             $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.path').
             $remote_proofs_path;
     }
@@ -151,7 +151,7 @@ class Show extends Model
         $dry_run = $dry_run === true ? '--dry-run' : '';
         $remote_web_images_path = $path_resolver->getShowRemoteWebImagesPath($this->id);
 
-        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
+        return 'rsync -avz '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
             $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.web_images_path').
             $remote_web_images_path;
     }
@@ -169,7 +169,7 @@ class Show extends Model
         $dry_run = $dry_run === true ? '--dry-run' : '';
         $remote_highres_images_path = $path_resolver->getShowRemoteHighresImagesPath($this->id);
 
-        return 'rsync -avz --delete '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
+        return 'rsync -avz '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
             $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.highres_images_path').
             $remote_highres_images_path;
     }

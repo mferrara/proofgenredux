@@ -226,46 +226,21 @@ class ShowViewComponent extends Component
 
     public function uploadPendingProofs(string $show_folder): void
     {
-        $uploaded = $this->show->proofUploads();
-
-        if (count($uploaded) === 0) {
-            $flash_message = 'No images to upload.';
-        } else {
-            $flash_message = count($uploaded).' Images uploaded.';
-        }
-
-        $this->setFlashMessage($flash_message);
+        \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\Show\UploadShowProofs($this->show->id));
+        $this->setFlashMessage('Proof uploads queued for '.$this->show->id.'.');
     }
 
     public function uploadPendingProofsAndWebImages(): void
     {
-        $uploaded = $this->show->proofUploads();
-        $web_images = $this->show->webImageUploads();
-        $highres_images = $this->show->highresImageUploads();
+        // Chain proofs → web → highres so customer-visible proofs hit
+        // the server first; web/highres run sequentially after.
+        \Illuminate\Support\Facades\Bus::chain([
+            new \App\Jobs\Show\UploadShowProofs($this->show->id),
+            new \App\Jobs\Show\UploadShowWebImages($this->show->id),
+            new \App\Jobs\Show\UploadShowHighresImages($this->show->id),
+        ])->dispatch();
 
-        $total = count($uploaded) + count($web_images) + count($highres_images);
-
-        if ($total === 0) {
-            $flash_message = 'No images to upload.';
-        } else {
-            $parts = [];
-
-            if (count($uploaded) > 0) {
-                $parts[] = count($uploaded).' Images';
-            }
-
-            if (count($web_images) > 0) {
-                $parts[] = count($web_images).' Web Images';
-            }
-
-            if (count($highres_images) > 0) {
-                $parts[] = count($highres_images).' Highres Images';
-            }
-
-            $flash_message = implode(', ', $parts).' uploaded.';
-        }
-
-        $this->setFlashMessage($flash_message);
+        $this->setFlashMessage('Uploads queued for '.$this->show->id.'.');
     }
 
     public function regenerateProofs(): void
