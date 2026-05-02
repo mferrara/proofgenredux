@@ -35,10 +35,45 @@ class ConfigurationServiceProvider extends ServiceProvider
             // Log::debug('Loading configurations.');
             Configuration::overrideApplicationConfig();
 
+            // After configs are overlaid, reconfigure the remote_* storage disks
+            // if the transport driver is set to 'local' so they map to a local
+            // filesystem rather than SFTP.
+            $this->applyTransportDriver();
+
         } catch (QueryException $e) {
             // Handle database connection failures gracefully
             // Just use the default configurations from files
             Log::debug('Error loading configurations: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * When the transport driver is 'local', rewrite the SFTP-backed Storage disks
+     * (remote_proofs / remote_web_images / remote_highres_images) as plain local
+     * disks rooted at the configured paths. This way mkdir checks and directory
+     * listing keep using Storage::disk() without having to branch on driver.
+     */
+    private function applyTransportDriver(): void
+    {
+        if (config('proofgen.sftp.driver', 'sftp') !== 'local') {
+            return;
+        }
+
+        $diskMap = [
+            'remote_proofs' => config('proofgen.sftp.path'),
+            'remote_web_images' => config('proofgen.sftp.web_images_path'),
+            'remote_highres_images' => config('proofgen.sftp.highres_images_path'),
+        ];
+
+        foreach ($diskMap as $disk => $root) {
+            if (empty($root)) {
+                continue;
+            }
+            config(["filesystems.disks.{$disk}" => [
+                'driver' => 'local',
+                'root' => $root,
+                'throw' => false,
+            ]]);
         }
     }
 

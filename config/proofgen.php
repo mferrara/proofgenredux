@@ -58,9 +58,15 @@ return [
     ],
 
     'sftp' => [
+        // Transport driver: 'sftp' for rsync-over-SSH (production / staging),
+        // 'local' for plain rsync between local directories (local dev against
+        // a sibling install on the same Mac, or any future "proofgen runs on
+        // the same server as ferraraphoto" deployment). Database-backed
+        // Configuration setting can override this per-environment.
+        'driver' => getenv('TRANSPORT_DRIVER') ?: 'sftp',
         'host' => getenv('SFTP_HOSTNAME'),
         'port' => getenv('SFTP_PORT') ?: 22,
-        'username' => getenv('SFTP_USERNAME'),
+        'username' => getenv('SFTP_USERNAME') ?: 'forge',
         'private_key' => getenv('SFTP_PATHTOPRIVATEKEY'),
         'path' => getenv('SFTP_PROOFSPATH'),
         'web_images_path' => getenv('SFTP_WEB_IMAGES_PATH'),

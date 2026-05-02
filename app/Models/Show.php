@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Jobs\Photo\ImportPhoto;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
+use App\Services\Transport\RsyncCommandBuilder;
 use App\Traits\HasPhotosTrait;
 use App\Traits\RsyncHandlerTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -127,51 +128,32 @@ class Show extends Model
      */
     public function rsyncProofsCommand($dry_run = false): string
     {
-        $path_resolver = app(PathResolver::class);
-        $show_proofs_path = $path_resolver->getShowProofsPath($this->id);
-        $local_full_path = $path_resolver->getAbsolutePath($show_proofs_path, config('proofgen.fullsize_home_dir')).'/';
-        $dry_run = $dry_run === true ? '--dry-run' : '';
-        $remote_proofs_path = $path_resolver->getShowRemoteProofsPath($this->id);
+        $resolver = app(PathResolver::class);
+        $local = $resolver->getAbsolutePath($resolver->getShowProofsPath($this->id), config('proofgen.fullsize_home_dir')).'/';
 
-        return 'rsync -avz '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
-            $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.path').
-            $remote_proofs_path;
+        return RsyncCommandBuilder::build($local, config('proofgen.sftp.path'), $resolver->getShowRemoteProofsPath($this->id), $dry_run === true);
     }
 
     /**
      * Get the rsync command for web images for all classes in this show
-     *
-     * @param  bool  $dry_run
      */
     public function rsyncWebImagesCommand($dry_run = false): string
     {
-        $path_resolver = app(PathResolver::class);
-        $show_web_images_path = $path_resolver->getShowWebImagesPath($this->id);
-        $local_full_path = $path_resolver->getAbsolutePath($show_web_images_path, config('proofgen.fullsize_home_dir')).'/';
-        $dry_run = $dry_run === true ? '--dry-run' : '';
-        $remote_web_images_path = $path_resolver->getShowRemoteWebImagesPath($this->id);
+        $resolver = app(PathResolver::class);
+        $local = $resolver->getAbsolutePath($resolver->getShowWebImagesPath($this->id), config('proofgen.fullsize_home_dir')).'/';
 
-        return 'rsync -avz '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
-            $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.web_images_path').
-            $remote_web_images_path;
+        return RsyncCommandBuilder::build($local, config('proofgen.sftp.web_images_path'), $resolver->getShowRemoteWebImagesPath($this->id), $dry_run === true);
     }
 
     /**
      * Get the rsync command for highres images for all classes in this show
-     *
-     * @param  bool  $dry_run
      */
     public function rsyncHighresImagesCommand($dry_run = false): string
     {
-        $path_resolver = app(PathResolver::class);
-        $show_highres_images_path = $path_resolver->getShowHighresImagesPath($this->id);
-        $local_full_path = $path_resolver->getAbsolutePath($show_highres_images_path, config('proofgen.fullsize_home_dir')).'/';
-        $dry_run = $dry_run === true ? '--dry-run' : '';
-        $remote_highres_images_path = $path_resolver->getShowRemoteHighresImagesPath($this->id);
+        $resolver = app(PathResolver::class);
+        $local = $resolver->getAbsolutePath($resolver->getShowHighresImagesPath($this->id), config('proofgen.fullsize_home_dir')).'/';
 
-        return 'rsync -avz '.$dry_run.' -e "ssh -i '.config('proofgen.sftp.private_key').'" '.
-            $local_full_path.' forge@'.config('proofgen.sftp.host').':'.config('proofgen.sftp.highres_images_path').
-            $remote_highres_images_path;
+        return RsyncCommandBuilder::build($local, config('proofgen.sftp.highres_images_path'), $resolver->getShowRemoteHighresImagesPath($this->id), $dry_run === true);
     }
 
     /**

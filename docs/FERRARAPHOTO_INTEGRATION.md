@@ -166,41 +166,36 @@ Migrations: `~/Library/Application\ Support/Herd/bin/php74 artisan migrate` from
 ferraraphoto directory. Laravel 4 doesn't ship `migrate:status`; check the `migrations` table
 directly to see what's applied.
 
-### Local proofgen → ferraraphoto integration (planning)
+### Local proofgen → ferraraphoto integration
 
-Production proofgen rsyncs to a remote Forge host as user `forge` over SSH. To exercise the
-same code path entirely on this Mac (so we can develop and test the upload flow end-to-end
-without touching staging or production), we have two options:
+A transport driver abstraction was added in 2026-05 (`config/proofgen.php`'s
+`proofgen.sftp.driver`, configurable via Settings → Server (SFTP) → "Connection mode"):
 
-**Option A — Local SSH loopback (production-identical):**
-1. Enable Remote Login (System Preferences → General → Sharing → Remote Login).
-2. Generate an SSH key for proofgen to use, e.g. `~/.ssh/proofgen_local_ed25519`.
-3. Append the public key to `~/.ssh/authorized_keys` on this Mac.
-4. In proofgen Settings → Server (SFTP):
-   - Host: `127.0.0.1`
-   - Port: `22`
-   - Username: `mikeferrara` (or whatever the local Mac user is)
-   - Key path: the new key
-   - Proofs path: `/Users/mikeferrara/Documents/code/ferraraphoto/public/proofs`
-   - Web images path: `/Users/mikeferrara/Documents/code/ferraraphoto/app/storage/web_images`
-   - Highres images path: `/Users/mikeferrara/Documents/code/ferraraphoto/app/storage/high_res_images`
-5. Test: `ssh -i ~/.ssh/proofgen_local_ed25519 mikeferrara@127.0.0.1 ls`
+- **`sftp`** (default): the historical behavior — `rsync -avz -e "ssh -i {key}" … {user}@{host}:{path}`.
+  Username and private key are now config-driven, no longer hardcoded as `forge`.
+- **`local`**: plain `rsync -avz {source}/ {destpath}/` with no SSH transport. Use this when
+  proofgen runs on the same machine as ferraraphoto (local dev right now, or a future
+  same-server deployment).
 
-Pros: zero proofgen code changes; tests the actual rsync-over-ssh code path.
-Cons: requires Remote Login enabled + key dance.
+To wire up local-dev integration:
 
-**Option B — Local mode (skip SSH):**
-Add a `proofgen.sftp.local_mode` toggle. When set, `rsyncWebImagesCommand()` etc. drop the
-`-e "ssh -i ..."` portion and the `forge@host:` prefix, producing a plain-rsync command that
-copies between local directories. Path config still applies.
+1. Settings → Server (SFTP):
+   - **Connection mode**: `local`
+   - **SFTP Proofs Path**: `/Users/mikeferrara/Documents/code/ferraraphoto/public/proofs`
+   - **SFTP Web Images Path**: `/Users/mikeferrara/Documents/code/ferraraphoto/app/storage/web_images`
+   - **SFTP High Resolution Images Path**: `/Users/mikeferrara/Documents/code/ferraraphoto/app/storage/high_res_images`
+   - The host / port / username / key fields are ignored when driver is `local`.
+2. Save. Restart Horizon (Settings → Services → Restart) so queued jobs see the new config.
+3. Test connection from `/config/server` — the page builds a `Storage::disk('remote_proofs')`
+   directory listing; in local mode this just lists the proofs path on disk.
 
-Pros: no SSH server needed; faster.
-Cons: small code branch; less production-faithful.
+Implementation: `App\Services\Transport\RsyncCommandBuilder` builds the rsync command based on
+the driver. `App\Providers\ConfigurationServiceProvider::applyTransportDriver()` rewrites the
+three `remote_*` Storage disks to use Flysystem's `local` adapter when driver is `local`, so
+`Storage::disk('remote_proofs')->makeDirectory(…)` and friends keep working without branching
+elsewhere.
 
-Recommendation: start with Option A (it's a one-time setup, exercises the real code path).
-Drop back to Option B only if SSH setup proves annoying.
-
-### Once the local SSH bridge is in place
+### Once the bridge is in place (local or SSH)
 
 A local "show run" looks like:
 1. Drop a sample show into `~/shows/{slug}/{class}/IMG_*.jpg` and import in proofgen.
