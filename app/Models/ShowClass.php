@@ -173,17 +173,22 @@ class ShowClass extends Model
     /**
      * Returns relationship Builders (not materialized Collections) so views
      * can call ->count() and get a SQL COUNT(*) instead of SELECT *.
-     * Only the keys actually consumed by views are returned.
      */
     public function processingCounts(): array
     {
         return [
             'photos_imported' => $this->photos(),
+            'photos_proofed' => $this->photosProofed(),
             'photos_pending_proofs' => $this->photosNotProofed(),
+            'photos_proofs_uploaded' => $this->photosProofsUploaded(),
             'photos_pending_proof_uploads' => $this->photosProofedNotUploaded(),
+            'photos_web_images_generated' => $this->photosWebImaged(),
             'photos_pending_web_images' => $this->photosNotWebImaged(),
+            'photos_web_images_uploaded' => $this->photosWebImagesUploaded(),
             'photos_pending_web_image_uploads' => $this->photosWebImagedNotUploaded(),
+            'photos_highres_images_generated' => $this->photosHighresImaged(),
             'photos_pending_highres_images' => $this->photosNotHighresImaged(),
+            'photos_highres_images_uploaded' => $this->photosHighresImagesUploaded(),
             'photos_pending_highres_image_uploads' => $this->photosHighresImagedNotUploaded(),
         ];
     }

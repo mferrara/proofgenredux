@@ -127,19 +127,26 @@ class ShowViewComponent extends Component
             return strcmp($a['path'], $b['path']);
         });
 
-        // Pass relation Builders (not ->get()) so the action-panel partial's ->count()
-        // calls become SQL COUNT(*) instead of SELECT * + PHP count.
+        // Pass relation Builders (not ->get()) so the action-panel and
+        // photo-process-status-table partials' ->count() calls become
+        // SQL COUNT(*) instead of SELECT * + PHP count.
         return view('livewire.show-view-component', [
             'show' => $this->show,
             'current_path_directories' => $current_path_directories,
             'class_folders' => $class_folders,
             'photos_pending_import' => $this->show->getImagesPendingImport(),
             'photos_imported' => $this->show->photos(),
+            'photos_proofed' => $this->show->photosProofed(),
             'photos_pending_proofs' => $this->show->photosNotProofed(),
+            'photos_proofs_uploaded' => $this->show->photosProofsUploaded(),
             'photos_pending_proof_uploads' => $this->show->photosProofedNotUploaded(),
+            'photos_web_images_generated' => $this->show->photosWebImaged(),
             'photos_pending_web_images' => $this->show->photosNotWebImaged(),
+            'photos_web_images_uploaded' => $this->show->photosWebImagesUploaded(),
             'photos_pending_web_image_uploads' => $this->show->photosWebImagedNotUploaded(),
+            'photos_highres_images_generated' => $this->show->photosHighresImaged(),
             'photos_pending_highres_images' => $this->show->photosNotHighresImaged(),
+            'photos_highres_images_uploaded' => $this->show->photosHighresImagesUploaded(),
             'photos_pending_highres_image_uploads' => $this->show->photosHighresImagedNotUploaded(),
             'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
