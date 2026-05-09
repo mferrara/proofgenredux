@@ -1,5 +1,5 @@
 <?php
 
 return [
-    // 'layout' => 'layouts.app',
+    // 'component_layout' => 'layouts.app',
 ];
