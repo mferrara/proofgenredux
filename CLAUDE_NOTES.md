@@ -1,5 +1,9 @@
 # Proofgen Redux Project Notes
 
+## Stack
+- Laravel 13.x · Livewire 4.x · Flux 2.x · Tailwind 4.x · PHP 8.4 · Pest 4.x · Tinker 3.x
+- Pinned: `intervention/image` 3.x (deferred v4 upgrade — see TODO below)
+
 ## Reference docs
 - **Photo pipeline**: `docs/photo-pipeline.md` — end-to-end flowchart of how a JPG moves from ingest folder through resolver/archive/originals/derivatives/upload, with decision matrices, service catalog, key invariants, and known follow-ups. **Read this first when changing anything in the import or audit pipeline.** §15 lists the sharp edges worth knowing about (upload-parser fragility, reset-photos rough edges, audit walk performance, etc.).
 - **Ferraraphoto integration**: `docs/FERRARAPHOTO_INTEGRATION.md` — sister Laravel 4.2 app at `/Users/mikeferrara/Documents/code/ferraraphoto`; rsync-coupled by show slug.

@@ -280,7 +280,7 @@ Customizations to FluxUI colors and components can be found in `/resources/css/a
 - **Types**: Use type hints for parameters and return types
 - **Error Handling**: Use Laravel's exception handlers
 - **Framework**: Follow Laravel conventions
-- **Frontend**: Tailwind CSS 4.x, Livewire 3.x with Flux
+- **Frontend**: Tailwind CSS 4.x, Livewire 4.x with Flux 2.x
 - **Testing**: Pest for tests, use feature and unit tests appropriately
 
 ## Getting Started with Image Processing

@@ -53,7 +53,7 @@ php artisan make:model Name   # Create a new model
 - **Types**: Use type hints for parameters and return types
 - **Error Handling**: Use Laravel's exception handlers
 - **Framework**: Follow Laravel conventions and use Laravel features
-- **Frontend**: Tailwind CSS 4.x, Livewire 3.x with Flux
+- **Frontend**: Tailwind CSS 4.x, Livewire 4.x with Flux 2.x
 - **Testing**: Pest for tests, use feature and unit tests appropriately
 
 ## FluxUI UI Framework/Components Documentation
