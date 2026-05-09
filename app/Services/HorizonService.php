@@ -169,18 +169,19 @@ class HorizonService
                 escapeshellarg($phpBinary),
                 escapeshellarg(storage_path('logs/horizon.log'))
             );
-            
+
             shell_exec($fullCommand);
-            
+
             // Give it a moment to start
             usleep(500000); // 0.5 seconds
-            
+
             // Check if it started successfully
             if ($this->isRunning()) {
                 // Log::debug('Successfully started Horizon process');
                 return true;
             } else {
                 Log::error('Failed to start Horizon process');
+
                 return false;
             }
         } catch (\Exception $e) {

@@ -27,27 +27,28 @@ class SwiftCompatibilityCommand extends Command
     public function handle(SwiftCompatibilityService $service): int
     {
         $force = $this->option('force');
-        
+
         if ($force) {
             $this->info('Forcing fresh Swift compatibility check...');
         } else {
             $this->info('Checking Swift compatibility...');
         }
-        
+
         $result = $service->checkCompatibility($force);
-        
+
         $this->newLine();
-        
+
         // Display platform info
-        $this->info('Platform: ' . $result['platform']);
-        
+        $this->info('Platform: '.$result['platform']);
+
         if ($result['platform'] !== 'Darwin') {
             $this->error('✗ Core Image enhancement requires macOS');
+
             return Command::FAILURE;
         }
-        
+
         // Display Swift availability
-        if (!$result['swift_available']) {
+        if (! $result['swift_available']) {
             $this->error('✗ Swift not found');
             $this->newLine();
             $this->warn('To install Swift on macOS:');
@@ -57,21 +58,21 @@ class SwiftCompatibilityCommand extends Command
             $this->newLine();
             $this->info('After installation, verify with:');
             $this->info('  swift --version');
-            
+
             return Command::FAILURE;
         }
-        
+
         // Display version info
         if ($result['version']) {
-            $this->info('Swift version: ' . $result['version']);
-            $this->info('Required version: ' . $result['minimum_version'] . ' or higher');
+            $this->info('Swift version: '.$result['version']);
+            $this->info('Required version: '.$result['minimum_version'].' or higher');
         }
-        
+
         // Display compatibility status
         if ($result['compatible']) {
             $this->newLine();
             $this->info('✓ Swift is compatible for Core Image enhancement');
-            
+
             // Check if daemon is running
             try {
                 $daemonService = app(\App\Services\CoreImageDaemonService::class);
@@ -82,17 +83,17 @@ class SwiftCompatibilityCommand extends Command
                     $this->info('Start it with: php artisan proofgen:coreimage-daemon start');
                 }
             } catch (\Exception $e) {
-                $this->warn('Could not check daemon status: ' . $e->getMessage());
+                $this->warn('Could not check daemon status: '.$e->getMessage());
             }
-            
+
             return Command::SUCCESS;
         } else {
             $this->newLine();
             $this->error('✗ Swift compatibility check failed');
             if ($result['error']) {
-                $this->error('Error: ' . $result['error']);
+                $this->error('Error: '.$result['error']);
             }
-            
+
             return Command::FAILURE;
         }
     }

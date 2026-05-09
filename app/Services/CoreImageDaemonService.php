@@ -35,7 +35,7 @@ class CoreImageDaemonService extends ImageEnhancementService
             if ($compatibility['compatible']) {
                 $this->coreImageAvailable = $this->checkCoreImageAvailability();
             } else {
-                Log::warning('Swift compatibility check failed: ' . $compatibility['error']);
+                Log::warning('Swift compatibility check failed: '.$compatibility['error']);
                 $this->lastError = $compatibility['error'];
             }
         }
@@ -166,7 +166,7 @@ class CoreImageDaemonService extends ImageEnhancementService
             // Use compiled binary if available, otherwise fall back to Swift script
             $compiledDaemonPath = storage_path('app/ProofgenImageEnhancerDaemon');
             $swiftDaemonPath = app_path('Services/CoreImage/ProofgenImageEnhancerDaemon.swift');
-            
+
             if (file_exists($compiledDaemonPath) && is_executable($compiledDaemonPath)) {
                 // Use compiled binary for better performance and to ensure changes are applied
                 $command = sprintf(
@@ -185,6 +185,7 @@ class CoreImageDaemonService extends ImageEnhancementService
                 );
             } else {
                 Log::error('CoreImageDaemonService: Daemon not found at compiled or source path');
+
                 return false;
             }
 
@@ -256,7 +257,7 @@ class CoreImageDaemonService extends ImageEnhancementService
             }
 
             $processingTime = microtime(true) - $startTime;
-            if($processingTime > 2) {
+            if ($processingTime > 2) {
                 Log::debug("Core Image {$method} processing time: {$processingTime}s");
             }
 

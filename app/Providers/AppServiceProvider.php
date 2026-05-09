@@ -36,12 +36,12 @@ class AppServiceProvider extends ServiceProvider
     {
         $lockFile = storage_path('deployment.lock');
         $deploymentFlag = storage_path('.deployment-marker');
-        
+
         // Check if deployment marker exists and is newer than lock file
         if (file_exists($deploymentFlag)) {
             $shouldClear = false;
-            
-            if (!file_exists($lockFile)) {
+
+            if (! file_exists($lockFile)) {
                 $shouldClear = true;
             } else {
                 // Clear if deployment marker is newer than lock file
@@ -49,14 +49,14 @@ class AppServiceProvider extends ServiceProvider
                     $shouldClear = true;
                 }
             }
-            
+
             if ($shouldClear) {
                 try {
                     app(\App\Services\SwiftCompatibilityService::class)->clearCache();
                     touch($lockFile);
-                    \Illuminate\Support\Facades\Log::info('Swift compatibility cache cleared on deployment');
+                    Log::info('Swift compatibility cache cleared on deployment');
                 } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning('Failed to clear Swift compatibility cache: ' . $e->getMessage());
+                    Log::warning('Failed to clear Swift compatibility cache: '.$e->getMessage());
                 }
             }
         }

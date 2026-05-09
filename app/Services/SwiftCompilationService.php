@@ -40,19 +40,20 @@ class SwiftCompilationService
 
         // First check Swift compatibility
         $compatibility = $this->swiftCompatibilityService->checkCompatibility();
-        if (!$compatibility['compatible']) {
+        if (! $compatibility['compatible']) {
             $results['success'] = false;
-            $results['errors'][] = 'Swift is not compatible: ' . ($compatibility['error'] ?? 'Unknown error');
+            $results['errors'][] = 'Swift is not compatible: '.($compatibility['error'] ?? 'Unknown error');
+
             return $results;
         }
 
         foreach ($this->swiftBinaries as $name => $paths) {
             $result = $this->compileBinary($name, $paths['source'], $paths['output']);
             $results['binaries'][$name] = $result;
-            
-            if (!$result['success']) {
+
+            if (! $result['success']) {
                 $results['success'] = false;
-                $results['errors'][] = "Failed to compile {$name}: " . $result['error'];
+                $results['errors'][] = "Failed to compile {$name}: ".$result['error'];
             }
         }
 
@@ -62,9 +63,9 @@ class SwiftCompilationService
     /**
      * Compile a single Swift binary
      *
-     * @param string $name Binary name for logging
-     * @param string $sourcePath Relative path to Swift source file
-     * @param string $outputPath Relative path to output binary
+     * @param  string  $name  Binary name for logging
+     * @param  string  $sourcePath  Relative path to Swift source file
+     * @param  string  $outputPath  Relative path to output binary
      * @return array Result with success status and message
      */
     public function compileBinary(string $name, string $sourcePath, string $outputPath): array
@@ -84,13 +85,13 @@ class SwiftCompilationService
             $absoluteOutputPath = base_path($outputPath);
 
             // Check if source file exists
-            if (!file_exists($absoluteSourcePath)) {
+            if (! file_exists($absoluteSourcePath)) {
                 throw new \Exception("Source file not found: {$sourcePath}");
             }
 
             // Create output directory if it doesn't exist
             $outputDir = dirname($absoluteOutputPath);
-            if (!is_dir($outputDir)) {
+            if (! is_dir($outputDir)) {
                 mkdir($outputDir, 0755, true);
             }
 
@@ -104,13 +105,13 @@ class SwiftCompilationService
                 'swiftc',
                 '-O',
                 '-o', $absoluteOutputPath,
-                $absoluteSourcePath
+                $absoluteSourcePath,
             ];
 
             Log::info("Compiling Swift binary {$name}", [
                 'command' => implode(' ', $command),
                 'source' => $sourcePath,
-                'output' => $outputPath
+                'output' => $outputPath,
             ]);
 
             $process = Process::run($command);
@@ -118,13 +119,13 @@ class SwiftCompilationService
             if ($process->successful()) {
                 // Make the binary executable
                 chmod($absoluteOutputPath, 0755);
-                
+
                 $result['success'] = true;
                 $result['message'] = "Successfully compiled {$name}";
                 $result['compilation_time'] = microtime(true) - $startTime;
-                
+
                 Log::info($result['message'], [
-                    'compilation_time' => $result['compilation_time']
+                    'compilation_time' => $result['compilation_time'],
                 ]);
             } else {
                 throw new \Exception($process->errorOutput() ?: 'Compilation failed without error output');
@@ -135,7 +136,7 @@ class SwiftCompilationService
             Log::error("Failed to compile Swift binary {$name}", [
                 'error' => $e->getMessage(),
                 'source' => $sourcePath,
-                'output' => $outputPath
+                'output' => $outputPath,
             ]);
         }
 
@@ -156,7 +157,7 @@ class SwiftCompilationService
             $exists = file_exists($absolutePath);
             $executable = $exists && is_executable($absolutePath);
             $modifiedTime = $exists ? filemtime($absolutePath) : null;
-            
+
             $status[$name] = [
                 'exists' => $exists,
                 'executable' => $executable,
@@ -171,8 +172,6 @@ class SwiftCompilationService
 
     /**
      * Get information about Swift binaries
-     *
-     * @return array
      */
     public function getBinaryInfo(): array
     {
@@ -194,7 +193,7 @@ class SwiftCompilationService
 
         foreach ($this->swiftBinaries as $name => $paths) {
             $absolutePath = base_path($paths['output']);
-            
+
             if (file_exists($absolutePath)) {
                 try {
                     unlink($absolutePath);
@@ -202,9 +201,9 @@ class SwiftCompilationService
                     Log::info("Removed Swift binary: {$name}");
                 } catch (\Exception $e) {
                     $results['success'] = false;
-                    $results['errors'][] = "Failed to remove {$name}: " . $e->getMessage();
+                    $results['errors'][] = "Failed to remove {$name}: ".$e->getMessage();
                     Log::error("Failed to remove Swift binary {$name}", [
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }

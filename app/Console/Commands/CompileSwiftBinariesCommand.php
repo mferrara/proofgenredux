@@ -37,19 +37,19 @@ class CompileSwiftBinariesCommand extends Command
         if ($this->option('clean')) {
             $this->info('Cleaning existing Swift binaries...');
             $cleanResult = $compilationService->cleanBinaries();
-            
-            if (!empty($cleanResult['removed'])) {
+
+            if (! empty($cleanResult['removed'])) {
                 foreach ($cleanResult['removed'] as $removed) {
                     $this->info("  ✓ Removed: {$removed}");
                 }
             }
-            
-            if (!empty($cleanResult['errors'])) {
+
+            if (! empty($cleanResult['errors'])) {
                 foreach ($cleanResult['errors'] as $error) {
                     $this->error("  ✗ {$error}");
                 }
             }
-            
+
             $this->newLine();
         }
 
@@ -71,7 +71,7 @@ class CompileSwiftBinariesCommand extends Command
             if ($result['success']) {
                 $this->info("✓ {$name}");
                 $this->line("  {$result['message']}");
-                $this->line("  Compilation time: " . number_format($result['compilation_time'], 2) . "s");
+                $this->line('  Compilation time: '.number_format($result['compilation_time'], 2).'s');
             } else {
                 $this->error("✗ {$name}");
                 $this->error("  {$result['error']}");
@@ -82,7 +82,7 @@ class CompileSwiftBinariesCommand extends Command
         // Show overall summary
         if ($results['success']) {
             $this->info('All Swift binaries compiled successfully!');
-            
+
             // Check if daemon needs to be restarted
             $daemonService = app(\App\Services\CoreImageDaemonService::class);
             if ($daemonService->isCoreImageAvailable()) {
@@ -90,19 +90,19 @@ class CompileSwiftBinariesCommand extends Command
                 $this->warn('Note: Core Image daemon is running. You may want to restart it to use the new binaries:');
                 $this->info('  php artisan proofgen:coreimage-daemon restart');
             }
-            
+
             return Command::SUCCESS;
         } else {
             $this->error('Some binaries failed to compile.');
-            
-            if (!empty($results['errors'])) {
+
+            if (! empty($results['errors'])) {
                 $this->newLine();
                 $this->error('Errors:');
                 foreach ($results['errors'] as $error) {
                     $this->error("  - {$error}");
                 }
             }
-            
+
             return Command::FAILURE;
         }
     }
@@ -123,18 +123,18 @@ class CompileSwiftBinariesCommand extends Command
             if ($info['exists']) {
                 $this->info("✓ {$name}");
                 $this->line("  Path: {$info['path']}");
-                $this->line("  Executable: " . ($info['executable'] ? 'Yes' : 'No'));
+                $this->line('  Executable: '.($info['executable'] ? 'Yes' : 'No'));
                 $this->line("  Modified: {$info['modified_human']}");
             } else {
                 $this->warn("✗ {$name}");
                 $this->line("  Path: {$info['path']}");
-                $this->line("  Status: Not compiled");
+                $this->line('  Status: Not compiled');
                 $allExist = false;
             }
             $this->newLine();
         }
 
-        if (!$allExist) {
+        if (! $allExist) {
             $this->warn('Some binaries are missing. Run "php artisan proofgen:swift-compile" to compile them.');
         }
 
@@ -143,10 +143,10 @@ class CompileSwiftBinariesCommand extends Command
             $daemonService = app(\App\Services\CoreImageDaemonService::class);
             $this->info('Core Image Daemon Status');
             $this->info('=======================');
-            
+
             if ($daemonService->isCoreImageAvailable()) {
                 $this->info('✓ Daemon is running');
-                
+
                 $pidFile = storage_path('core-image-daemon.pid');
                 if (file_exists($pidFile)) {
                     $pid = trim(file_get_contents($pidFile));
@@ -157,7 +157,7 @@ class CompileSwiftBinariesCommand extends Command
                 $this->line('  Start with: php artisan proofgen:coreimage-daemon start');
             }
         } catch (\Exception $e) {
-            $this->error('Could not check daemon status: ' . $e->getMessage());
+            $this->error('Could not check daemon status: '.$e->getMessage());
         }
 
         return Command::SUCCESS;

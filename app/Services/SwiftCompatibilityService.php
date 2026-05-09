@@ -7,20 +7,20 @@ use Illuminate\Support\Facades\Log;
 class SwiftCompatibilityService
 {
     private const CACHE_FILE = 'swift-compatibility.json';
+
     private const MIN_SWIFT_VERSION = '5.5';
 
     /**
      * Check Swift compatibility for Core Image enhancement
      *
-     * @param bool $force Force a fresh check, ignoring cache
-     * @return array
+     * @param  bool  $force  Force a fresh check, ignoring cache
      */
     public function checkCompatibility(bool $force = false): array
     {
         $cacheFile = storage_path(self::CACHE_FILE);
 
         // Return cached result if available and not forced
-        if (!$force && file_exists($cacheFile)) {
+        if (! $force && file_exists($cacheFile)) {
             $cached = json_decode(file_get_contents($cacheFile), true);
             if ($cached && isset($cached['checked_at'])) {
                 // Log::debug('Using cached Swift compatibility check from ' . $cached['checked_at']);
@@ -37,13 +37,14 @@ class SwiftCompatibilityService
             'error' => null,
             'minimum_version' => self::MIN_SWIFT_VERSION,
             'checked_at' => now()->toISOString(),
-            'platform' => PHP_OS_FAMILY
+            'platform' => PHP_OS_FAMILY,
         ];
 
         // Only check on macOS
         if (PHP_OS_FAMILY !== 'Darwin') {
             $result['error'] = 'Core Image enhancement requires macOS';
             $this->cacheResult($result);
+
             return $result;
         }
 
@@ -54,7 +55,7 @@ class SwiftCompatibilityService
             '/usr/local/bin/swift',
             '/opt/homebrew/bin/swift',
         ];
-        
+
         $swiftPath = null;
         foreach ($knownPaths as $path) {
             if (file_exists($path) && is_executable($path)) {
@@ -62,16 +63,17 @@ class SwiftCompatibilityService
                 break;
             }
         }
-        
+
         // Fallback to which command if not found in known locations
-        if (!$swiftPath) {
+        if (! $swiftPath) {
             $swiftPath = trim(shell_exec('which swift 2>/dev/null'));
         }
-        
+
         if (empty($swiftPath)) {
             $result['error'] = 'Swift not found. Please install Xcode Command Line Tools or Xcode.';
-            Log::warning('Swift not found in PATH or known locations. PATH=' . getenv('PATH'));
+            Log::warning('Swift not found in PATH or known locations. PATH='.getenv('PATH'));
             $this->cacheResult($result);
+
             return $result;
         }
 
@@ -88,29 +90,27 @@ class SwiftCompatibilityService
                 $result['compatible'] = true;
                 // Log::info('Swift version is compatible for Core Image enhancement');
             } else {
-                $result['error'] = "Swift {$result['version']} found, but version " . self::MIN_SWIFT_VERSION . " or higher is required.";
+                $result['error'] = "Swift {$result['version']} found, but version ".self::MIN_SWIFT_VERSION.' or higher is required.';
                 Log::warning($result['error']);
             }
         } else {
             $result['error'] = 'Could not determine Swift version.';
-            Log::warning('Failed to parse Swift version from: ' . $versionOutput);
+            Log::warning('Failed to parse Swift version from: '.$versionOutput);
         }
 
         $this->cacheResult($result);
+
         return $result;
     }
 
     /**
      * Cache the compatibility check result
-     *
-     * @param array $result
-     * @return void
      */
     private function cacheResult(array $result): void
     {
         $cacheFile = storage_path(self::CACHE_FILE);
         $json = json_encode($result, JSON_PRETTY_PRINT);
-        
+
         if (file_put_contents($cacheFile, $json) !== false) {
             // Log::debug('Swift compatibility check cached to: ' . $cacheFile);
         } else {
@@ -120,8 +120,6 @@ class SwiftCompatibilityService
 
     /**
      * Clear the cached compatibility check
-     *
-     * @return void
      */
     public function clearCache(): void
     {
@@ -137,15 +135,13 @@ class SwiftCompatibilityService
 
     /**
      * Get installation instructions for Swift
-     *
-     * @return array
      */
     public function getInstallationInstructions(): array
     {
         return [
             'xcode' => 'Install Xcode from the Mac App Store',
             'command_line_tools' => 'Install Xcode Command Line Tools by running: xcode-select --install',
-            'verification' => 'After installation, verify with: swift --version'
+            'verification' => 'After installation, verify with: swift --version',
         ];
     }
 }
