@@ -531,7 +531,7 @@ The full Phase 1–6 test sweep (sanity check):
   tests/Unit/Proofgen/ImageTest.php
 ```
 
-When this passes, the import/audit/move/quarantine/graveyard pipeline is healthy. Pre-existing pollution-related failures elsewhere in the suite (`AuthenticationTest`, `RegistrationTest`, alias-mock interactions) are unrelated to this pipeline.
+When this passes, the import/audit/move/quarantine/graveyard pipeline is healthy. The full suite (`./vendor/bin/pest`) should be green too after the 2026-05 cleanup pass — 193 passed, 7 skipped, 0 failed on Laravel 13 + Livewire 4 + Pest 4.
 
 ---
 
