@@ -7,7 +7,7 @@ products) emailing files to the customer.
 
 ## Repos
 
-- **proofgen** (this repo) — Laravel 11 / Livewire 3 / Flux UI. Local desktop app run on macOS via Herd.
+- **proofgen** (this repo) — Laravel 13 / Livewire 4 / Flux 2 / PHP 8.4. Local desktop app run on macOS via Herd.
   Lives at `/Users/mikeferrara/Herd/proofgenredux`.
 - **ferraraphoto** — Laravel 4.2 (PHP 7.4) public-facing site. Branch `php7.4-migration` is ahead of
   `master` by 19+ commits as of 2026-04. Lives at `/Users/mikeferrara/Documents/code/ferraraphoto`.
@@ -214,9 +214,16 @@ A local "show run" looks like:
    improvement could add an explicit `ferraraphoto_show_id` (or `ferraraphoto_show_slug`) column
    on the proofgen `shows` table, populated either by manual selection from a list of shows pulled
    from the ferraraphoto API, or by a fuzzy-match-and-confirm flow.
-3. **Pre-upload validation**: nothing currently confirms that a matching show/class exists on the
-   ferraraphoto side before rsync runs. Worst case is an upload to a directory that ferraraphoto
-   has no record for; in practice that's auto-resolved when the admin scans the show.
+3. ~~**Pre-upload validation**: nothing currently confirms that a matching show/class exists on the
+   ferraraphoto side before rsync runs.~~ **Partially addressed 2026-05.** `App\Services\
+   FerraraphotoTargetVerifier` checks all three remote disks (`remote_proofs`, `remote_web_images`,
+   `remote_highres_images`) for a given show or class via `Storage::disk()->exists()`. Surfaced as
+   a lazy-loaded "Ferraraphoto target" panel on `ShowViewComponent` and `ClassViewComponent`
+   alongside the existing storage-usage panel — operators can click "Check" to verify the remote
+   has the show/class directories before uploading. Status is advisory (uploads still proceed) but
+   makes "I uploaded but the customer can't find their photo" loud rather than silent. **Still TODO**:
+   wire the verifier into the upload jobs themselves so a missing-target situation logs a warning
+   in the job output.
 4. **Cloud storage migration**: out of scope. Notes in the user message: a future direction is
    pushing to object storage and POSTing metadata to ferraraphoto, which would let ferraraphoto
    serve files from the bucket. Not relevant to the current task.
@@ -244,5 +251,5 @@ In **ferraraphoto**:
 
 ---
 
-*Living document — last updated 2026-05-02. Update when path conventions change, when a real
+*Living document — last updated 2026-05-09. Update when path conventions change, when a real
 API/DB linkage is added, or when work in `INSTANT_DELIVERY_WORK.md` lands.*

@@ -68,8 +68,9 @@
         @include('components.partials.action-panel')
     </div>
 
-    <div class="mb-8">
+    <div class="mb-8 grid gap-4 md:grid-cols-2">
         @include('livewire.partials.storage-usage-panel', ['storage_usage' => $storage_usage])
+        @include('livewire.partials.ferraraphoto-status-panel', ['ferraraphoto_status' => $ferraraphoto_status])
     </div>
 
     {{-- Folder layout --}}

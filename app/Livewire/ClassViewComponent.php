@@ -11,6 +11,7 @@ use App\Models\Photo;
 use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Proofgen\ShowClass;
+use App\Services\FerraraphotoTargetVerifier;
 use App\Services\PathResolver;
 use App\Services\PhotoMoveService;
 use App\Services\PhotoService;
@@ -130,6 +131,8 @@ class ClassViewComponent extends Component
 
     public bool $showStorageUsage = false;
 
+    public ?array $ferraraphotoStatus = null;
+
     public function loadStorageUsage(): void
     {
         $this->showStorageUsage = true;
@@ -139,6 +142,12 @@ class ClassViewComponent extends Component
     {
         app(StorageUsageService::class)->classUsage($this->showClass, forceRefresh: true);
         $this->showStorageUsage = true;
+    }
+
+    public function checkFerraraphotoStatus(): void
+    {
+        $this->ferraraphotoStatus = app(FerraraphotoTargetVerifier::class)
+            ->verifyClass($this->showClass);
     }
 
     public function render()
@@ -155,6 +164,7 @@ class ClassViewComponent extends Component
             'storage_usage' => $this->showStorageUsage
                 ? app(StorageUsageService::class)->classUsage($this->showClass)
                 : null,
+            'ferraraphoto_status' => $this->ferraraphotoStatus,
         ])->title($this->show.' '.$this->class.' - Proofgen');
     }
 
