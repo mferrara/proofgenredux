@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
 
@@ -376,7 +377,7 @@ class Show extends Model
     {
         $contents = Utility::getContentsOfPath($this->relative_path, true);
 
-        // \Log::debug(print_r($contents, true));
+        // Log::debug(print_r($contents, true));
 
         $images = [];
         if (isset($contents['images'])) {

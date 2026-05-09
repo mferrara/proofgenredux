@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class GenerateHighresImage implements ShouldQueue
 {
@@ -39,7 +40,7 @@ class GenerateHighresImage implements ShouldQueue
         try {
             $photoService->generateHighresImage($this->photo_id, $this->highres_destination_path);
         } catch (Exception $e) {
-            \Log::error('Error generating highres image: '.$e->getMessage());
+            Log::error('Error generating highres image: '.$e->getMessage());
             throw $e;
         }
     }

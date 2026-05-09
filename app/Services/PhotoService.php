@@ -30,16 +30,16 @@ class PhotoService
      *   ['photo' => Photo|null, 'plan' => PhotoImportPlan|null, 'issue' => PhotoIssue|null,
      *    'proofDestPath' => ?string, 'webImagesPath' => ?string, 'highresImagesPath' => ?string]
      *
-     * @param  string       $imagePath              Image path relative to fullsize disk
-     * @param  string|null  $proofNumberOverride    Caller-supplied proof number; bypasses Redis allocator
-     * @param  bool         $debug                  Debug logging
-     * @param  bool         $dispatchJobs           Dispatch derivative jobs after import
-     * @param  bool         $bypassResolver         Skip the resolver and force the import.
-     *                                              Requires $proofNumberOverride. Used when an
-     *                                              operator has already decided how a flagged
-     *                                              conflict resolves and going through the
-     *                                              resolver would re-classify the file as the
-     *                                              same conflict that produced the issue.
+     * @param  string  $imagePath  Image path relative to fullsize disk
+     * @param  string|null  $proofNumberOverride  Caller-supplied proof number; bypasses Redis allocator
+     * @param  bool  $debug  Debug logging
+     * @param  bool  $dispatchJobs  Dispatch derivative jobs after import
+     * @param  bool  $bypassResolver  Skip the resolver and force the import.
+     *                                Requires $proofNumberOverride. Used when an
+     *                                operator has already decided how a flagged
+     *                                conflict resolves and going through the
+     *                                resolver would re-classify the file as the
+     *                                same conflict that produced the issue.
      *
      * @throws Exception
      */
@@ -162,7 +162,7 @@ class PhotoService
         );
 
         if ($debug) {
-            \Illuminate\Support\Facades\Log::debug(
+            Log::debug(
                 'Idempotent re-import; buried duplicate source; '.$plan->sourcePath.' (photo '.$photo->id.')'
             );
         }

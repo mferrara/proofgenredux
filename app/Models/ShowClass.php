@@ -57,7 +57,7 @@ class ShowClass extends Model
             // Check the ShowClass directory for a directory named 'originals'
             // if it's there, and it has images in it, we'll import them
             // into the database
-            $existing_imported_photos = $model->importExistingPhotosFromOriginalsDirectory();
+            $model->importExistingPhotosFromOriginalsDirectory();
         });
     }
 

@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Log;
 
 class Photo extends Model
 {
@@ -51,12 +52,10 @@ class Photo extends Model
         });
 
         static::created(function (Photo $model) {
-            // Skip file operations during tests if configured
             if (config('testing.skip_file_operations')) {
                 return;
             }
 
-            // Check if we have a sha1 hash for this photo
             $file_contents = null;
             if (empty($model->sha1)) {
                 $file_contents = $model->getFileContents();
@@ -64,19 +63,15 @@ class Photo extends Model
                 $model->save();
             }
 
-            // Check if we have a metadata record for this photo
             if (empty($model->metadata)) {
-                $metadata = $model->createMetadataRecord($file_contents);
+                $model->createMetadataRecord($file_contents);
             }
 
-            // Check if the proofs are already generated
-            $proofs_found = $model->checkPathForProofs();
-
-            // Check if the web image is already generated
-            $web_image_found = $model->checkPathForWebImage();
-
-            // Check if the highres image is already generated
-            $highres_image_found = $model->checkPathForHighresImage();
+            // Each of these has the side effect of stamping *_generated_at when
+            // a matching file is found on disk; the return values aren't used here.
+            $model->checkPathForProofs();
+            $model->checkPathForWebImage();
+            $model->checkPathForHighresImage();
         });
 
         static::updating(function (Photo $model) {
@@ -128,7 +123,8 @@ class Photo extends Model
         ]);
         if ($exif_data !== false) {
             $metadata->fillFromExifDataArray($exif_data);
-            \Log::debug('Exif data not found for photo: '.$this->id.'/'.$this->proof_number);
+        } else {
+            Log::debug('Exif data not found for photo: '.$this->id.'/'.$this->proof_number);
         }
         $metadata->save();
 
@@ -186,7 +182,7 @@ class Photo extends Model
     public function expectedThumbnailFilenames()
     {
         $thumbnails = [];
-        foreach (config('proofgen.thumbnails') as $size => $values) {
+        foreach (config('proofgen.thumbnails') as $values) {
             $suffix = $values['suffix'];
             $expected_filename = $this->proof_number.$suffix.'.'.$this->file_type;
             $thumbnails[] = $expected_filename;
@@ -202,7 +198,7 @@ class Photo extends Model
         foreach ($this->expectedThumbnailFilenames() as $filename) {
             $expected_proof_path = $proofs_path.'/'.$filename;
             if (file_exists($expected_proof_path)) {
-                \Log::debug('Deleting proof: '.$expected_proof_path);
+                Log::debug('Deleting proof: '.$expected_proof_path);
                 unlink($expected_proof_path);
             }
         }
@@ -219,7 +215,7 @@ class Photo extends Model
     {
         $expected_web_image_path = $this->expectedWebImageFilePath();
         if ($this->checkPathForWebImage()) {
-            \Log::debug('Deleting web image: '.$expected_web_image_path);
+            Log::debug('Deleting web image: '.$expected_web_image_path);
             unlink($expected_web_image_path);
         }
 
@@ -234,7 +230,7 @@ class Photo extends Model
     {
         $expected_highres_image_path = $this->expectedHighresImageFilePath();
         if ($this->checkPathForHighresImage()) {
-            \Log::debug('Deleting highres image: '.$expected_highres_image_path);
+            Log::debug('Deleting highres image: '.$expected_highres_image_path);
             unlink($expected_highres_image_path);
         }
 
@@ -309,7 +305,7 @@ class Photo extends Model
 
         $proofs_found = [];
         $expected_proof_count = count(config('proofgen.thumbnails'));
-        foreach (config('proofgen.thumbnails') as $size => $values) {
+        foreach (config('proofgen.thumbnails') as $values) {
             $suffix = $values['suffix'];
             $expected_filename = $this->proof_number.$suffix.'.'.$this->file_type;
             $expected_proof_path = $proofs_path.'/'.$expected_filename;
@@ -326,7 +322,7 @@ class Photo extends Model
             // If we have all the proofs, set the proofs_generated_at to the earliest modified time
             if ($this->proofs_generated_at === null) {
                 $existing_timestamp = Carbon::createFromTimestamp($proofs_found[array_key_first($proofs_found)]);
-                \Log::debug('Making proofs_generated_at for photo: '.$this->id.' from '.$existing_timestamp);
+                Log::debug('Making proofs_generated_at for photo: '.$this->id.' from '.$existing_timestamp);
                 $this->proofs_generated_at = $existing_timestamp;
                 $this->save();
             }

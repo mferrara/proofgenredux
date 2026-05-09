@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class GenerateThumbnails implements ShouldQueue
 {
@@ -38,7 +39,7 @@ class GenerateThumbnails implements ShouldQueue
         try {
             $photoService->generateThumbnails($this->photo_id, $this->proofs_destination_path, true);
         } catch (Exception $e) {
-            \Log::error('Error generating thumbnails: '.$e->getMessage());
+            Log::error('Error generating thumbnails: '.$e->getMessage());
             throw $e;
         }
     }

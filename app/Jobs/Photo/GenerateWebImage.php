@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class GenerateWebImage implements ShouldQueue
 {
@@ -39,7 +40,7 @@ class GenerateWebImage implements ShouldQueue
         try {
             $photoService->generateWebImage($this->photo_id, $this->web_destination_path);
         } catch (Exception $e) {
-            \Log::error('Error generating web image: '.$e->getMessage());
+            Log::error('Error generating web image: '.$e->getMessage());
             throw $e;
         }
     }
