@@ -295,7 +295,6 @@ class Image
 
         $image->place($watermark, 'bottom', 0, 60)->save();
 
-        imagedestroy($watermark);
         unset($image);
 
         $manager = null;
@@ -362,7 +361,6 @@ class Image
 
         $image->place($watermark, 'bottom', 0, 60)->save();
 
-        imagedestroy($watermark);
         unset($image);
 
         $manager = null;
@@ -501,7 +499,6 @@ class Image
             $watermark = self::watermarkSmallProof($image_filename);
             $image->place($watermark, 'bottom-left', 10, 10)->save();
 
-            imagedestroy($watermark);
             unset($image);
         }
 
@@ -521,7 +518,6 @@ class Image
                 $watermark = self::watermarkLargeProof($text, $image->width());
                 $image->place($watermark, 'center')->save();
 
-                imagedestroy($watermark);
             } else {
                 $watermark_top = self::watermarkLargeProof('Proof# '.$image_filename.' - Proof# '.$image_filename,
                     $image->width());
@@ -537,8 +533,6 @@ class Image
                     ->place($watermark_bot, 'bottom', 0, $bottom_offset)
                     ->save();
 
-                imagedestroy($watermark_top);
-                imagedestroy($watermark_bot);
             }
             unset($image);
         }
@@ -549,49 +543,37 @@ class Image
         return $image_filename;
     }
 
-    public static function watermarkSmallProof($text, $width = 0)
+    public static function watermarkSmallProof(string $text, int $width = 0): \GdImage
     {
         $font_size = config('proofgen.thumbnails.small.font_size');
         $background_height = config('proofgen.thumbnails.small.bg_size');
         $foreground_opacity = config('proofgen.watermark_foreground_opacity');
         $background_opacity = config('proofgen.watermark_background_opacity');
         $text = ' '.$text.' ';
-        $im = imagettfJustifytext($text, '', 2, $width, $background_height, 0, 0, $font_size, [255, 255, 255, $foreground_opacity], [0, 0, 0, $background_opacity]);
 
-        return $im;
+        return imagettfJustifytext($text, '', 2, $width, $background_height, 0, 0, $font_size, [255, 255, 255, $foreground_opacity], [0, 0, 0, $background_opacity]);
     }
 
-    public static function watermarkLargeProof($text, $width = 0)
+    public static function watermarkLargeProof(string $text, int $width = 0): \GdImage
     {
         $font_size = config('proofgen.thumbnails.large.font_size');
         $background_height = config('proofgen.thumbnails.large.bg_size');
         $foreground_opacity = config('proofgen.watermark_foreground_opacity');
         $background_opacity = config('proofgen.watermark_background_opacity');
-        $im = imagettfJustifytext($text, '', 2, $width, $background_height, 0, 0, $font_size, [255, 255, 255, $foreground_opacity], [0, 0, 0, $background_opacity]);
 
-        return $im;
+        return imagettfJustifytext($text, '', 2, $width, $background_height, 0, 0, $font_size, [255, 255, 255, $foreground_opacity], [0, 0, 0, $background_opacity]);
     }
 }
 
 /**
- * @name                    : makeImageF
+ * Render text into a freshly-allocated GdImage with the given justification.
  *
- * Function for create image from text with selected font.
- *
- * @param  string  $text  : String to convert into the Image.
- * @param  string  $font  : Font name of the text. Kip font file in same folder.
- * @param  int  $justify  : Justify text in image (0-Left, 1-Right, 2-Center)
- * @param  int  $W  : Width of the Image.
- * @param  int  $H  : Height of the Image.
- * @param  int  $X  : x-coordinate of the text into the image.
- * @param  int  $Y  : y-coordinate of the text into the image.
- * @param  int  $fsize  : Font size of text.
- * @param  array  $color  : RGB color array for text color.
- * @param  array  $bgcolor  : RGB color array for background.
- * @return resource $im
+ * @param  array  $color  [r, g, b, alpha] for text
+ * @param  array  $bgcolor  [r, g, b, alpha] for background
  */
-function imagettfJustifytext($text, $font = 'CENTURY.TTF', $justify = 2, $W = 0, $H = 0, $X = 0, $Y = 0, $fsize = 12, $color = [0x0, 0x0, 0x0, 1], $bgcolor = [0xFF, 0xFF, 0xFF, 1])
+function imagettfJustifytext(string $text, string $font = 'CENTURY.TTF', int $justify = 2, int $W = 0, int $H = 0, int $X = 0, int $Y = 0, int $fsize = 12, array $color = [0x0, 0x0, 0x0, 1], array $bgcolor = [0xFF, 0xFF, 0xFF, 1]): \GdImage
 {
+    unset($Y); // legacy parameter — kept for signature compatibility, never used
     $font = config('proofgen.watermark_font');
 
     $angle = 0;
@@ -604,8 +586,10 @@ function imagettfJustifytext($text, $font = 'CENTURY.TTF', $justify = 2, $W = 0,
     $im = @imagecreate($W, $H)
     or exit('Cannot Initialize new GD image stream');
 
-    $background_color = imagecolorallocatealpha($im, $bgcolor[0], $bgcolor[1], $bgcolor[2], $bgcolor[3]);        // RGB color background.
-    $text_color = imagecolorallocatealpha($im, $color[0], $color[1], $color[2], $color[3]);            // RGB color text.
+    // imagecolorallocatealpha for the background must be the FIRST color allocated —
+    // GD treats the first allocation as the background fill color.
+    imagecolorallocatealpha($im, $bgcolor[0], $bgcolor[1], $bgcolor[2], $bgcolor[3]);
+    $text_color = imagecolorallocatealpha($im, $color[0], $color[1], $color[2], $color[3]);
 
     if ($L_R_C == 0) { // Justify Left
         imagettftext($im, $fsize, $angle, $X, $fsize, $text_color, $font, $text);
@@ -613,7 +597,7 @@ function imagettfJustifytext($text, $font = 'CENTURY.TTF', $justify = 2, $W = 0,
         $s = explode("[\n]+", $text);
         $__H = 0;
 
-        foreach ($s as $key => $val) {
+        foreach ($s as $val) {
             $_b = \imagettfbbox($fsize, 0, $font, $val);
             $_W = abs($_b[2] - $_b[0]);
             // Defining the X coordinate.
@@ -628,7 +612,7 @@ function imagettfJustifytext($text, $font = 'CENTURY.TTF', $justify = 2, $W = 0,
         $s = explode("[\n]+", $text);
         $__H = 0;
 
-        foreach ($s as $key => $val) {
+        foreach ($s as $val) {
             $_b = \imagettfbbox($fsize, 0, $font, $val);
             $_W = abs($_b[2] - $_b[0]);
             // Defining the X coordinate.

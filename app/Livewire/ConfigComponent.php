@@ -274,7 +274,7 @@ class ConfigComponent extends Component
     private function initializeConfigValues(): void
     {
         // Initialize values for all configurations
-        foreach ($this->configurationsByCategory as $category => $configs) {
+        foreach ($this->configurationsByCategory as $configs) {
             foreach ($configs as $config) {
                 $this->configValues[$config->id] = Configuration::castValue($config->value, $config->type);
 
@@ -304,22 +304,15 @@ class ConfigComponent extends Component
         }
     }
 
-    public function updatingConfigValues($value, $key): void
+    public function updatingConfigValues(mixed $value, string $key): void
     {
-        // This method is called when config values are being updated
-        // We no longer save immediately - changes are only saved when the Save button is clicked
-
-        // Just validate the value
+        unset($value); // Livewire hook signature; saving + validation happen on Save click.
         $configId = str_replace('configValues.', '', $key);
         $config = Configuration::find($configId);
 
         if (! $config) {
             $this->returnError('Configuration '.$key.' not found.');
-
-            return;
         }
-
-        // Skip validation here - we'll validate on save with appropriate rules
     }
 
     /**
@@ -395,7 +388,7 @@ class ConfigComponent extends Component
         }
 
         // Sort configurations within each category by key
-        foreach ($this->configurationsByCategory as $category => $configs) {
+        foreach (array_keys($this->configurationsByCategory) as $category) {
             usort($this->configurationsByCategory[$category], function ($a, $b) {
                 return strcmp($a->key, $b->key);
             });
@@ -437,7 +430,7 @@ class ConfigComponent extends Component
      */
     public function getConfigId(string $key): ?int
     {
-        foreach ($this->configurationsByCategory as $category => $configs) {
+        foreach ($this->configurationsByCategory as $configs) {
             foreach ($configs as $config) {
                 if ($config->key === $key) {
                     return $config->id;
@@ -469,7 +462,7 @@ class ConfigComponent extends Component
     {
         // Build dynamic validation rules based on config types
         $rules = [];
-        foreach ($this->configurationsByCategory as $category => $configs) {
+        foreach ($this->configurationsByCategory as $configs) {
             foreach ($configs as $config) {
                 $rule = ['nullable'];
 
@@ -879,7 +872,6 @@ class ConfigComponent extends Component
             switch ($this->activeTab) {
                 case 'large':
                     $largePreviewPath = $tempDir.'/large_preview_'.$timestamp.'.jpg';
-                    $largePreviewPathUnenhanced = $tempDir.'/large_preview_unenhanced_'.$timestamp.'.jpg';
                     $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $largePreviewPath, 'thumbnails', 'large', true);
                     $this->largeThumbnailPreview = '/temp/thumbnail-preview/large_preview_'.$timestamp.'.jpg';
                     $this->largeThumbnailPreviewUnenhanced = '/temp/thumbnail-preview/large_preview_unenhanced_'.$timestamp.'.jpg';
@@ -891,7 +883,6 @@ class ConfigComponent extends Component
 
                 case 'small':
                     $smallPreviewPath = $tempDir.'/small_preview_'.$timestamp.'.jpg';
-                    $smallPreviewPathUnenhanced = $tempDir.'/small_preview_unenhanced_'.$timestamp.'.jpg';
                     $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $smallPreviewPath, 'thumbnails', 'small', true);
                     $this->smallThumbnailPreview = '/temp/thumbnail-preview/small_preview_'.$timestamp.'.jpg';
                     $this->smallThumbnailPreviewUnenhanced = '/temp/thumbnail-preview/small_preview_unenhanced_'.$timestamp.'.jpg';
@@ -903,7 +894,6 @@ class ConfigComponent extends Component
 
                 case 'web':
                     $webPreviewPath = $tempDir.'/web_preview_'.$timestamp.'.jpg';
-                    $webPreviewPathUnenhanced = $tempDir.'/web_preview_unenhanced_'.$timestamp.'.jpg';
                     $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $webPreviewPath, 'web_images', null, true);
                     $this->webImagePreview = '/temp/thumbnail-preview/web_preview_'.$timestamp.'.jpg';
                     $this->webImagePreviewUnenhanced = '/temp/thumbnail-preview/web_preview_unenhanced_'.$timestamp.'.jpg';
@@ -915,7 +905,6 @@ class ConfigComponent extends Component
 
                 case 'highres':
                     $highresPreviewPath = $tempDir.'/highres_preview_'.$timestamp.'.jpg';
-                    $highresPreviewPathUnenhanced = $tempDir.'/highres_preview_unenhanced_'.$timestamp.'.jpg';
                     $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $highresPreviewPath, 'highres_images', null, true);
                     $this->highresImagePreview = '/temp/thumbnail-preview/highres_preview_'.$timestamp.'.jpg';
                     $this->highresImagePreviewUnenhanced = '/temp/thumbnail-preview/highres_preview_unenhanced_'.$timestamp.'.jpg';
@@ -1346,7 +1335,6 @@ class ConfigComponent extends Component
             // Small thumbnail watermark
             $watermark = \App\Proofgen\Image::watermarkSmallProof($originalFilename);
             $image->place($watermark, 'bottom-left', 10, 10)->save();
-            imagedestroy($watermark);
         } elseif ($size === 'large') {
             // Large thumbnail watermark
             if ($image->width() > $image->height()) {
@@ -1354,7 +1342,6 @@ class ConfigComponent extends Component
                 $text = 'Proof# '.$originalFilename.' - Illegal to use - Ferrara Photography';
                 $watermark = \App\Proofgen\Image::watermarkLargeProof($text, $image->width());
                 $image->place($watermark, 'center')->save();
-                imagedestroy($watermark);
             } else {
                 // Portrait orientation - two watermarks
                 $watermark_top = \App\Proofgen\Image::watermarkLargeProof(
@@ -1372,8 +1359,6 @@ class ConfigComponent extends Component
                     ->place($watermark_bot, 'bottom', 0, $bottom_offset)
                     ->save();
 
-                imagedestroy($watermark_top);
-                imagedestroy($watermark_bot);
             }
         }
     }
@@ -1410,7 +1395,6 @@ class ConfigComponent extends Component
         // Place watermark at bottom with 60px offset
         $image->place($watermark, 'bottom', 0, 60)->save();
 
-        imagedestroy($watermark);
     }
 
     /**

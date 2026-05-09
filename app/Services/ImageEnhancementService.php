@@ -161,8 +161,6 @@ class ImageEnhancementService
         }
 
         imagejpeg($destImage, $tempPath, 100);
-        imagedestroy($sourceImage);
-        imagedestroy($destImage);
 
         $image = $this->manager->read($tempPath);
         unlink($tempPath);
