@@ -225,6 +225,29 @@ class PhotoArchiveService
         return null;
     }
 
+    /**
+     * Move an archive copy by raw filename without requiring a Photo row.
+     * Used by resetPhotos to keep the archive in sync with the local disk
+     * even when an original on disk has no matching DB row (orphan original).
+     * Returns the target metadata if a move happened, null if the source
+     * archive didn't exist or archive is disabled.
+     */
+    public function movePhysicalArchive(string $show, string $class, string $oldFilename, string $newFilename): ?array
+    {
+        if (! $this->enabled() || ! $this->configured()) {
+            return null;
+        }
+
+        $sourcePath = $this->pathFor($show, $class, $oldFilename);
+        if (! Storage::disk('archive')->exists($sourcePath)) {
+            return null;
+        }
+        $targetPath = $this->pathFor($show, $class, $newFilename);
+        $this->moveArchiveFile($sourcePath, $targetPath);
+
+        return $this->metadataForPath($targetPath);
+    }
+
     public function auditPhoto(Photo $photo): array
     {
         $expectedPath = $this->pathForPhoto($photo);

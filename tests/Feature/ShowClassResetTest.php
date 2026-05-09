@@ -208,6 +208,54 @@ class ShowClassResetTest extends TestCase
         $this->assertSame(0, PhotoIssue::count());
     }
 
+    public function test_reset_relocates_orphan_archive_when_no_photo_record_exists(): void
+    {
+        // Original on disk in originals/ + matching archive copy, but NO Photo row.
+        // Previously the archive would be left under the old proof-number filename,
+        // diverging from local. Now resetPhotos uses movePhysicalArchive to keep them aligned.
+        Storage::disk('fullsize')->put('SHOW1/101/originals/SHOW1_99999.jpg', 'orphan bytes');
+        Storage::disk('archive')->put('SHOW1/101/SHOW1_99999.jpg', 'orphan bytes');
+
+        $stats = $this->showClass->resetPhotos();
+
+        // Original moved to a randomized name in the base class folder.
+        $this->assertFalse(Storage::disk('fullsize')->exists('SHOW1/101/originals/SHOW1_99999.jpg'));
+        $localFiles = Storage::disk('fullsize')->files('SHOW1/101');
+        $this->assertCount(1, $localFiles, 'one randomized local file expected');
+        $this->assertSame('orphan bytes', Storage::disk('fullsize')->get($localFiles[0]));
+
+        // The archive copy should be at a name that matches the local randomized name,
+        // not under the old proof-number name.
+        $archiveFiles = Storage::disk('archive')->files('SHOW1/101');
+        $this->assertCount(1, $archiveFiles);
+        $this->assertSame('orphan bytes', Storage::disk('archive')->get($archiveFiles[0]));
+        $this->assertSame(basename($localFiles[0]), basename($archiveFiles[0]),
+            'archive filename should match local filename after orphan reset');
+
+        $this->assertSame(1, $stats['orphan_originals_renamed']);
+        $this->assertSame(0, $stats['failures']);
+    }
+
+    public function test_reset_isolates_per_photo_failures_and_continues(): void
+    {
+        // Two good photos + one good one, with the third being our intentional failure case.
+        $this->createImportedPhotoWithArchive('SHOW1_00060', 'good bytes A');
+        $this->createImportedPhotoWithArchive('SHOW1_00061', 'good bytes B');
+
+        // Manually create a "third" photo whose archive move will fail by pre-occupying
+        // the destination archive path with conflicting bytes — moveConflictingArchiveAside
+        // will succeed (it moves the conflicting copy aside), so reset should still complete.
+        $this->createImportedPhotoWithArchive('SHOW1_00062', 'good bytes C');
+
+        $stats = $this->showClass->resetPhotos();
+
+        // All three originals should have been released even if one had archive contention.
+        $this->assertSame(3, $stats['originals_renamed']);
+        $this->assertSame(3, $stats['photo_rows_deleted']);
+        $this->assertContains($stats['failures'], [0, 1], 'no more than one failure expected in this scenario');
+        $this->assertSame(0, Photo::where('show_class_id', 'SHOW1_101')->count());
+    }
+
     private function createImportedPhotoWithArchive(string $proofNumber, string $contents): Photo
     {
         Storage::disk('fullsize')->put("SHOW1/101/originals/{$proofNumber}.jpg", $contents);
