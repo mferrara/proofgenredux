@@ -6,6 +6,15 @@ return [
     'archive_enabled' => getenv('ARCHIVE_ENABLED') === 'TRUE',
     'test_source_dir' => getenv('TEST_SOURCE_DIR'),
 
+    // Source-of-truth file removals (originals, archive copies, ingest sources)
+    // are routed into a per-disk graveyard directory instead of being deleted.
+    // Derived files (proofs/web/highres) are NOT graveyarded; they regenerate.
+    // Path is relative to each disk root.
+    'graveyard' => [
+        'path' => getenv('GRAVEYARD_PATH') ?: '_graveyard',
+        'aged_days' => (int) (getenv('GRAVEYARD_AGED_DAYS') ?: 90),
+    ],
+
     // Sample images configuration
     'auto_download_sample_images' => getenv('AUTO_DOWNLOAD_SAMPLE_IMAGES') === 'TRUE',
 
