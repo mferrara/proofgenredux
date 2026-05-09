@@ -5,6 +5,8 @@ namespace App\Proofgen;
 use App\Helpers\EnhancementServiceFactory;
 use App\Models\Photo;
 use App\Services\PathResolver;
+use App\Services\PhotoArchiveService;
+use App\Services\SafeFileMover;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\ImageManager;
@@ -101,117 +103,91 @@ class Image
         return true;
     }
 
+    /**
+     * Write order is invariant for safety:
+     *   1. hash source bytes
+     *   2. write archive copy + verify
+     *   3. write imported original + verify
+     *   4. upsert photos row (with sha1, archive metadata, original_filename)
+     *   5. bury ingest source — always last, so a DB or write failure leaves the source recoverable
+     */
     public function processImage(string $proof_number, bool $debug = false): Photo
     {
-        // First we'll get the image from the directory
+        // 1. Read source bytes once and hash.
         $image = Storage::disk('fullsize')->get($this->image_path);
+        $image_sha1 = sha1($image);
+        $image_size = strlen($image);
 
         $original_filename = $this->filename;
         $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
-        $path_to_originals_file = $this->pathResolver->getOriginalFilePath($this->show, $this->class, $this->filename);
-        $path_to_originals_file = $this->pathResolver->normalizePath($path_to_originals_file);
+        $final_proof_number = $this->rename_files
+            ? $proof_number
+            : pathinfo($this->filename, PATHINFO_FILENAME);
+        $final_filename = $final_proof_number.'.'.$extension;
+        $path_to_originals_file = $this->pathResolver->normalizePath(
+            $this->pathResolver->getOriginalFilePath($this->show, $this->class, $final_filename)
+        );
 
-        // Next, we'll move the image to the original directory
-        Storage::disk('fullsize')->put($path_to_originals_file, $image);
-        if ($debug) {
-            Log::debug('Moved '.$this->image_path.' to originals directory; '.$path_to_originals_file);
-        }
-        // Next, we'll confirm that copied file exists
-        $exists = Storage::disk('fullsize')->exists($path_to_originals_file);
-        if ($debug) {
-            Log::debug('File exists in originals directory; '.$path_to_originals_file);
-        }
-
-        if (! $exists) {
-            throw new \Exception('File not copied to originals directory; '.$this->image_path);
-        }
-
-        // If we're configured to rename files we'll handle that now
-        if ($this->rename_files) {
-            // Generate the new filename
-            $new_filename = $proof_number.'.'.$extension;
-
-            // Use PathResolver for path construction
-            $new_original_path = $this->pathResolver->getOriginalFilePath($this->show, $this->class, $new_filename);
-            $new_original_path = $this->pathResolver->normalizePath($new_original_path);
-
-            // Next, rename the file we put in the originals path
-            Storage::disk('fullsize')->move($path_to_originals_file, $new_original_path);
-            if ($debug) {
-                Log::debug('Renamed file in originals directory from '.$original_filename.' to '.$new_filename.', including paths; from '.$path_to_originals_file.' to '.$new_original_path);
-            }
-
-            // Now, rename the file in $this->image_path
-            $new_path = $this->pathResolver->getFullsizePath($this->show, $this->class).'/'.$new_filename;
-            $new_path = $this->pathResolver->normalizePath($new_path);
-
-            if ($debug) {
-                Log::debug('Renaming file in processing directory from '.$original_filename.' to '.$new_filename.', including paths; from '.$this->image_path.' to '.$new_path);
-            }
-            Storage::disk('fullsize')->move($this->image_path, $new_path);
-
-            // Update $this->image_path to reflect the new path
-            // Update $this->filename to reflect the new filename
-            $this->image_path = $new_path;
-            $this->filename = $new_filename;
-            // Set out return value to this new, renamed file
-            $path_to_originals_file = $new_original_path;
-        }
-
+        // 2. Archive (verified inside storeContents).
+        $archiveMetadata = null;
         if ($this->archive_enabled) {
-            // Next we'll copy this file to the archive directory
-            // Note: If we re-named the file, the new name will already be included in $this->filename
-            $archive_path = $this->pathResolver->getArchivePath($this->show, $this->class).'/'.$this->filename;
-            $archive_path = $this->pathResolver->normalizePath($archive_path);
+            $archiveService = app(PhotoArchiveService::class);
+            $archive_path = $this->pathResolver->normalizePath(
+                $archiveService->pathFor($this->show, $this->class, $final_filename)
+            );
 
-            // First, we'll see if it already exists in the archive from a previous failed run...
-            $exists = Storage::disk('archive')->exists($archive_path);
-            if ($exists) {
-                if ($debug) {
-                    Log::debug('File already exists in archive directory; '.$archive_path.' - Deleting...');
-                }
-                // TODO: Should we have some sort of directory in the /show/class directory, like /deleted that we move
-                // these files to and add something like _deleted01 to the filename (where 01 increments when there's
-                // a filename conflict rather than overwriting)? Seems better in the case where something goes wrong
-                // and we need to recover the original file.
-                Storage::disk('archive')->delete($archive_path);
-            }
-
-            Storage::disk('archive')->put($archive_path, $image);
+            $archiveMetadata = $archiveService->storeContents($archive_path, $image);
             if ($debug) {
                 Log::debug('Copied file to archive directory; '.$archive_path);
             }
-
-            // Next we'll confirm this copy of the file
-            $exists = Storage::disk('archive')->exists($archive_path);
-            if (! $exists) {
-                throw new \Exception('File not copied to archive directory; Tried to write file to: '.$archive_path);
-            }
-            if ($debug) {
-                Log::debug('File exists in archive directory; '.$archive_path);
-            }
         }
 
-        // Finally, we'll delete the original file
-        $path_to_delete = isset($new_path) ? $new_path : $this->image_path;
-        Storage::disk('fullsize')->delete($path_to_delete);
+        // 3. Imported original (verified by sha + size, not just existence).
+        Storage::disk('fullsize')->put($path_to_originals_file, $image);
+        $writtenOriginal = Storage::disk('fullsize')->get($path_to_originals_file);
+        if ($writtenOriginal === false || sha1($writtenOriginal) !== $image_sha1 || strlen($writtenOriginal) !== $image_size) {
+            throw new \Exception('Original verification failed after write; '.$path_to_originals_file);
+        }
+        if ($debug) {
+            Log::debug('Wrote and verified original; '.$path_to_originals_file);
+        }
+
+        if ($this->rename_files) {
+            $this->filename = $final_filename;
+        }
+
+        // 4. Photos row first — DB failure here must leave source untouched.
+        $photo = self::importPhoto(
+            $final_proof_number,
+            $extension,
+            $this->show,
+            $this->class,
+            $image_sha1,
+            $archiveMetadata,
+            $original_filename,
+        );
+
+        // 5. Bury ingest source LAST.
+        $burial = app(SafeFileMover::class)->bury(
+            disk: 'fullsize',
+            path: $this->image_path,
+            reason: SafeFileMover::REASON_POST_IMPORT_SOURCE,
+            context: [
+                'sha1' => $image_sha1,
+                'size' => $image_size,
+                'photo_id' => $photo->id,
+                'original_filename' => $original_filename,
+            ],
+        );
 
         if ($debug) {
-            Log::debug('Deleted original file; '.$path_to_delete);
+            Log::debug('Buried ingest source; '.$this->image_path.' → '.$burial['graveyard_path']);
         }
 
-        // Confirm the file is deleted
-        $exists = Storage::disk('fullsize')->exists($path_to_delete);
-
-        if ($exists) {
-            throw new \Exception('File not deleted; '.$path_to_delete);
-        }
-
-        // If we've made it all the way here let's create the Photo record
-        return self::importPhoto($proof_number, $extension, $this->show, $this->class);
+        return $photo;
     }
 
-    public static function importPhoto(string $proof_number, string $file_type, string $show_id, string $show_class_id): Photo
+    public static function importPhoto(string $proof_number, string $file_type, string $show_id, string $show_class_id, ?string $sha1 = null, ?array $archiveMetadata = null, ?string $originalFilename = null): Photo
     {
         $photo_id = $show_id.'_'.$show_class_id.'_'.$proof_number;
         $photo = Photo::find($photo_id);
@@ -221,7 +197,29 @@ class Image
             $photo->show_class_id = $show_id.'_'.$show_class_id;
             $photo->proof_number = $proof_number;
             $photo->file_type = $file_type;
+            $photo->sha1 = $sha1;
+            $photo->original_filename = $originalFilename;
             $photo->save();
+        } else {
+            $patch = [];
+            if ($sha1 && empty($photo->sha1)) {
+                $patch['sha1'] = $sha1;
+            }
+            if ($originalFilename && empty($photo->original_filename)) {
+                $patch['original_filename'] = $originalFilename;
+            }
+            if ($patch !== []) {
+                $photo->forceFill($patch)->save();
+            }
+        }
+
+        if ($archiveMetadata) {
+            $photo->forceFill([
+                'archive_path' => $archiveMetadata['archive_path'],
+                'archive_sha1' => $archiveMetadata['archive_sha1'],
+                'archive_size' => $archiveMetadata['archive_size'],
+                'archived_at' => $archiveMetadata['archived_at'],
+            ])->save();
         }
 
         return $photo;

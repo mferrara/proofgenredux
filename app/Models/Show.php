@@ -400,7 +400,10 @@ class Show extends Model
         $processed = 0;
         if ($images) {
             foreach ($images as $image) {
-                ImportPhoto::dispatch($image->path(), $this->getNextProofNumber())->onQueue('processing');
+                // No pre-allocated proof number — the resolver inside the job will decide
+                // whether the file is a genuinely new raw upload (allocate then) or already
+                // numbered / duplicate / collision (don't burn a number).
+                ImportPhoto::dispatch($image->path())->onQueue('processing');
                 $processed++;
             }
         }

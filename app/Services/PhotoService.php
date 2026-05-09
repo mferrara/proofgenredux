@@ -9,6 +9,7 @@ use App\Jobs\ShowClass\UploadHighresImages;
 use App\Jobs\ShowClass\UploadProofs;
 use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Photo;
+use App\Models\Show;
 use App\Proofgen\Image;
 use Exception;
 
@@ -22,45 +23,151 @@ class PhotoService
     }
 
     /**
-     * Process a photo by renaming, archiving, and optionally dispatching thumbnail/web image jobs
+     * Process a photo: resolve identity first, only allocate a proof number when the
+     * resolver confirms a genuinely new file, then write archive/original/DB and bury source.
      *
-     * @param  string  $imagePath  The path to the image to process
-     * @param  string  $proofNumber  The proof number to assign
-     * @param  bool  $debug  Whether to enable debug logging
-     * @param  bool  $dispatchJobs  Whether to dispatch thumbnail/web image generation jobs
-     * @return array Returns [fullsizeImagePath, proofDestPath, webImagesPath] for further processing
+     * Return shape:
+     *   ['photo' => Photo|null, 'plan' => PhotoImportPlan|null, 'issue' => PhotoIssue|null,
+     *    'proofDestPath' => ?string, 'webImagesPath' => ?string, 'highresImagesPath' => ?string]
+     *
+     * @param  string       $imagePath              Image path relative to fullsize disk
+     * @param  string|null  $proofNumberOverride    Caller-supplied proof number; bypasses Redis allocator
+     * @param  bool         $debug                  Debug logging
+     * @param  bool         $dispatchJobs           Dispatch derivative jobs after import
+     * @param  bool         $bypassResolver         Skip the resolver and force the import.
+     *                                              Requires $proofNumberOverride. Used when an
+     *                                              operator has already decided how a flagged
+     *                                              conflict resolves and going through the
+     *                                              resolver would re-classify the file as the
+     *                                              same conflict that produced the issue.
      *
      * @throws Exception
      */
-    public function processPhoto(string $imagePath, string $proofNumber, bool $debug = false, bool $dispatchJobs = true): array
+    public function processPhoto(string $imagePath, ?string $proofNumberOverride = null, bool $debug = false, bool $dispatchJobs = true, bool $bypassResolver = false): array
     {
-        // Normalize the path and remove leading slash if present
         $imagePath = $this->pathResolver->normalizePath($imagePath);
 
+        $parts = explode('/', $imagePath, 3);
+        if (count($parts) < 3) {
+            throw new Exception("Invalid image path (expected show/class/filename): {$imagePath}");
+        }
+        [$show, $class] = [$parts[0], $parts[1]];
+
+        if ($bypassResolver) {
+            if ($proofNumberOverride === null) {
+                throw new Exception('bypassResolver requires an explicit proofNumberOverride.');
+            }
+
+            return $this->runImport($imagePath, $proofNumberOverride, $debug, $dispatchJobs, plan: null);
+        }
+
+        $plan = app(PhotoImportIdentityResolver::class)->resolve($imagePath, $show, $class);
+
+        if ($plan->requiresReview()) {
+            $issue = app(PhotoImportIssueRecorder::class)->record($plan, $show, $class);
+
+            return [
+                'photo' => null,
+                'plan' => $plan,
+                'issue' => $issue,
+                'proofDestPath' => null,
+                'webImagesPath' => null,
+                'highresImagesPath' => null,
+            ];
+        }
+
+        if ($plan->isIdempotent()) {
+            $photo = $this->handleIdempotentRetry($plan, $debug);
+
+            return [
+                'photo' => $photo,
+                'plan' => $plan,
+                'issue' => null,
+                'proofDestPath' => null,
+                'webImagesPath' => null,
+                'highresImagesPath' => null,
+            ];
+        }
+
+        // Genuinely new file: allocate proof number only now.
+        $finalProofNumber = $proofNumberOverride
+            ?? $plan->intendedProofNumber
+            ?? Show::find($show)?->getNextProofNumber();
+
+        if ($finalProofNumber === null) {
+            throw new Exception("Unable to determine proof number for import: {$imagePath}");
+        }
+
+        return $this->runImport($imagePath, $finalProofNumber, $debug, $dispatchJobs, plan: $plan);
+    }
+
+    private function runImport(string $imagePath, string $finalProofNumber, bool $debug, bool $dispatchJobs, ?PhotoImportPlan $plan): array
+    {
         $imageObj = new Image($imagePath, $this->pathResolver);
-        $photo = $imageObj->processImage($proofNumber, $debug);
+        $photo = $imageObj->processImage($finalProofNumber, $debug);
 
         $show_class = \App\Models\ShowClass::find($imageObj->show.'_'.$imageObj->class);
         $proofDestPath = $show_class->proofs_path;
         $webImagesPath = $show_class->web_images_path;
         $highresImagesPath = $show_class->highres_images_path;
 
-        // Dispatch jobs for generating thumbnails, web images, and highres images
         if ($dispatchJobs) {
-            // \Log::debug('Queueing GenerateThumbnails job for photo_id: '.$photo->id);
             GenerateThumbnails::dispatch($photo->id, $proofDestPath)->onQueue('thumbnails');
-            // \Log::debug('Queueing GenerateWebImage job for photo_id: '.$photo->id);
             GenerateWebImage::dispatch($photo->id, $webImagesPath)->onQueue('thumbnails');
-            // \Log::debug('Queueing GenerateHighresImage job for photo_id: '.$photo->id);
             GenerateHighresImage::dispatch($photo->id, $highresImagesPath)->onQueue('thumbnails');
         }
 
         return [
             'photo' => $photo,
+            'plan' => $plan,
+            'issue' => null,
             'proofDestPath' => $proofDestPath,
             'webImagesPath' => $webImagesPath,
             'highresImagesPath' => $highresImagesPath,
         ];
+    }
+
+    /**
+     * Same image already imported with the same proof number in the same class:
+     * refresh archive metadata if drifted, ensure original_filename is set, bury the source.
+     */
+    private function handleIdempotentRetry(PhotoImportPlan $plan, bool $debug): Photo
+    {
+        $photo = $plan->existingByContent;
+
+        $archiveService = app(PhotoArchiveService::class);
+        if ($archiveService->enabled()) {
+            $audit = $archiveService->auditPhoto($photo);
+            if (in_array($audit['status'], ['archive_missing', 'metadata_stale', 'archive_mismatched'], true)) {
+                $archiveService->repairPhoto($photo);
+                $photo->refresh();
+            }
+        }
+
+        if (empty($photo->original_filename)) {
+            $photo->forceFill(['original_filename' => $plan->originalFilename])->save();
+        }
+
+        app(SafeFileMover::class)->bury(
+            disk: 'fullsize',
+            path: $plan->sourcePath,
+            reason: SafeFileMover::REASON_POST_IMPORT_SOURCE,
+            context: [
+                'sha1' => $plan->sha1,
+                'size' => $plan->size,
+                'photo_id' => $photo->id,
+                'original_filename' => $plan->originalFilename,
+                'idempotent_retry' => true,
+            ],
+        );
+
+        if ($debug) {
+            \Illuminate\Support\Facades\Log::debug(
+                'Idempotent re-import; buried duplicate source; '.$plan->sourcePath.' (photo '.$photo->id.')'
+            );
+        }
+
+        return $photo;
     }
 
     /**

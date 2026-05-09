@@ -8,6 +8,7 @@ use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
+use App\Services\PhotoArchiveService;
 use App\Services\Transport\RsyncCommandBuilder;
 use App\Traits\HasPhotosTrait;
 use Carbon\Carbon;
@@ -212,7 +213,8 @@ class ShowClass extends Model
         $queued = [];
         /** @var FileAttributes $image */
         foreach ($images as $image) {
-            ImportPhoto::dispatch($image->path(), $this->show->getNextProofNumber())->onQueue('processing');
+            // No pre-allocated proof number — the resolver inside the job decides.
+            ImportPhoto::dispatch($image->path())->onQueue('processing');
 
             if (isset($photo->is_new) && $photo->is_new === true) {
                 $queued[] = $photo;
@@ -351,12 +353,15 @@ class ShowClass extends Model
         // Copy any images that are in the originals folder to the base class folder
         $originals_path = $this->originals_path;
         if (Storage::disk('fullsize')->exists($originals_path)) {
+            $archiveService = app(PhotoArchiveService::class);
             $contents = Utility::getContentsOfPath($originals_path);
             $photos = $contents['images'] ?? [];
             Log::debug('Found '.count($photos).' originals to copy');
             foreach ($photos as $photo) {
                 /** @var FileAttributes $photo */
                 $file_path = $photo->path();
+                $proof_number = pathinfo($file_path, PATHINFO_FILENAME);
+                $photo_record = $this->photos()->where('proof_number', $proof_number)->first();
                 $dest_path = str_replace('/originals', '', $file_path);
                 // Move the file
                 Storage::disk('fullsize')->move($file_path, $dest_path);
@@ -370,6 +375,10 @@ class ShowClass extends Model
                 // Rename the file
                 Storage::disk('fullsize')->move($dest_path, $new_file_path);
                 Log::debug(' -> Renamed original: '.$dest_path.' to '.$new_file_path);
+
+                if ($photo_record) {
+                    $archiveService->movePhotoArchiveToFilename($photo_record, basename($new_file_path));
+                }
             }
         }
 

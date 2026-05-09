@@ -15,25 +15,25 @@ class ImportPhoto implements ShouldQueue
 
     public string $image_path;
 
-    public string $proof_number;
+    public ?string $proof_number_override;
 
     /**
-     * Create a new job instance.
+     * Create a new job instance. Pass a proof number only when the caller has already
+     * decided which number to use (e.g. tests). Otherwise the resolver decides whether
+     * to allocate one based on the source file's identity.
      */
-    public function __construct(string $image_path, string $proof_number)
+    public function __construct(string $image_path, ?string $proof_number_override = null)
     {
         $this->image_path = $image_path;
-        $this->proof_number = $proof_number;
+        $this->proof_number_override = $proof_number_override;
     }
 
     /**
-     * Execute the job.
-     *
      * @throws \Exception
      */
     public function handle(): void
     {
         $photoService = app(PhotoService::class);
-        $photoService->processPhoto($this->image_path, $this->proof_number, false);
+        $photoService->processPhoto($this->image_path, $this->proof_number_override, false);
     }
 }

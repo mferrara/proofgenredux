@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\Photo\ImportPhoto;
 use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Jobs\ShowClass\UploadProofs;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -62,26 +61,6 @@ class ImageProcessingWorkflowTest extends TestCase
         // Use fake for job dispatching
         Bus::fake();
 
-        // Create a mock for Utility class
-        $mockUtility = Mockery::mock('alias:App\Proofgen\Utility');
-
-        // Set up proper mock objects
-        $mockImage1 = Mockery::mock();
-        $mockImage1->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/image1.jpg");
-
-        $mockImage2 = Mockery::mock();
-        $mockImage2->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/image2.jpg");
-
-        $mockContents = [
-            'images' => [$mockImage1, $mockImage2],
-        ];
-
-        $mockUtility->shouldReceive('getContentsOfPath')
-            ->andReturn($mockContents);
-
-        $mockUtility->shouldReceive('generateProofNumbers')
-            ->andReturn(['TEST001', 'TEST002']);
-
         // Create test images for the ImportPhoto job
         Storage::disk('fullsize')->put("/{$this->show}/{$this->class}/image1.jpg", 'test content');
 
@@ -90,7 +69,7 @@ class ImageProcessingWorkflowTest extends TestCase
 
         // Verify ImportPhotos job was dispatched
         Bus::assertDispatched(ImportClassPhotos::class, function ($job) {
-            return $job->show === $this->show && $job->class === $this->class;
+            return $job->show_id === $this->show && $job->class === $this->class;
         });
 
         // 2. Dispatch UploadProofs job directly

@@ -232,7 +232,8 @@ class ShowClass
         $processed = 0;
         if ($images) {
             foreach ($images as $image) {
-                ImportPhoto::dispatch($image->path(), $this->getNextProofNumber())->onQueue('processing');
+                // No pre-allocated proof number — the resolver inside the job decides.
+                ImportPhoto::dispatch($image->path())->onQueue('processing');
                 $processed++;
             }
         }
@@ -252,9 +253,10 @@ class ShowClass
      */
     public function processImage(string $image_path): void
     {
-        $image_obj = new Image($image_path, $this->pathResolver);
-        $proof_numbers = Utility::generateProofNumbers($this->show_folder, 1);
-        $image_obj->processImage(array_shift($proof_numbers), false);
+        // Route through PhotoService so the resolver runs and decides whether to allocate
+        // a proof number. Bypassing it would re-introduce the "burn a proof number on a
+        // duplicate file" bug.
+        app(\App\Services\PhotoService::class)->processPhoto($image_path, null, false, false);
     }
 
     /**
