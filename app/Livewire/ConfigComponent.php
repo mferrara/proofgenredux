@@ -8,6 +8,7 @@ use App\Proofgen\Image;
 use App\Services\CoreImageDaemonService;
 use App\Services\HorizonService;
 use App\Services\ImageDiskConfigurator;
+use App\Services\NativeFilePickerService;
 use App\Services\SampleImagesService;
 use App\Services\SwiftCompatibilityService;
 use App\Services\SwiftCompilationService;
@@ -319,6 +320,89 @@ class ConfigComponent extends Component
 
         if (! $config) {
             $this->returnError('Configuration '.$key.' not found.');
+        }
+    }
+
+    /**
+     * Open the native macOS Finder folder picker and write the chosen path into
+     * the config value bound at $configId. The dialog opens to the current value
+     * if it points at an existing directory.
+     */
+    public function pickFolderForConfig(int $configId): void
+    {
+        $config = Configuration::find($configId);
+        if (! $config) {
+            return;
+        }
+        $current = (string) ($this->configValues[$configId] ?? '');
+        try {
+            $picked = app(NativeFilePickerService::class)->pickFolder(
+                initialPath: $current !== '' && is_dir($current) ? $current : null,
+                prompt: $config->label ? 'Select '.$config->label : null,
+            );
+        } catch (\Throwable $e) {
+            Flux::toast(text: 'Folder picker failed: '.$e->getMessage(), heading: 'Picker error', variant: 'danger');
+
+            return;
+        }
+        if ($picked !== null) {
+            $this->configValues[$configId] = $picked;
+        }
+    }
+
+    /**
+     * Same as pickFolderForConfig but for files. Used by sftp.private_key,
+     * php_binary_path, and any other type=path config whose value is a file
+     * rather than a directory.
+     */
+    /**
+     * Classify a `type=path` config as a file picker vs folder picker so the UI
+     * can render the right "Browse…" affordance. We use key-name heuristics
+     * because the Configuration table only has a single `path` type. Anything
+     * else falls through to "folder" (the safer default for our use cases).
+     */
+    public function pathPickerKindFor(string $key): string
+    {
+        if (str_contains($key, 'private_key') || str_ends_with($key, '_binary_path')) {
+            return 'file';
+        }
+
+        return 'folder';
+    }
+
+    /**
+     * Heuristic: does this `type=string` config key look like a path? Used to
+     * widen + mono-font the input even though we can't offer a native picker
+     * (these are remote ferraraphoto-server paths, not local).
+     */
+    public function isRemotePathLike(string $key): bool
+    {
+        return str_contains($key, 'sftp.') && (
+            str_ends_with($key, '_path')
+            || $key === 'sftp.path'
+        );
+    }
+
+    public function pickFileForConfig(int $configId, ?array $ofType = null): void
+    {
+        $config = Configuration::find($configId);
+        if (! $config) {
+            return;
+        }
+        $current = (string) ($this->configValues[$configId] ?? '');
+        try {
+            $picked = app(NativeFilePickerService::class)->pickFile(
+                initialPath: $current !== '' && is_file($current) ? dirname($current) : null,
+                prompt: $config->label ? 'Select '.$config->label : null,
+                ofType: $ofType,
+            );
+        } catch (\Throwable $e) {
+            Flux::toast(text: 'File picker failed: '.$e->getMessage(), heading: 'Picker error', variant: 'danger');
+
+            return;
+        }
+        if ($picked !== null) {
+            $this->configValues[$configId] = $picked;
         }
     }
 

@@ -301,14 +301,55 @@
                                             wire:key="{{ $config->key }}-switch"
                                             :label="$config->value ? 'Enabled' : 'Disabled'"
                                         />
+                                    @elseif($config->type === 'path')
+                                        @php $pickerKind = $this->pathPickerKindFor($config->key); @endphp
+                                        <div class="flex items-stretch gap-2 max-w-2xl">
+                                            <flux:input
+                                                type="text"
+                                                wire:model.defer="configValues.{{ $config->id }}"
+                                                wire:key="{{ $config->key }}-input"
+                                                wire:dirty.class="!border-amber-400 dark:!border-amber-500"
+                                                class="font-mono !text-sm flex-1"
+                                                placeholder="{{ $pickerKind === 'file' ? '/path/to/file' : '/path/to/folder' }}"
+                                            />
+                                            @if($pickerKind === 'folder')
+                                                <flux:button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    icon="folder-open"
+                                                    wire:click="pickFolderForConfig({{ $config->id }})"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="pickFolderForConfig({{ $config->id }})"
+                                                    title="Browse for folder…"
+                                                >Browse…</flux:button>
+                                            @else
+                                                <flux:button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    icon="document"
+                                                    wire:click="pickFileForConfig({{ $config->id }})"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="pickFileForConfig({{ $config->id }})"
+                                                    title="Browse for file…"
+                                                >Browse…</flux:button>
+                                            @endif
+                                        </div>
+                                        @error('configValues.'.$config->id)
+                                            <flux:error class="mt-1">{{ $message }}</flux:error>
+                                        @enderror
                                     @else
+                                        @php $isRemotePath = $this->isRemotePathLike($config->key); @endphp
                                         <flux:input
                                             type="text"
                                             wire:model.defer="configValues.{{ $config->id }}"
                                             wire:key="{{ $config->key }}-input"
                                             wire:dirty.class="!border-amber-400 dark:!border-amber-500"
-                                            class="max-w-md"
+                                            class="{{ $isRemotePath ? 'font-mono !text-sm max-w-2xl' : 'max-w-md' }}"
+                                            :placeholder="$isRemotePath ? '/home/forge/host/path' : null"
                                         />
+                                        @if($isRemotePath)
+                                            <flux:text class="!text-xs mt-1 text-zinc-500">Remote path on the ferraraphoto host — can't be browsed locally.</flux:text>
+                                        @endif
                                         @error('configValues.'.$config->id)
                                             <flux:error class="mt-1">{{ $message }}</flux:error>
                                         @enderror
