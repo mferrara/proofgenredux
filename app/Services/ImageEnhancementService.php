@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\Encoders\JpegEncoder;
 use Intervention\Image\Image as InterventionImage;
 use Intervention\Image\ImageManager;
 
@@ -14,7 +16,7 @@ class ImageEnhancementService
 
     public function __construct()
     {
-        $this->manager = ImageManager::gd();
+        $this->manager = new ImageManager(GdDriver::class);
         $this->imagickAvailable = extension_loaded('imagick') && class_exists('Imagick');
     }
 
@@ -27,7 +29,7 @@ class ImageEnhancementService
      */
     public function enhance(string $imagePath, string $method, array $parameters = []): InterventionImage
     {
-        $image = $this->manager->read($imagePath);
+        $image = $this->manager->decodePath($imagePath);
 
         switch ($method) {
             case 'basic_auto_levels':
@@ -58,7 +60,7 @@ class ImageEnhancementService
         if ($this->imagickAvailable) {
             // Create a temporary file to work with Imagick
             $tempPath = tempnam(sys_get_temp_dir(), 'enhance_');
-            $image->save($tempPath, 100, 'jpg');
+            $image->encode(new JpegEncoder(quality: 100))->save($tempPath);
 
             try {
                 $imagick = new \Imagick($tempPath);
@@ -66,7 +68,7 @@ class ImageEnhancementService
                 $imagick->writeImage($tempPath);
                 $imagick->destroy();
 
-                $image = $this->manager->read($tempPath);
+                $image = $this->manager->decodePath($tempPath);
             } catch (\Exception $e) {
                 Log::error('ImageMagick auto-levels failed: '.$e->getMessage());
             } finally {
@@ -91,7 +93,7 @@ class ImageEnhancementService
 
         // Create temporary file for GD manipulation
         $tempPath = tempnam(sys_get_temp_dir(), 'enhance_');
-        $image->save($tempPath, 100, 'jpg');
+        $image->encode(new JpegEncoder(quality: 100))->save($tempPath);
 
         $sourceImage = imagecreatefromjpeg($tempPath);
 
@@ -162,7 +164,7 @@ class ImageEnhancementService
 
         imagejpeg($destImage, $tempPath, 100);
 
-        $image = $this->manager->read($tempPath);
+        $image = $this->manager->decodePath($tempPath);
         unlink($tempPath);
 
         return $image;
@@ -175,7 +177,7 @@ class ImageEnhancementService
     {
         if ($this->imagickAvailable) {
             $tempPath = tempnam(sys_get_temp_dir(), 'enhance_');
-            $image->save($tempPath, 100, 'jpg');
+            $image->encode(new JpegEncoder(quality: 100))->save($tempPath);
 
             try {
                 $imagick = new \Imagick($tempPath);
@@ -198,7 +200,7 @@ class ImageEnhancementService
                 $imagick->writeImage($tempPath);
                 $imagick->destroy();
 
-                $image = $this->manager->read($tempPath);
+                $image = $this->manager->decodePath($tempPath);
             } catch (\Exception $e) {
                 Log::error('ImageMagick percentile clipping failed: '.$e->getMessage());
             } finally {
@@ -219,7 +221,7 @@ class ImageEnhancementService
 
         if ($this->imagickAvailable) {
             $tempPath = tempnam(sys_get_temp_dir(), 'enhance_');
-            $image->save($tempPath, 100, 'jpg');
+            $image->encode(new JpegEncoder(quality: 100))->save($tempPath);
 
             try {
                 $imagick = new \Imagick($tempPath);
@@ -230,7 +232,7 @@ class ImageEnhancementService
                 $imagick->writeImage($tempPath);
                 $imagick->destroy();
 
-                $image = $this->manager->read($tempPath);
+                $image = $this->manager->decodePath($tempPath);
             } catch (\Exception $e) {
                 Log::error('ImageMagick S-curve failed: '.$e->getMessage());
             } finally {
@@ -248,7 +250,7 @@ class ImageEnhancementService
     {
         if ($this->imagickAvailable) {
             $tempPath = tempnam(sys_get_temp_dir(), 'enhance_');
-            $image->save($tempPath, 100, 'jpg');
+            $image->encode(new JpegEncoder(quality: 100))->save($tempPath);
 
             try {
                 $imagick = new \Imagick($tempPath);
@@ -265,7 +267,7 @@ class ImageEnhancementService
                 $imagick->writeImage($tempPath);
                 $imagick->destroy();
 
-                $image = $this->manager->read($tempPath);
+                $image = $this->manager->decodePath($tempPath);
             } catch (\Exception $e) {
                 Log::error('ImageMagick CLAHE failed: '.$e->getMessage());
             } finally {
@@ -283,7 +285,7 @@ class ImageEnhancementService
     {
         if ($this->imagickAvailable) {
             $tempPath = tempnam(sys_get_temp_dir(), 'enhance_');
-            $image->save($tempPath, 100, 'jpg');
+            $image->encode(new JpegEncoder(quality: 100))->save($tempPath);
 
             try {
                 $imagick = new \Imagick($tempPath);
@@ -318,7 +320,7 @@ class ImageEnhancementService
                 $imagick->writeImage($tempPath);
                 $imagick->destroy();
 
-                $image = $this->manager->read($tempPath);
+                $image = $this->manager->decodePath($tempPath);
             } catch (\Exception $e) {
                 Log::error('ImageMagick smart indoor enhancement failed: '.$e->getMessage());
             } finally {

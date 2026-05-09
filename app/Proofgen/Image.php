@@ -9,6 +9,7 @@ use App\Services\PhotoArchiveService;
 use App\Services\SafeFileMover;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
 use Intervention\Image\ImageManager;
 use League\Flysystem\UnableToReadFile;
 
@@ -250,7 +251,7 @@ class Image
             throw new \Exception("Image file not found at: {$full_system_path}");
         }
 
-        $manager = ImageManager::gd();
+        $manager = new ImageManager(GdDriver::class);
 
         // TODO: The previous version of proofgen used an Intervention/Image method "orientate" to auto-rotate images
         // TODO: based on their exif data. That method is gone, not sure if it's automatically done or just not supported
@@ -258,7 +259,7 @@ class Image
         // TODO: (3/30/2025) - Turns out, we know how this works now - the 'orientation' value in the exif data
         // determines if the image is rotated or not. 1 = normal, 3 = 180 degrees, 6 = 90 degrees, 8 = 270 degrees
         // But since we haven't had to change anything here this is likely handled automatically.
-        // $image = $manager->read($full_size_image_path)->orientate();
+        // $image = $manager->decodePath($full_size_image_path)->orientate();
 
         // Check if enhancement is enabled
         $enhancementEnabled = config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_web');
@@ -269,7 +270,7 @@ class Image
             $enhancementService = EnhancementServiceFactory::getService('web images');
             $image = $enhancementService->enhance($full_system_path, $enhancementMethod);
         } else {
-            $image = $manager->read($full_system_path);
+            $image = $manager->decodePath($full_system_path);
         }
 
         $web_suf = config('proofgen.web_images.suffix');
@@ -279,12 +280,12 @@ class Image
 
         // Save smaller copy of the image that we'll work with
         $image->scale(config('proofgen.web_images.width'), config('proofgen.web_images.height'))
-            ->save($web_thumb_path, config('proofgen.web_images.quality'));
+            ->save($web_thumb_path, quality: (int) config('proofgen.web_images.quality'));
         unset($image);
 
         // Add the watermark/border/whatever it is
         // Add watermark
-        $image = $manager->read($web_thumb_path);
+        $image = $manager->decodePath($web_thumb_path);
         $watermark = imagecreatefrompng(storage_path().'/watermarks/web-image-watermark-2.png');
 
         $average_color = self::determineAverageColor($web_thumb_path);
@@ -293,7 +294,7 @@ class Image
             imagefilter($watermark, IMG_FILTER_NEGATE);
         }
 
-        $image->place($watermark, 'bottom', 0, 60)->save();
+        $image->insert($watermark, x: 0, y: 60, alignment: 'bottom')->save();
 
         unset($image);
 
@@ -324,7 +325,7 @@ class Image
         $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
         $highres_dest_system_path = $pathResolver->getAbsolutePath($highres_dest_path, $base_path);
 
-        $manager = ImageManager::gd();
+        $manager = new ImageManager(GdDriver::class);
 
         // Check if enhancement is enabled
         $enhancementEnabled = config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_highres');
@@ -335,7 +336,7 @@ class Image
             $enhancementService = EnhancementServiceFactory::getService('highres images');
             $image = $enhancementService->enhance($full_system_path, $enhancementMethod);
         } else {
-            $image = $manager->read($full_system_path);
+            $image = $manager->decodePath($full_system_path);
         }
 
         $highres_suf = config('proofgen.highres_images.suffix');
@@ -345,12 +346,12 @@ class Image
 
         // Save smaller copy of the image that we'll work with
         $image->scale(config('proofgen.highres_images.width'), config('proofgen.highres_images.height'))
-            ->save($highres_thumb_path, config('proofgen.highres_images.quality'));
+            ->save($highres_thumb_path, quality: (int) config('proofgen.highres_images.quality'));
         unset($image);
 
         // Add the watermark/border/whatever it is
         // Add watermark
-        $image = $manager->read($highres_thumb_path);
+        $image = $manager->decodePath($highres_thumb_path);
         $watermark = imagecreatefrompng(storage_path().'/watermarks/web-image-watermark-2.png');
 
         $average_color = self::determineAverageColor($highres_thumb_path);
@@ -359,7 +360,7 @@ class Image
             imagefilter($watermark, IMG_FILTER_NEGATE);
         }
 
-        $image->place($watermark, 'bottom', 0, 60)->save();
+        $image->insert($watermark, x: 0, y: 60, alignment: 'bottom')->save();
 
         unset($image);
 
@@ -451,12 +452,12 @@ class Image
             throw new UnableToReadFile('File not found: '.$full_size_image_path);
         }
 
-        $manager = ImageManager::gd();
+        $manager = new ImageManager(GdDriver::class);
 
         // TODO: The previous version of proofgen used an Intervention/Image method "orientate" to auto-rotate images
         // TODO: based on their exif data. That method is gone, not sure if it's automatically done or just not supported
         // TODO: anymore. We'll see if it causes problems.
-        // $image = $manager->read($full_size_image_path)->orientate();
+        // $image = $manager->decodePath($full_size_image_path)->orientate();
 
         // Use PathResolver.getAbsolutePath to get the correct full system path
         $full_system_path = $pathResolver->getAbsolutePath($full_size_image_path, $base_path);
@@ -475,7 +476,7 @@ class Image
             $enhancementService = EnhancementServiceFactory::getService('thumbnails');
             $image = $enhancementService->enhance($full_system_path, $enhancementMethod);
         } else {
-            $image = $manager->read($full_system_path);
+            $image = $manager->decodePath($full_system_path);
         }
 
         $lrg_suf = config('proofgen.thumbnails.large.suffix');
@@ -489,34 +490,34 @@ class Image
 
         // Save small thumbnail
         $image->scale(config('proofgen.thumbnails.small.width'), config('proofgen.thumbnails.small.height'))
-            ->save($small_thumb_path, config('proofgen.thumbnails.small.quality'));
+            ->save($small_thumb_path, quality: (int) config('proofgen.thumbnails.small.quality'));
         unset($image);
 
         // If WATERMARK_PROOFS is true..
         if ($do_we_watermark) {
             // Add watermark
-            $image = $manager->read($small_thumb_path);
+            $image = $manager->decodePath($small_thumb_path);
             $watermark = self::watermarkSmallProof($image_filename);
-            $image->place($watermark, 'bottom-left', 10, 10)->save();
+            $image->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')->save();
 
             unset($image);
         }
 
         // Save large thumbnail
-        $image = $manager->read($full_system_path);
+        $image = $manager->decodePath($full_system_path);
         $image->scale(config('proofgen.thumbnails.large.width'), config('proofgen.thumbnails.large.height'))
-            ->save($large_thumb_path, config('proofgen.thumbnails.large.quality'));
+            ->save($large_thumb_path, quality: (int) config('proofgen.thumbnails.large.quality'));
         unset($image);
 
         // If WATERMARK_PROOFS is true..
         if ($do_we_watermark) {
             // Add watermark
-            $image = $manager->read($large_thumb_path);
+            $image = $manager->decodePath($large_thumb_path);
 
             if ($image->width() > $image->height()) {
                 $text = 'Proof# '.$image_filename.' - Illegal to use - Ferrara Photography';
                 $watermark = self::watermarkLargeProof($text, $image->width());
-                $image->place($watermark, 'center')->save();
+                $image->insert($watermark, alignment: 'center')->save();
 
             } else {
                 $watermark_top = self::watermarkLargeProof('Proof# '.$image_filename.' - Proof# '.$image_filename,
@@ -528,9 +529,8 @@ class Image
                 $bottom_offset = round($image->height() * 0.1);
 
                 $image
-                    // ->insert($watermark_top, 'top', 0, $top_offset)
-                    ->place($watermark_top, 'center')
-                    ->place($watermark_bot, 'bottom', 0, $bottom_offset)
+                    ->insert($watermark_top, alignment: 'center')
+                    ->insert($watermark_bot, x: 0, y: $bottom_offset, alignment: 'bottom')
                     ->save();
 
             }

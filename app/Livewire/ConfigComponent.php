@@ -17,6 +17,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
 use Intervention\Image\ImageManager;
 use Livewire\Component;
 
@@ -943,7 +944,7 @@ class ConfigComponent extends Component
         // ]);
 
         $startTime = microtime(true);
-        $manager = ImageManager::gd();
+        $manager = new ImageManager(GdDriver::class);
         $enhancementInfo = null;
 
         // Check if enhancement is enabled and should be applied to this image type
@@ -1028,14 +1029,14 @@ class ConfigComponent extends Component
             } catch (\Exception $e) {
                 Log::error('Enhancement service failed in ConfigComponent preview: '.$e->getMessage());
                 // Fall back to reading without enhancement
-                $image = $manager->read($sourcePath);
+                $image = $manager->decodePath($sourcePath);
                 $enhancementInfo = [
                     'enabled' => false,
                     'error' => 'Enhancement failed: '.$e->getMessage(),
                 ];
             }
         } else {
-            $image = $manager->read($sourcePath);
+            $image = $manager->decodePath($sourcePath);
         }
 
         // Get the temporary values based on type
@@ -1055,7 +1056,7 @@ class ConfigComponent extends Component
 
         // Scale and save as JPEG with quality
         $image->scale($width, $height)
-            ->toJpeg($quality)
+
             ->save($destPath);
 
         // Apply watermark if enabled and applicable
@@ -1072,11 +1073,11 @@ class ConfigComponent extends Component
         // If enhancement is enabled and we need unenhanced version, create it too
         if ($generateUnenhanced && $enhancementEnabled) {
             // Generate unenhanced version
-            $imageUnenhanced = $manager->read($sourcePath);
+            $imageUnenhanced = $manager->decodePath($sourcePath);
             $unenhancedPath = str_replace('_preview_', '_preview_unenhanced_', $destPath);
 
             $imageUnenhanced->scale($width, $height)
-                ->toJpeg($quality)
+
                 ->save($unenhancedPath);
 
             // Apply watermark to unenhanced version too
@@ -1332,7 +1333,7 @@ class ConfigComponent extends Component
      */
     private function applyWatermarkToPreview(string $imagePath, string $size, ImageManager $manager): void
     {
-        $image = $manager->read($imagePath);
+        $image = $manager->decodePath($imagePath);
 
         // Get original filename for watermark text
         $originalFilename = pathinfo($this->sampleImagePath, PATHINFO_FILENAME);
@@ -1340,14 +1341,14 @@ class ConfigComponent extends Component
         if ($size === 'small') {
             // Small thumbnail watermark
             $watermark = Image::watermarkSmallProof($originalFilename);
-            $image->place($watermark, 'bottom-left', 10, 10)->save();
+            $image->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')->save();
         } elseif ($size === 'large') {
             // Large thumbnail watermark
             if ($image->width() > $image->height()) {
                 // Landscape orientation
                 $text = 'Proof# '.$originalFilename.' - Illegal to use - Ferrara Photography';
                 $watermark = Image::watermarkLargeProof($text, $image->width());
-                $image->place($watermark, 'center')->save();
+                $image->insert($watermark, alignment: 'center')->save();
             } else {
                 // Portrait orientation - two watermarks
                 $watermark_top = Image::watermarkLargeProof(
@@ -1361,8 +1362,8 @@ class ConfigComponent extends Component
 
                 $bottom_offset = round($image->height() * 0.1);
 
-                $image->place($watermark_top, 'center')
-                    ->place($watermark_bot, 'bottom', 0, $bottom_offset)
+                $image->insert($watermark_top, alignment: 'center')
+                    ->insert($watermark_bot, x: 0, y: (int) $bottom_offset, alignment: 'bottom')
                     ->save();
 
             }
@@ -1374,7 +1375,7 @@ class ConfigComponent extends Component
      */
     private function applyWebImageWatermark(string $imagePath, ImageManager $manager): void
     {
-        $image = $manager->read($imagePath);
+        $image = $manager->decodePath($imagePath);
         $watermarkPath = storage_path('watermarks/web-image-watermark-2.png');
 
         if (! file_exists($watermarkPath)) {
@@ -1399,7 +1400,7 @@ class ConfigComponent extends Component
         }
 
         // Place watermark at bottom with 60px offset
-        $image->place($watermark, 'bottom', 0, 60)->save();
+        $image->insert($watermark, x: 0, y: 60, alignment: 'bottom')->save();
 
     }
 

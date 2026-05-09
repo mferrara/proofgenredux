@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
 use Intervention\Image\Image as InterventionImage;
 use Intervention\Image\ImageManager;
 
@@ -26,7 +27,7 @@ class CoreImageDaemonService extends ImageEnhancementService
     {
         parent::__construct();
         $this->swiftService = $swiftService;
-        $this->manager = ImageManager::gd();
+        $this->manager = new ImageManager(GdDriver::class);
         $this->coreImageAvailable = false;
 
         // Check if we're on macOS and Swift is compatible
@@ -262,7 +263,7 @@ class CoreImageDaemonService extends ImageEnhancementService
             }
 
             // Load the enhanced image
-            $result = $this->manager->read($tempPath);
+            $result = $this->manager->decodePath($tempPath);
 
             // Clean up
             if (file_exists($tempPath)) {

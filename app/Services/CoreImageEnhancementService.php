@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
 use Intervention\Image\Image as InterventionImage;
 use Intervention\Image\ImageManager;
 use Symfony\Component\Process\Process;
@@ -20,7 +21,7 @@ class CoreImageEnhancementService extends ImageEnhancementService
     public function __construct()
     {
         parent::__construct();
-        $this->manager = ImageManager::gd();
+        $this->manager = new ImageManager(GdDriver::class);
         $this->coreImageAvailable = false;
 
         // Path to Swift tool
@@ -129,7 +130,7 @@ class CoreImageEnhancementService extends ImageEnhancementService
             Log::debug("Core Image {$method} processing time: {$processingTime}s");
 
             // Load the enhanced image
-            $result = $this->manager->read($tempPath);
+            $result = $this->manager->decodePath($tempPath);
 
             // Clean up
             if (file_exists($tempPath)) {
