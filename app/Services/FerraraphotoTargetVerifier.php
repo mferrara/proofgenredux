@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Show;
 use App\Models\ShowClass;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -24,9 +25,34 @@ use Throwable;
  */
 class FerraraphotoTargetVerifier
 {
+    public const CACHE_TTL_SECONDS = 300; // 5 minutes — long enough to collapse a burst of upload jobs, short enough that admin "create show" lands quickly
+
     public function __construct(private ?PathResolver $pathResolver = null)
     {
         $this->pathResolver ??= app(PathResolver::class);
+    }
+
+    /**
+     * Cached verifyClass for the upload jobs. The 5-minute TTL collapses bursts
+     * of class uploads (proofs/web/highres run in chain) into one round-trip per
+     * disk, while still being short enough that an operator who just created a
+     * show on ferraraphoto sees the status flip quickly.
+     */
+    public function verifyClassThrottled(ShowClass|string $showClass): array
+    {
+        $key = $showClass instanceof ShowClass ? $showClass->id : $showClass;
+
+        return Cache::remember(
+            'ferraraphoto_verifier:class:'.$key,
+            self::CACHE_TTL_SECONDS,
+            fn () => $this->verifyClass($showClass),
+        );
+    }
+
+    public function forgetClassCache(ShowClass|string $showClass): void
+    {
+        $key = $showClass instanceof ShowClass ? $showClass->id : $showClass;
+        Cache::forget('ferraraphoto_verifier:class:'.$key);
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Jobs\ShowClass;
 
 use App\Models\ShowClass;
+use App\Services\FerraraphotoTargetVerifier;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -36,11 +37,17 @@ class UploadHighresImages implements ShouldQueue
     public function handle(): void
     {
         $showClass = ShowClass::find($this->show.'_'.$this->class);
+
+        $status = app(FerraraphotoTargetVerifier::class)->verifyClassThrottled($showClass);
+        if (! $status['highres_images']['exists'] && ! $status['highres_images']['error']) {
+            Log::warning('UploadHighresImages: remote highres_images directory does not exist yet for '.$this->show.'/'.$this->class.' — rsync will create it.');
+        }
+
         $highres_uploaded = $showClass->highresImageUploads();
         if (count($highres_uploaded)) {
             Log::info('Uploaded '.count($highres_uploaded).' highres images for '.$this->show.' '.$this->class);
         } else {
-            Log::warning('Upload operation completed but no highres images were uploaded for '.$this->show.' '.$this->class.' - check configuration and rsync output');
+            Log::info('No highres images to upload for '.$this->show.' '.$this->class);
         }
     }
 
@@ -48,5 +55,14 @@ class UploadHighresImages implements ShouldQueue
     {
         Log::debug('UploadHighresImages failed for '.$this->show.' -> '.$this->class);
         Log::debug('UploadHighresImages failed: '.$exception->getMessage().' in '.$exception->getFile().':'.$exception->getLine());
+
+        $verifier = app(FerraraphotoTargetVerifier::class);
+        $verifier->forgetClassCache($this->show.'_'.$this->class);
+        $status = $verifier->verifyClassThrottled($this->show.'_'.$this->class);
+        if ($status['highres_images']['error']) {
+            Log::error('UploadHighresImages likely cause: remote highres_images disk is unreachable. '.$status['highres_images']['error']);
+        } elseif (! $status['highres_images']['exists']) {
+            Log::error('UploadHighresImages likely cause: remote highres_images directory '.$status['highres_images']['path'].' does not exist on the ferraraphoto host.');
+        }
     }
 }
