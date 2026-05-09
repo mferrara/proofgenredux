@@ -41,6 +41,8 @@ class PhotoAuditService
             'duplicate_proof_number_groups' => 0,
             'orphan_originals' => 0,
             'photos_without_original_and_archive' => 0,
+            'ingest_stragglers' => 0,
+            'orphan_quarantine_files' => 0,
         ];
         $findings = [];
 
@@ -89,7 +91,171 @@ class PhotoAuditService
             $findings[] = ['kind' => 'photo_without_original_and_archive'] + $missing;
         }
 
+        foreach ($this->findIngestStragglers($showFilter, $classFilter) as $straggler) {
+            $stats['ingest_stragglers']++;
+            $findings[] = ['kind' => 'ingest_straggler'] + $straggler;
+            $this->recordStragglerIssue($straggler);
+        }
+
+        foreach ($this->findOrphanQuarantineFiles($showFilter, $classFilter) as $orphan) {
+            $stats['orphan_quarantine_files']++;
+            $findings[] = ['kind' => 'orphan_quarantine'] + $orphan;
+            $this->recordOrphanQuarantineIssue($orphan);
+        }
+
         return ['stats' => $stats, 'findings' => $findings];
+    }
+
+    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'cr2', 'cr3', 'nef', 'arw', 'raf', 'orf', 'rw2', 'dng', 'heic'];
+
+    private const SILENTLY_IGNORED_BASENAMES = ['.DS_Store', 'Thumbs.db', 'desktop.ini', '.ds_store'];
+
+    /**
+     * Files in {show}/{class}/ at the top level that aren't pending-import images and
+     * aren't in originals/, _import_conflicts/, _graveyard/, or any other system folder.
+     * Image files are treated as "pending import" — they'll be picked up next discovery
+     * pass — and not flagged. Non-image files are flagged as stragglers.
+     */
+    public function findIngestStragglers(?string $showFilter = null, ?string $classFilter = null): array
+    {
+        $stragglers = [];
+
+        foreach (Storage::disk('fullsize')->allFiles() as $file) {
+            // Top-level only: shape must be {show}/{class}/{file}
+            $parts = explode('/', $file);
+            if (count($parts) !== 3) {
+                continue;
+            }
+            [$show, $class, $basename] = $parts;
+            if (in_array($show, ['_graveyard', 'proofs', 'web_images', 'highres_images'], true)) {
+                continue;
+            }
+            if ($showFilter !== null && $show !== $showFilter) {
+                continue;
+            }
+            if ($classFilter !== null && $class !== $classFilter) {
+                continue;
+            }
+            if (in_array($basename, self::SILENTLY_IGNORED_BASENAMES, true)) {
+                continue;
+            }
+            $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+            if (in_array($extension, self::IMAGE_EXTENSIONS, true)) {
+                // Image still in ingest folder is "pending import" — discovery will pick it up.
+                continue;
+            }
+            $stragglers[] = [
+                'path' => $file,
+                'show' => $show,
+                'class' => $class,
+                'basename' => $basename,
+                'extension' => $extension,
+                'size' => Storage::disk('fullsize')->size($file),
+            ];
+        }
+
+        return $stragglers;
+    }
+
+    /**
+     * Files in {show}/{class}/_import_conflicts/ that don't have a matching open
+     * photo_issues row. Sidecar .json files are skipped. These typically arise when
+     * an issue was resolved but the on-disk quarantine entry wasn't cleaned up
+     * (or vice-versa).
+     */
+    public function findOrphanQuarantineFiles(?string $showFilter = null, ?string $classFilter = null): array
+    {
+        $orphans = [];
+
+        foreach (Storage::disk('fullsize')->allFiles() as $file) {
+            if (! str_contains($file, '/_import_conflicts/')) {
+                continue;
+            }
+            if (str_ends_with($file, '.json')) {
+                continue;
+            }
+            $parts = explode('/', $file);
+            if (count($parts) < 4 || $parts[2] !== '_import_conflicts') {
+                continue;
+            }
+            [$show, $class] = [$parts[0], $parts[1]];
+            if ($showFilter !== null && $show !== $showFilter) {
+                continue;
+            }
+            if ($classFilter !== null && $class !== $classFilter) {
+                continue;
+            }
+
+            $hasMatchingOpenIssue = PhotoIssue::query()
+                ->where('quarantine_path', $file)
+                ->where('status', PhotoIssue::STATUS_OPEN)
+                ->exists();
+            if ($hasMatchingOpenIssue) {
+                continue;
+            }
+
+            $orphans[] = [
+                'path' => $file,
+                'show' => $show,
+                'class' => $class,
+                'basename' => basename($file),
+                'size' => Storage::disk('fullsize')->size($file),
+                'sidecar_exists' => Storage::disk('fullsize')->exists($file.'.json'),
+            ];
+        }
+
+        return $orphans;
+    }
+
+    private function recordStragglerIssue(array $straggler): void
+    {
+        $showClassId = $straggler['show'].'_'.$straggler['class'];
+        $existing = PhotoIssue::query()
+            ->where('issue_type', PhotoIssue::TYPE_INGEST_STRAGGLER)
+            ->where('source_path', $straggler['path'])
+            ->where('status', PhotoIssue::STATUS_OPEN)
+            ->first();
+        if ($existing) {
+            return;
+        }
+        PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_INGEST_STRAGGLER,
+            'show_id' => $straggler['show'],
+            'show_class_id' => $showClassId,
+            'source_path' => $straggler['path'],
+            'incoming_size' => $straggler['size'],
+            'evidence' => [
+                'basename' => $straggler['basename'],
+                'extension' => $straggler['extension'],
+                'note' => 'Non-image file in ingest folder; will not be auto-imported.',
+            ],
+        ]);
+    }
+
+    private function recordOrphanQuarantineIssue(array $orphan): void
+    {
+        $existing = PhotoIssue::query()
+            ->where('issue_type', PhotoIssue::TYPE_ORPHAN_QUARANTINE)
+            ->where('quarantine_path', $orphan['path'])
+            ->where('status', PhotoIssue::STATUS_OPEN)
+            ->first();
+        if ($existing) {
+            return;
+        }
+        PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_ORPHAN_QUARANTINE,
+            'show_id' => $orphan['show'],
+            'show_class_id' => $orphan['show'].'_'.$orphan['class'],
+            'quarantine_path' => $orphan['path'],
+            'incoming_size' => $orphan['size'],
+            'evidence' => [
+                'basename' => $orphan['basename'],
+                'sidecar_exists' => $orphan['sidecar_exists'],
+                'note' => 'Quarantined file with no matching open issue row.',
+            ],
+        ]);
     }
 
     public function auditOnePhoto(Photo $photo, bool $repair): array

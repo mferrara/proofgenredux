@@ -148,6 +148,63 @@ class PhotoAuditServiceTest extends TestCase
         ]);
     }
 
+    public function test_finds_ingest_stragglers_for_non_image_files_in_class_folder(): void
+    {
+        // .DS_Store and image files should be silently ignored / treated as pending.
+        Storage::disk('fullsize')->put('SHOW1/101/.DS_Store', 'mac noise');
+        Storage::disk('fullsize')->put('SHOW1/101/IMG_0099.jpg', 'pending image bytes');
+        // Non-image, non-ignored straggler:
+        Storage::disk('fullsize')->put('SHOW1/101/notes.txt', 'operator left a note');
+        Storage::disk('fullsize')->put('SHOW1/101/proof_sheet.pdf', 'a pdf');
+
+        $result = app(PhotoAuditService::class)->auditAll();
+
+        $this->assertSame(2, $result['stats']['ingest_stragglers']);
+        $stragglers = collect($result['findings'])->where('kind', 'ingest_straggler')->pluck('basename')->all();
+        $this->assertContains('notes.txt', $stragglers);
+        $this->assertContains('proof_sheet.pdf', $stragglers);
+        $this->assertNotContains('.DS_Store', $stragglers);
+        $this->assertNotContains('IMG_0099.jpg', $stragglers);
+
+        $this->assertDatabaseHas('photo_issues', [
+            'issue_type' => PhotoIssue::TYPE_INGEST_STRAGGLER,
+            'source_path' => 'SHOW1/101/notes.txt',
+            'status' => PhotoIssue::STATUS_OPEN,
+        ]);
+    }
+
+    public function test_finds_orphan_quarantine_files_without_open_issue_rows(): void
+    {
+        // Quarantined file with no matching open photo_issues row.
+        Storage::disk('fullsize')->put('SHOW1/101/_import_conflicts/IMG_0001_20260509-001-abc123.jpg', 'orphan');
+        Storage::disk('fullsize')->put('SHOW1/101/_import_conflicts/IMG_0001_20260509-001-abc123.jpg.json', '{}');
+
+        // Quarantined file WITH a matching open issue — should not be flagged.
+        Storage::disk('fullsize')->put('SHOW1/101/_import_conflicts/IMG_0002_20260509-002-def456.jpg', 'covered');
+        PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_DUPLICATE_CONTENT,
+            'show_id' => 'SHOW1',
+            'show_class_id' => 'SHOW1_101',
+            'quarantine_path' => 'SHOW1/101/_import_conflicts/IMG_0002_20260509-002-def456.jpg',
+            'incoming_sha1' => sha1('covered'),
+            'incoming_size' => strlen('covered'),
+        ]);
+
+        $result = app(PhotoAuditService::class)->auditAll();
+
+        $this->assertSame(1, $result['stats']['orphan_quarantine_files']);
+        $orphan = collect($result['findings'])->firstWhere('kind', 'orphan_quarantine');
+        $this->assertSame('IMG_0001_20260509-001-abc123.jpg', $orphan['basename']);
+        $this->assertTrue($orphan['sidecar_exists']);
+
+        $this->assertDatabaseHas('photo_issues', [
+            'issue_type' => PhotoIssue::TYPE_ORPHAN_QUARANTINE,
+            'quarantine_path' => 'SHOW1/101/_import_conflicts/IMG_0001_20260509-001-abc123.jpg',
+            'status' => PhotoIssue::STATUS_OPEN,
+        ]);
+    }
+
     public function test_does_not_recreate_open_issue_for_same_photo_on_subsequent_runs(): void
     {
         Storage::disk('fullsize')->put('SHOW1/101/originals/SHOW1_00060.jpg', 'real bytes');

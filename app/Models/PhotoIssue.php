@@ -33,6 +33,10 @@ class PhotoIssue extends Model
 
     public const TYPE_MISSING_ORIGINAL = 'missing_original';
 
+    public const TYPE_INGEST_STRAGGLER = 'ingest_straggler';
+
+    public const TYPE_ORPHAN_QUARANTINE = 'orphan_quarantine';
+
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
     protected $casts = [
@@ -87,7 +91,9 @@ class PhotoIssue extends Model
             self::TYPE_INVALID_NUMBERED_FILENAME,
             self::TYPE_NEEDS_REVIEW => 'amber',
             self::TYPE_MISSING_ARCHIVE,
-            self::TYPE_ORPHAN_ORIGINAL => 'sky',
+            self::TYPE_ORPHAN_ORIGINAL,
+            self::TYPE_INGEST_STRAGGLER,
+            self::TYPE_ORPHAN_QUARANTINE => 'sky',
             default => 'zinc',
         };
     }

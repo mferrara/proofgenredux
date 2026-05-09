@@ -52,7 +52,9 @@ class AuditPhotoArchivesCommand extends Command
             || $stats['duplicate_sha1_groups'] > 0
             || $stats['duplicate_proof_number_groups'] > 0
             || $stats['orphan_originals'] > 0
-            || $stats['photos_without_original_and_archive'] > 0;
+            || $stats['photos_without_original_and_archive'] > 0
+            || $stats['ingest_stragglers'] > 0
+            || $stats['orphan_quarantine_files'] > 0;
 
         return $hasProblems ? Command::FAILURE : Command::SUCCESS;
     }
@@ -95,6 +97,12 @@ class AuditPhotoArchivesCommand extends Command
         }
         if ($stats['photos_without_original_and_archive'] > 0) {
             $this->warn(sprintf('Photos missing both original AND archive: %d', $stats['photos_without_original_and_archive']));
+        }
+        if ($stats['ingest_stragglers'] > 0) {
+            $this->warn(sprintf('Non-image files in ingest folders (stragglers): %d', $stats['ingest_stragglers']));
+        }
+        if ($stats['orphan_quarantine_files'] > 0) {
+            $this->warn(sprintf('Quarantined files without matching open issues: %d', $stats['orphan_quarantine_files']));
         }
     }
 }
