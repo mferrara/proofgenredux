@@ -35,11 +35,11 @@ class SampleImagesService
     /**
      * Download sample images from S3 bucket
      *
-     * @return bool Success status
+     * @return int Number of files downloaded
      *
      * @throws Exception If download fails
      */
-    public function downloadSampleImages(): bool
+    public function downloadSampleImages(): int
     {
         // Get the S3 disk for sample images
         $s3Disk = Storage::disk('sample_images_bucket');
@@ -72,7 +72,7 @@ class SampleImagesService
 
             Log::info("Successfully downloaded $downloadCount sample images");
 
-            return true;
+            return $downloadCount;
         } catch (Exception $e) {
             Log::error('Failed to download sample images', [
                 'error' => $e->getMessage(),
@@ -232,7 +232,7 @@ class SampleImagesService
             if (! $this->hasSampleImages()) {
                 // If we're missing sample images, try to download them
                 if (config('proofgen.auto_download_sample_images', false)) {
-                    return $this->downloadSampleImages();
+                    return $this->downloadSampleImages() > 0;
                 } else {
                     throw new SampleImagesNotFoundException("Sample images not found. Run 'php artisan proofgen:download-samples' to download them.");
                 }

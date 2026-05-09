@@ -67,8 +67,8 @@ class SampleImagesServiceTest extends TestCase
         // Download the sample images
         $result = $this->sampleImagesService->downloadSampleImages();
 
-        // Verify the result
-        $this->assertTrue($result);
+        // Verify the result — three files were downloaded
+        $this->assertSame(3, $result);
 
         // Verify the files were copied to the local disk
         $this->assertTrue(Storage::disk('sample_images')->exists('show1/class1/test1.jpg'));

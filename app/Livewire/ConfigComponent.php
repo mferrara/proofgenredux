@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Configuration;
 use App\Proofgen\Image;
+use App\Services\SampleImagesService;
 use App\Services\SwiftCompatibilityService;
 use App\Services\UpdateService;
 use Flux\Flux;
@@ -1557,6 +1558,41 @@ class ConfigComponent extends Component
             Flux::toast(
                 text: 'Failed to restart Core Image daemon: '.$e->getMessage(),
                 heading: 'Restart Failed',
+                variant: 'danger',
+                position: 'top right'
+            );
+        }
+    }
+
+    /**
+     * Download sample images from the configured S3 bucket.
+     *
+     * Synchronous on purpose — this is a single-tenant local app and the
+     * operator clicks the button, waits, and gets a toast.
+     */
+    public function downloadSampleImages(SampleImagesService $sampleImagesService): void
+    {
+        try {
+            $count = $sampleImagesService->downloadSampleImages();
+
+            // Refresh the sample image path so previews can pick up newly downloaded files.
+            $this->findSampleImage();
+            if ($this->sampleImagePath) {
+                $this->generateThumbnailPreviews();
+            }
+
+            Flux::toast(
+                text: "Downloaded {$count} sample image".($count === 1 ? '' : 's').'.',
+                heading: 'Sample Images Downloaded',
+                variant: 'success',
+                position: 'top right'
+            );
+        } catch (\Exception $e) {
+            Log::error('Error downloading sample images: '.$e->getMessage());
+
+            Flux::toast(
+                text: 'Failed to download sample images: '.$e->getMessage(),
+                heading: 'Download Failed',
                 variant: 'danger',
                 position: 'top right'
             );

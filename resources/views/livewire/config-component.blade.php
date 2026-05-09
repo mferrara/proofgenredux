@@ -103,17 +103,29 @@
                             Tweak dimensions and quality. Live previews regenerate as you change values — save to persist.
                         </flux:text>
                     </div>
+                    <flux:button
+                        type="button"
+                        variant="ghost"
+                        icon="arrow-down-tray"
+                        wire:click="downloadSampleImages"
+                        wire:loading.attr="disabled"
+                        wire:target="downloadSampleImages"
+                    >
+                        <span wire:loading.remove wire:target="downloadSampleImages">Download Sample Images</span>
+                        <span wire:loading wire:target="downloadSampleImages">Downloading…</span>
+                    </flux:button>
                 </div>
 
                 @if(!$sampleImagePath)
-                    <div class="mb-4 flex gap-3 rounded-lg border border-amber-300/60 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10 px-4 py-3">
-                        <flux:icon name="photo" class="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                        <div class="text-sm">
-                            <div class="font-medium text-amber-900 dark:text-amber-200">No sample image available</div>
-                            <div class="mt-0.5 text-amber-800/90 dark:text-amber-300/80">
-                                Add images to <code class="font-mono text-xs px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20">storage/sample_images</code>
-                                to enable live previews, or run
-                                <code class="font-mono text-xs px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20">php artisan proofgen:download-samples</code>.
+                    <div class="mb-4 flex items-start justify-between gap-4 rounded-lg border border-amber-300/60 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10 px-4 py-3">
+                        <div class="flex gap-3">
+                            <flux:icon name="photo" class="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div class="text-sm">
+                                <div class="font-medium text-amber-900 dark:text-amber-200">No sample image available</div>
+                                <div class="mt-0.5 text-amber-800/90 dark:text-amber-300/80">
+                                    Add images to <code class="font-mono text-xs px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20">storage/sample_images</code>
+                                    or click <span class="font-medium">Download Sample Images</span> above to fetch them from the bucket.
+                                </div>
                             </div>
                         </div>
                     </div>
