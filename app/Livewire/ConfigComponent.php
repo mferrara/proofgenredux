@@ -6,6 +6,7 @@ use App\Helpers\EnhancementServiceFactory;
 use App\Models\Configuration;
 use App\Proofgen\Image;
 use App\Services\CoreImageDaemonService;
+use App\Services\FerraraphotoTargetVerifier;
 use App\Services\HorizonService;
 use App\Services\ImageDiskConfigurator;
 use App\Services\NativeFilePickerService;
@@ -18,6 +19,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver as GdDriver;
 use Intervention\Image\ImageManager;
 use Livewire\Component;
@@ -118,6 +120,19 @@ class ConfigComponent extends Component
     public bool $performingUpdate = false;
 
     public array $updateSteps = [];
+
+    // Website connector panel state
+    public bool $connectorTestRunning = false;
+
+    public ?bool $connectorTestResult = null;
+
+    public string $connectorTestOutput = '';
+
+    public array $connectorPathsFound = [];
+
+    public string $connectorShowToCheck = '';
+
+    public ?array $connectorShowStatus = null;
 
     protected $rules = [
         // We'll build dynamic rules in the save() method
@@ -328,6 +343,55 @@ class ConfigComponent extends Component
      * the config value bound at $configId. The dialog opens to the current value
      * if it points at an existing directory.
      */
+    /**
+     * Test the configured website connector by listing the remote proofs root
+     * directory. Same logic as the standalone /config/server page, embedded
+     * here so operators don't have to leave Settings to verify their config.
+     */
+    public function testConnectorConnection(): void
+    {
+        $this->connectorTestRunning = true;
+        $this->connectorTestOutput = '';
+        $this->connectorPathsFound = [];
+        $this->connectorTestResult = null;
+
+        try {
+            $listing = Storage::disk('remote_proofs')->directories();
+        } catch (\Throwable $e) {
+            $this->connectorTestOutput = 'Connection failed: '.$e->getMessage();
+            $this->connectorTestResult = false;
+            $this->connectorTestRunning = false;
+
+            return;
+        }
+
+        $this->connectorPathsFound = $listing;
+        $this->connectorTestResult = true;
+        $this->connectorTestOutput = count($listing) > 0
+            ? 'Connection successful — '.count($listing).' show '.Str::plural('directory', count($listing)).' found at the proofs root.'
+            : 'Connection successful, but no show directories were found at the proofs root.';
+        $this->connectorTestRunning = false;
+    }
+
+    /**
+     * Run the FerraraphotoTargetVerifier for a specific show id and surface
+     * the per-disk status. Cached results from the verifier are bypassed —
+     * operator-driven check should always reflect "right now."
+     */
+    public function checkConnectorShow(): void
+    {
+        $showId = trim($this->connectorShowToCheck);
+        if ($showId === '') {
+            $this->connectorShowStatus = null;
+
+            return;
+        }
+
+        // verifyShow always hits the remote disks fresh — only verifyClassThrottled
+        // has the 5-min cache — so operator-driven checks always reflect current state.
+        $this->connectorShowStatus = app(FerraraphotoTargetVerifier::class)->verifyShow($showId);
+    }
+
     public function pickFolderForConfig(int $configId): void
     {
         $config = Configuration::find($configId);

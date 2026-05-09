@@ -69,6 +69,7 @@
                             'label' => $categoryLabels[$category] ?? ucfirst($category),
                         ]);
                     }
+                    $navItems->push(['id' => 'connector', 'label' => 'Website Connector']);
                     $navItems->push(['id' => 'services', 'label' => 'Services']);
                 @endphp
                 @foreach($navItems as $item)
@@ -373,6 +374,146 @@
                 </flux:card>
             </section>
         @endforeach
+
+        {{-- Website Connector: ferraraphoto integration health + per-show verifier --}}
+        <section id="connector" data-section class="scroll-mt-20 mb-14">
+            <div class="flex items-end justify-between gap-4 mb-4">
+                <div>
+                    <flux:heading size="lg" level="2">Website Connector</flux:heading>
+                    <flux:text class="!text-sm mt-1 max-w-2xl">
+                        Live health check for the ferraraphoto integration — uses the SFTP credentials configured above. See
+                        <flux:link href="{{ route('server-connection') }}">/config/server</flux:link> for the standalone version.
+                    </flux:text>
+                </div>
+                <flux:badge color="{{ config('proofgen.sftp.driver', 'sftp') === 'local' ? 'amber' : 'sky' }}" size="sm" icon="signal">
+                    {{ strtoupper(config('proofgen.sftp.driver', 'sftp')) }} mode
+                </flux:badge>
+            </div>
+
+            <div class="grid gap-6 md:grid-cols-2">
+                {{-- Connection test --}}
+                <flux:card>
+                    <div class="flex items-center justify-between mb-3">
+                        <flux:heading size="base">Connection</flux:heading>
+                        @if($connectorTestResult === true)
+                            <flux:badge color="emerald" size="sm" icon="check">Healthy</flux:badge>
+                        @elseif($connectorTestResult === false)
+                            <flux:badge color="rose" size="sm" icon="x-mark">Failed</flux:badge>
+                        @endif
+                    </div>
+
+                    <dl class="space-y-1.5 text-sm mb-4">
+                        <div class="flex justify-between gap-3">
+                            <dt class="text-zinc-500 dark:text-zinc-400">Driver</dt>
+                            <dd class="font-mono text-zinc-700 dark:text-zinc-300">{{ config('proofgen.sftp.driver', 'sftp') }}</dd>
+                        </div>
+                        @if(config('proofgen.sftp.driver', 'sftp') !== 'local')
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-zinc-500 dark:text-zinc-400">Host</dt>
+                                <dd class="font-mono text-zinc-700 dark:text-zinc-300 truncate">{{ config('proofgen.sftp.host') ?: '—' }}<span class="text-zinc-400">:{{ config('proofgen.sftp.port', 22) }}</span></dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-zinc-500 dark:text-zinc-400">User</dt>
+                                <dd class="font-mono text-zinc-700 dark:text-zinc-300">{{ config('proofgen.sftp.username') ?: '—' }}</dd>
+                            </div>
+                        @endif
+                        <div class="flex justify-between gap-3">
+                            <dt class="text-zinc-500 dark:text-zinc-400">Proofs root</dt>
+                            <dd class="font-mono !text-xs text-zinc-700 dark:text-zinc-300 truncate" title="{{ config('proofgen.sftp.path') ?: '—' }}">{{ config('proofgen.sftp.path') ?: '—' }}</dd>
+                        </div>
+                    </dl>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <flux:button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            icon="signal"
+                            wire:click="testConnectorConnection"
+                            wire:loading.attr="disabled"
+                            wire:target="testConnectorConnection"
+                        >
+                            <span wire:loading.remove wire:target="testConnectorConnection">Test connection</span>
+                            <span wire:loading wire:target="testConnectorConnection">Testing…</span>
+                        </flux:button>
+                    </div>
+
+                    @if($connectorTestOutput !== '')
+                        <div class="mt-3 text-xs {{ $connectorTestResult ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400' }}">
+                            {{ $connectorTestOutput }}
+                        </div>
+                    @endif
+
+                    @if($connectorTestResult && count($connectorPathsFound) > 0)
+                        <div class="mt-3">
+                            <flux:text class="!text-xs mb-1.5 text-zinc-500 dark:text-zinc-400">Show directories found at proofs root:</flux:text>
+                            <div class="flex flex-wrap gap-1.5">
+                                @foreach($connectorPathsFound as $path)
+                                    <flux:badge color="zinc" size="sm" icon="folder">{{ basename($path) }}</flux:badge>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </flux:card>
+
+                {{-- Per-show verifier --}}
+                <flux:card>
+                    <div class="flex items-center justify-between mb-3">
+                        <flux:heading size="base">Per-show check</flux:heading>
+                    </div>
+
+                    <flux:text class="!text-sm mb-3">
+                        Verify a specific show has all three target directories (<code class="font-mono text-xs">proofs/</code>, <code class="font-mono text-xs">web_images/</code>, <code class="font-mono text-xs">highres_images/</code>) on the ferraraphoto host.
+                    </flux:text>
+
+                    <div class="flex items-stretch gap-2 mb-3">
+                        <flux:input
+                            type="text"
+                            wire:model.defer="connectorShowToCheck"
+                            placeholder="Show id (e.g. 22Buck)"
+                            class="font-mono !text-sm flex-1"
+                        />
+                        <flux:button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            icon="magnifying-glass"
+                            wire:click="checkConnectorShow"
+                            wire:loading.attr="disabled"
+                            wire:target="checkConnectorShow"
+                        >
+                            <span wire:loading.remove wire:target="checkConnectorShow">Check</span>
+                            <span wire:loading wire:target="checkConnectorShow">Checking…</span>
+                        </flux:button>
+                    </div>
+
+                    @if($connectorShowStatus)
+                        <dl class="space-y-1.5">
+                            @foreach (['proofs' => 'Proofs', 'web_images' => 'Web', 'highres_images' => 'Highres'] as $key => $label)
+                                @php $entry = $connectorShowStatus[$key]; @endphp
+                                <div class="flex items-center justify-between gap-2">
+                                    <dt class="text-sm text-zinc-700 dark:text-zinc-300">{{ $label }}</dt>
+                                    <dd>
+                                        @if($entry['error'])
+                                            <flux:badge color="rose" size="sm" title="{{ $entry['error'] }}">unreachable</flux:badge>
+                                        @elseif($entry['exists'])
+                                            <flux:badge color="emerald" size="sm" icon="check">ready</flux:badge>
+                                        @else
+                                            <flux:badge color="amber" size="sm">missing</flux:badge>
+                                        @endif
+                                    </dd>
+                                </div>
+                            @endforeach
+                        </dl>
+                        @if(! $connectorShowStatus['all_exist'] && ! $connectorShowStatus['any_errored'])
+                            <flux:text class="!text-xs mt-3 text-amber-600 dark:text-amber-400">
+                                Missing directories will be created by rsync on first upload, but the ferraraphoto admin won't see this show in the public site until they run "Import Classes."
+                            </flux:text>
+                        @endif
+                    @endif
+                </flux:card>
+            </div>
+        </section>
 
         {{-- Services: Updates + Background workers --}}
         <section id="services" data-section class="scroll-mt-20 mb-14">
