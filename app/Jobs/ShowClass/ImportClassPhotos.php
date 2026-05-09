@@ -41,7 +41,7 @@ class ImportClassPhotos implements ShouldQueue
 
             return;
         }
-        $show_class = $show->classes()->where('id', $show->name.'_'.$this->class)->first();
+        $show_class = $show->classes()->where('id', $show->id.'_'.$this->class)->first();
         if (! $show_class) {
             Log::error(self::class.': ShowClass not found: '.$this->show_id.'_'.$this->class);
 

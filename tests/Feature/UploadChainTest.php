@@ -412,4 +412,30 @@ class UploadChainTest extends TestCase
         $this->assertNull($missingPhoto->proofs_uploaded_at);
         $this->assertNull($missingPhoto->proofs_generated_at);
     }
+
+    /**
+     * Regression: upload parsing previously matched on $this->show->name. If an
+     * operator renamed a Show (display label != id) while files on disk and proof
+     * numbers used the id, uploads silently stopped tracking. Switching to id
+     * fixes this; verify by setting name to something that doesn't match the
+     * filename prefix.
+     */
+    public function test_upload_tracking_works_when_show_display_name_differs_from_id(): void
+    {
+        $this->show->name = 'Buck Show 2024';
+        $this->show->saveQuietly();
+
+        $this->seedPhotoWithProofs('SHOW1_00001');
+        $this->seedPhotoWithProofs('SHOW1_00002');
+
+        \App\Jobs\ShowClass\UploadProofs::dispatchSync($this->show->id, $this->class->name);
+
+        foreach (['SHOW1_00001', 'SHOW1_00002'] as $proofNumber) {
+            $photo = Photo::find('SHOW1_101_'.$proofNumber)->fresh();
+            $this->assertNotNull(
+                $photo->proofs_uploaded_at,
+                'proofs_uploaded_at should be set even when show.name diverges from show.id'
+            );
+        }
+    }
 }

@@ -93,7 +93,7 @@ class ShowClass extends Model
     public function getRemoteWebImagesPathAttribute()
     {
         $path_resolver = app(PathResolver::class);
-        $remote_web_images_path = $path_resolver->getRemoteWebImagesPath($this->show->name, $this->name);
+        $remote_web_images_path = $path_resolver->getRemoteWebImagesPath($this->show->id, $this->name);
 
         return $path_resolver->normalizePath($remote_web_images_path);
     }
@@ -101,7 +101,7 @@ class ShowClass extends Model
     public function getWebImagesPathAttribute(): string
     {
         $path_resolver = app(PathResolver::class);
-        $web_images_path = $path_resolver->getWebImagesPath($this->show->name, $this->name);
+        $web_images_path = $path_resolver->getWebImagesPath($this->show->id, $this->name);
 
         return $path_resolver->normalizePath($web_images_path);
     }
@@ -117,7 +117,7 @@ class ShowClass extends Model
     public function getHighresImagesPathAttribute(): string
     {
         $path_resolver = app(PathResolver::class);
-        $highres_images_path = $path_resolver->getHighresImagesPath($this->show->name, $this->name);
+        $highres_images_path = $path_resolver->getHighresImagesPath($this->show->id, $this->name);
 
         return $path_resolver->normalizePath($highres_images_path);
     }
@@ -133,7 +133,7 @@ class ShowClass extends Model
     public function getRemoteHighresImagesPathAttribute()
     {
         $path_resolver = app(PathResolver::class);
-        $remote_highres_images_path = $path_resolver->getRemoteHighresImagesPath($this->show->name, $this->name);
+        $remote_highres_images_path = $path_resolver->getRemoteHighresImagesPath($this->show->id, $this->name);
 
         return $path_resolver->normalizePath($remote_highres_images_path);
     }
@@ -141,7 +141,7 @@ class ShowClass extends Model
     public function getProofsPathAttribute()
     {
         $path_resolver = app(PathResolver::class);
-        $proofs_path = $path_resolver->getProofsPath($this->show->name, $this->name);
+        $proofs_path = $path_resolver->getProofsPath($this->show->id, $this->name);
 
         return $path_resolver->normalizePath($proofs_path);
     }
@@ -157,7 +157,7 @@ class ShowClass extends Model
     public function getRemoteProofsPathAttribute()
     {
         $path_resolver = app(PathResolver::class);
-        $remote_proofs_path = $path_resolver->getRemoteProofsPath($this->show->name, $this->name);
+        $remote_proofs_path = $path_resolver->getRemoteProofsPath($this->show->id, $this->name);
 
         return $path_resolver->normalizePath($remote_proofs_path);
     }
@@ -283,7 +283,7 @@ class ShowClass extends Model
     public function importExistingPhotosFromOriginalsDirectory(): int
     {
         $pathResolver = $this->pathResolver ?? app(PathResolver::class);
-        $show_class = new \App\Proofgen\ShowClass($this->show->name, $this->name, $pathResolver);
+        $show_class = new \App\Proofgen\ShowClass($this->show->id, $this->name, $pathResolver);
         $originals_images = $show_class->getImportedImages();
 
         $new_records = 0;
@@ -306,91 +306,121 @@ class ShowClass extends Model
         return $this->queueThumbnailGeneration($photos);
     }
 
-    public function resetPhotos(): void
+    /**
+     * Reset a class back to "ingest pending":
+     *   1. Delete derived files (web/highres/proofs) — regenerable, plain delete is fine.
+     *   2. Move each originals/{proof}.{ext} back to the base class folder under a random
+     *      sha1-based filename so the proof number is released. Move the matching archive
+     *      copy alongside, including for orphan originals that have no Photo row (so the
+     *      archive disk doesn't diverge from local).
+     *   3. Delete the Photo rows.
+     *
+     * Per-photo work is wrapped in try/catch so a single bad file doesn't abort the whole
+     * reset; failures are logged and counted. File operations cannot be in a DB transaction.
+     */
+    public function resetPhotos(): array
     {
-        // Delete any web images in the web images folder, but keep the folder
-        $web_images_path = $this->web_images_path;
-        if (Storage::disk('fullsize')->exists($web_images_path)) {
-            $contents = Utility::getContentsOfPath($web_images_path);
-            $photos = $contents['images'] ?? [];
-            Log::debug('Found '.count($photos).' web images to delete');
-            foreach ($photos as $photo) {
-                /** @var FileAttributes $photo */
-                $file_path = $photo->path();
-                Storage::disk('fullsize')->delete($file_path);
-                Log::debug(' -> Deleted web image: '.$file_path);
-            }
-        }
+        $stats = ['derivatives_deleted' => 0, 'originals_renamed' => 0, 'orphan_originals_renamed' => 0, 'photo_rows_deleted' => 0, 'failures' => 0];
 
-        // Delete any highres images in the highres images folder, but keep the folder
-        $highres_images_path = $this->highres_images_path;
-        if (Storage::disk('fullsize')->exists($highres_images_path)) {
-            $contents = Utility::getContentsOfPath($highres_images_path);
-            $photos = $contents['images'] ?? [];
-            Log::debug('Found '.count($photos).' highres images to delete');
-            foreach ($photos as $photo) {
-                /** @var FileAttributes $photo */
-                $file_path = $photo->path();
-                Storage::disk('fullsize')->delete($file_path);
-                Log::debug(' -> Deleted highres image: '.$file_path);
-            }
-        }
+        $stats['derivatives_deleted'] += $this->deleteDirectoryFiles($this->web_images_path, 'web image');
+        $stats['derivatives_deleted'] += $this->deleteDirectoryFiles($this->highres_images_path, 'highres image');
+        $stats['derivatives_deleted'] += $this->deleteDirectoryFiles($this->proofs_path, 'proof');
 
-        // Delete any proofs in the proofs folder, but keep the folder
-        $proofs_path = $this->proofs_path;
-        if (Storage::disk('fullsize')->exists($proofs_path)) {
-            $contents = Utility::getContentsOfPath($proofs_path);
-            $photos = $contents['images'] ?? [];
-            Log::debug('Found '.count($photos).' proofs to delete');
-            foreach ($photos as $photo) {
-                /** @var FileAttributes $photo */
-                $file_path = $photo->path();
-                Storage::disk('fullsize')->delete($file_path);
-                Log::debug(' -> Deleted proof: '.$file_path);
-            }
-        }
-
-        // Copy any images that are in the originals folder to the base class folder
         $originals_path = $this->originals_path;
         if (Storage::disk('fullsize')->exists($originals_path)) {
             $archiveService = app(PhotoArchiveService::class);
             $contents = Utility::getContentsOfPath($originals_path);
-            $photos = $contents['images'] ?? [];
-            Log::debug('Found '.count($photos).' originals to copy');
-            foreach ($photos as $photo) {
-                /** @var FileAttributes $photo */
-                $file_path = $photo->path();
-                $proof_number = pathinfo($file_path, PATHINFO_FILENAME);
-                $photo_record = $this->photos()->where('proof_number', $proof_number)->first();
-                $dest_path = str_replace('/originals', '', $file_path);
-                // Move the file
-                Storage::disk('fullsize')->move($file_path, $dest_path);
-                Log::debug(' -> Moved original: '.$file_path.' to '.$dest_path);
+            $images = $contents['images'] ?? [];
+            Log::debug('Found '.count($images).' originals to release');
 
-                // Rename the file to remove/release the proof number
-                $filename = pathinfo($dest_path, PATHINFO_FILENAME);
-                // Generate a random filename
-                $new_filename = sha1($filename.time());
-                $new_file_path = str_replace($filename, $new_filename, $dest_path);
-                // Rename the file
-                Storage::disk('fullsize')->move($dest_path, $new_file_path);
-                Log::debug(' -> Renamed original: '.$dest_path.' to '.$new_file_path);
-
-                if ($photo_record) {
-                    $archiveService->movePhotoArchiveToFilename($photo_record, basename($new_file_path));
+            foreach ($images as $image) {
+                /** @var FileAttributes $image */
+                $file_path = $image->path();
+                try {
+                    $renamed = $this->releaseOriginal($file_path, $archiveService);
+                    if ($renamed['had_photo_record']) {
+                        $stats['originals_renamed']++;
+                    } else {
+                        $stats['orphan_originals_renamed']++;
+                    }
+                } catch (\Throwable $e) {
+                    $stats['failures']++;
+                    Log::error('resetPhotos: failed to release original; '.$file_path.' — '.$e->getMessage());
                 }
             }
         }
 
-        // Delete database records for photos
-        $photos = $this->photos()->get();
-        foreach ($photos as $photo) {
+        $photo_rows = $this->photos()->get();
+        $stats['photo_rows_deleted'] = $photo_rows->count();
+        foreach ($photo_rows as $photo) {
             /** @var Photo $photo */
-            Log::debug(' -> Deleting photo: '.$photo->id);
-            $photo->delete();
+            try {
+                $photo->delete();
+            } catch (\Throwable $e) {
+                $stats['failures']++;
+                $stats['photo_rows_deleted']--;
+                Log::error('resetPhotos: failed to delete photo row '.$photo->id.' — '.$e->getMessage());
+            }
         }
 
-        Log::debug(' Reset '.count($photos).' photos');
+        Log::debug('resetPhotos: complete', $stats);
+
+        return $stats;
+    }
+
+    private function deleteDirectoryFiles(string $path, string $kind): int
+    {
+        if (! Storage::disk('fullsize')->exists($path)) {
+            return 0;
+        }
+        $contents = Utility::getContentsOfPath($path);
+        $files = $contents['images'] ?? [];
+        Log::debug('Found '.count($files).' '.$kind.'s to delete in '.$path);
+        $deleted = 0;
+        foreach ($files as $file) {
+            /** @var FileAttributes $file */
+            $file_path = $file->path();
+            try {
+                Storage::disk('fullsize')->delete($file_path);
+                $deleted++;
+            } catch (\Throwable $e) {
+                Log::error('resetPhotos: failed to delete '.$kind.' '.$file_path.' — '.$e->getMessage());
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Move {originals}/{proof}.{ext} → {base}/{random}.{ext} and the matching archive
+     * copy alongside it. Returns ['had_photo_record' => bool] so the caller can stat.
+     */
+    private function releaseOriginal(string $file_path, PhotoArchiveService $archiveService): array
+    {
+        $proof_number = pathinfo($file_path, PATHINFO_FILENAME);
+        $extension = pathinfo($file_path, PATHINFO_EXTENSION);
+        $photo_record = $this->photos()->where('proof_number', $proof_number)->first();
+
+        $base_dest = str_replace('/originals', '', $file_path);
+        Storage::disk('fullsize')->move($file_path, $base_dest);
+
+        $random_stem = sha1($proof_number.microtime(true));
+        $randomized_path = str_replace(
+            $proof_number.'.'.$extension,
+            $random_stem.'.'.$extension,
+            $base_dest
+        );
+        Storage::disk('fullsize')->move($base_dest, $randomized_path);
+
+        $old_basename = $proof_number.'.'.$extension;
+        $new_basename = $random_stem.'.'.$extension;
+        if ($photo_record) {
+            $archiveService->movePhotoArchiveToFilename($photo_record, $new_basename);
+        } else {
+            $archiveService->movePhysicalArchive($this->show_id, $this->name, $old_basename, $new_basename);
+        }
+
+        return ['had_photo_record' => $photo_record !== null];
     }
 
     /**
@@ -701,6 +731,19 @@ class ShowClass extends Model
         return true;
     }
 
+    /**
+     * Run the rsync upload for this class's web images and update web_image_uploaded_at
+     * on each photo whose file actually transferred. Returns the list of relative paths
+     * that were transferred.
+     *
+     * Note on *_uploaded_at semantics: rsync only emits a filename when it actually
+     * transfers (or would transfer, in dry-run). On a re-run where the remote already
+     * has byte-identical copies, output is empty and timestamps don't update. So
+     * web_image_uploaded_at reflects "last time this exact file was sent across the
+     * wire," not "first ever uploaded." This is intentional — re-runs after archive
+     * conflicts or remote drift do legitimately re-transfer and we want the timestamp
+     * to track that.
+     */
     public function webImageUploads(): array
     {
         // Check if SFTP web images path is configured
@@ -725,7 +768,7 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -782,7 +825,7 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -829,7 +872,7 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -873,7 +916,7 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -925,7 +968,7 @@ class ShowClass extends Model
                 continue;
             }
 
-            if (str_starts_with(strtolower($line), strtolower($this->show->name))) {
+            if (str_starts_with(strtolower($line), strtolower($this->show->id))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 
@@ -1000,7 +1043,7 @@ class ShowClass extends Model
         foreach ($output as $line) {
             $line = trim($line);
 
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->name))) {
+            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
                 $parts = explode('/', $line);
                 $fileName = end($parts);
 

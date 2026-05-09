@@ -248,7 +248,7 @@ class Photo extends Model
     public function expectedWebImageFilePath(): string
     {
         $path_resolver = app(PathResolver::class);
-        $web_images_path = $path_resolver->getWebImagesPath($this->showClass->show->name, $this->showClass->name);
+        $web_images_path = $path_resolver->getWebImagesPath($this->showClass->show->id, $this->showClass->name);
         $web_images_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($web_images_path);
 
         $expected_filename = $this->proof_number.config('proofgen.web_images.suffix').'.jpg';
@@ -276,7 +276,7 @@ class Photo extends Model
     public function expectedHighresImageFilePath(): string
     {
         $path_resolver = app(PathResolver::class);
-        $highres_images_path = $path_resolver->getHighresImagesPath($this->showClass->show->name, $this->showClass->name);
+        $highres_images_path = $path_resolver->getHighresImagesPath($this->showClass->show->id, $this->showClass->name);
         $highres_images_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($highres_images_path);
 
         $expected_filename = $this->proof_number.config('proofgen.highres_images.suffix').'.jpg';
@@ -304,7 +304,7 @@ class Photo extends Model
     public function checkPathForProofs(): false|array
     {
         $path_resolver = app(PathResolver::class);
-        $proofs_path = $path_resolver->getProofsPath($this->showClass->show->name, $this->showClass->name);
+        $proofs_path = $path_resolver->getProofsPath($this->showClass->show->id, $this->showClass->name);
         $proofs_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($proofs_path);
 
         $proofs_found = [];

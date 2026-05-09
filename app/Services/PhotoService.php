@@ -199,7 +199,7 @@ class PhotoService
             $pendingProofs = $photo->showClass->photos()->whereNull('proofs_generated_at')->count();
 
             if ($pendingProofs === 0) {
-                UploadProofs::dispatch($photo->showClass->show->name, $photo->showClass->name);
+                UploadProofs::dispatch($photo->showClass->show->id, $photo->showClass->name);
             }
         }
 
@@ -235,7 +235,7 @@ class PhotoService
             $pendingWebImages = $photo->showClass->photos()->whereNull('web_image_generated_at')->count();
 
             if ($pendingWebImages === 0) {
-                UploadWebImages::dispatch($photo->showClass->show->name, $photo->showClass->name);
+                UploadWebImages::dispatch($photo->showClass->show->id, $photo->showClass->name);
             }
         }
 
@@ -271,7 +271,7 @@ class PhotoService
             $pendingHighresImages = $photo->showClass->photos()->whereNull('highres_image_generated_at')->count();
 
             if ($pendingHighresImages === 0) {
-                UploadHighresImages::dispatch($photo->showClass->show->name, $photo->showClass->name);
+                UploadHighresImages::dispatch($photo->showClass->show->id, $photo->showClass->name);
             }
         }
 
