@@ -106,6 +106,33 @@ class ShowViewComponent extends Component
             ->verifyShow($this->show);
     }
 
+    public string $ferraraphotoSlugDraft = '';
+
+    public bool $editingFerraraphotoSlug = false;
+
+    public function startEditingFerraraphotoSlug(): void
+    {
+        $this->ferraraphotoSlugDraft = $this->show->ferraraphoto_show_slug ?? '';
+        $this->editingFerraraphotoSlug = true;
+    }
+
+    public function cancelEditingFerraraphotoSlug(): void
+    {
+        $this->editingFerraraphotoSlug = false;
+        $this->ferraraphotoSlugDraft = '';
+    }
+
+    public function saveFerraraphotoSlug(): void
+    {
+        $value = trim($this->ferraraphotoSlugDraft);
+        $this->show->ferraraphoto_show_slug = $value === '' ? null : $value;
+        $this->show->save();
+        $this->editingFerraraphotoSlug = false;
+        // Re-check so the panel reflects the new slug immediately.
+        $this->ferraraphotoStatus = null;
+        Flux::toast(text: 'Ferraraphoto slug saved.', heading: 'Saved', variant: 'success', position: 'top right');
+    }
+
     public function render()
     {
         $pathResolver = app(PathResolver::class);

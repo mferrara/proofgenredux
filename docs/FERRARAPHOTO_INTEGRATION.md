@@ -209,11 +209,25 @@ A local "show run" looks like:
 1. ~~**Upload ordering** (proofgen): proofs, web images, and highres uploads dispatch in parallel
    today.~~ **Done 2026-05.** Both class-level `uploadPendingProofsAndWebImages` and the new
    show-level equivalent now use `Bus::chain` to run proofs first.
-2. **Show linking** (both sides): there is no enforced link between a proofgen show and a
-   ferraraphoto show. The slug-match convention is the only thing keeping them aligned. A future
-   improvement could add an explicit `ferraraphoto_show_id` (or `ferraraphoto_show_slug`) column
-   on the proofgen `shows` table, populated either by manual selection from a list of shows pulled
-   from the ferraraphoto API, or by a fuzzy-match-and-confirm flow.
+2. ~~**Show linking** (both sides): there is no enforced link between a proofgen show and a
+   ferraraphoto show. The slug-match convention is the only thing keeping them aligned.~~
+   **Done 2026-05.** Proofgen's `shows` table now carries a nullable `ferraraphoto_show_slug`
+   column; `Show::ferraraphoto_slug` accessor returns the override when set or falls back to
+   `Show::id` (preserving prior behavior for every existing row). All remote-path call sites
+   (`Show::rsync*Command`, `ShowClass::getRemote*PathAttribute`, `FerraraphotoTargetVerifier`,
+   pendingProofUploads/etc.) consult the slug accessor; local paths still use the proofgen
+   show id (matches the on-disk directory name). Operator can edit the slug from the
+   "Ferraraphoto target" panel on the show view (pencil icon). A bare-slug API-driven flow
+   (manual selection from ferraraphoto-side list) remains future work — but the manual
+   override unblocks the divergence case today.
+
+   Surfaced two real Eloquent bugs while wiring this up — both fixed:
+   - `Show` and `ShowClass` were missing `protected $keyType = 'string'`. Default int
+     keyType meant `->with('show')` and `->with('photos')` etc. silently coerced string IDs
+     to `0` in the IN-clause and returned no rows. Lazy loading happened to work; eager
+     loading silently broke. Affected any code path that eager-loaded.
+   - `ShowClass::$casts` was missing `'show_id' => 'string'`. Same root cause — string FK
+     coerced to int in the eager-load lookup.
 3. ~~**Pre-upload validation**: nothing currently confirms that a matching show/class exists on the
    ferraraphoto side before rsync runs.~~ **Done 2026-05.** `App\Services\FerraraphotoTargetVerifier`
    checks all three remote disks (`remote_proofs`, `remote_web_images`, `remote_highres_images`)
@@ -229,11 +243,14 @@ A local "show run" looks like:
 4. **Cloud storage migration**: out of scope. Notes in the user message: a future direction is
    pushing to object storage and POSTing metadata to ferraraphoto, which would let ferraraphoto
    serve files from the bucket. Not relevant to the current task.
-5. **High-res product seeder**: the Pricing seeder doesn't include a high-res instant delivery
-   product. After the high-res branch is committed, either create one via admin or extend the
-   seeder.
-6. **Failed-delivery retry UI**: the `image_deliveries` table records `failed` rows but there is
-   no admin button to retry. Documented as a future enhancement in INSTANT_DELIVERY_WORK.md.
+5. ~~**High-res product seeder**~~ **Done 2026-05.** `PricingTableSeeder.php` now defines a
+   "High Resolution Image (Instant Delivery)" product alongside the web one, and the loop
+   persists `image_type` from the seeder array so fresh installs ship with both products
+   correctly typed. Existing installs still need the one-time admin edit to backfill
+   `image_type` on their already-seeded web product (called out in INSTANT_DELIVERY_WORK.md).
+6. ~~**Failed-delivery retry UI**~~ **Done 2026-05** (ferraraphoto commit 742b935 — predates
+   this audit). `/admin/deliveries` has a per-row Retry button; route + controller +
+   `IpnProcessor::retryDelivery()` are in place.
 
 ## Useful files to read first when picking this up
 
@@ -253,5 +270,4 @@ In **ferraraphoto**:
 
 ---
 
-*Living document — last updated 2026-05-09. Update when path conventions change, when a real
-API/DB linkage is added, or when work in `INSTANT_DELIVERY_WORK.md` lands.*
+*Living document — last updated 2026-05-09 (TODOs 2/3/5/6 closed; 1 was already done; 4 explicitly out of scope). Update when path conventions change, when a real API/DB linkage is added, or when work in `INSTANT_DELIVERY_WORK.md` lands.*

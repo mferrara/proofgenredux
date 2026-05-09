@@ -32,6 +32,10 @@ class ShowClass extends Model
 
     public $incrementing = false;
 
+    // ShowClass.id is a varchar like "22Buck_007" — without this, eager-loads
+    // (e.g. ->with('photos')) coerce IDs to 0. See sibling note on Show.
+    protected $keyType = 'string';
+
     protected $guarded = [
         'created_at',
         'updated_at',
@@ -39,6 +43,7 @@ class ShowClass extends Model
 
     protected $casts = [
         'id' => 'string',
+        'show_id' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -93,7 +98,8 @@ class ShowClass extends Model
     public function getRemoteWebImagesPathAttribute()
     {
         $path_resolver = app(PathResolver::class);
-        $remote_web_images_path = $path_resolver->getRemoteWebImagesPath($this->show->id, $this->name);
+        // Remote path uses the ferraraphoto-side slug (which defaults to show->id when no override is set).
+        $remote_web_images_path = $path_resolver->getRemoteWebImagesPath($this->show->ferraraphoto_slug, $this->name);
 
         return $path_resolver->normalizePath($remote_web_images_path);
     }
@@ -133,7 +139,7 @@ class ShowClass extends Model
     public function getRemoteHighresImagesPathAttribute()
     {
         $path_resolver = app(PathResolver::class);
-        $remote_highres_images_path = $path_resolver->getRemoteHighresImagesPath($this->show->id, $this->name);
+        $remote_highres_images_path = $path_resolver->getRemoteHighresImagesPath($this->show->ferraraphoto_slug, $this->name);
 
         return $path_resolver->normalizePath($remote_highres_images_path);
     }
@@ -157,7 +163,7 @@ class ShowClass extends Model
     public function getRemoteProofsPathAttribute()
     {
         $path_resolver = app(PathResolver::class);
-        $remote_proofs_path = $path_resolver->getRemoteProofsPath($this->show->id, $this->name);
+        $remote_proofs_path = $path_resolver->getRemoteProofsPath($this->show->ferraraphoto_slug, $this->name);
 
         return $path_resolver->normalizePath($remote_proofs_path);
     }

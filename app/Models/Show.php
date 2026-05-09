@@ -28,6 +28,12 @@ class Show extends Model
 
     public $incrementing = false;
 
+    // Without this, Eloquent's default keyType='int' coerces string IDs to 0 in
+    // eager-load IN() clauses (e.g. `select * from shows where id in (0)`), so
+    // any `->with('show')` on a related model returns null. Lazy loading happened
+    // to work because it queries with the raw value.
+    protected $keyType = 'string';
+
     protected $guarded = [
         'created_at',
         'updated_at',
@@ -35,6 +41,7 @@ class Show extends Model
 
     protected $casts = [
         'id' => 'string',
+        'ferraraphoto_show_slug' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -42,6 +49,23 @@ class Show extends Model
     public function getRouteKeyName(): string
     {
         return 'id';
+    }
+
+    /**
+     * The slug to use when building paths on the ferraraphoto host. Defaults to
+     * the proofgen show id (the historical "matched-by-convention" slug);
+     * operator can override via the ferraraphoto_show_slug column when the
+     * match drifts (e.g. proofgen show "22Buck" but ferraraphoto show
+     * "buck-show-2024").
+     */
+    public function getFerraraphotoSlugAttribute(): string
+    {
+        $override = $this->attributes['ferraraphoto_show_slug'] ?? null;
+        if (is_string($override) && trim($override) !== '') {
+            return trim($override);
+        }
+
+        return (string) $this->id;
     }
 
     public function classes(): HasMany
@@ -132,7 +156,9 @@ class Show extends Model
         $resolver = app(PathResolver::class);
         $local = $resolver->getAbsolutePath($resolver->getShowProofsPath($this->id), config('proofgen.fullsize_home_dir')).'/';
 
-        return RsyncCommandBuilder::build($local, config('proofgen.sftp.path'), $resolver->getShowRemoteProofsPath($this->id), $dry_run === true);
+        // Local path uses the proofgen show id (matches the on-disk directory).
+        // Remote subpath uses the ferraraphoto_slug accessor (honors operator override; falls back to id).
+        return RsyncCommandBuilder::build($local, config('proofgen.sftp.path'), $resolver->getShowRemoteProofsPath($this->ferraraphoto_slug), $dry_run === true);
     }
 
     /**
@@ -143,7 +169,7 @@ class Show extends Model
         $resolver = app(PathResolver::class);
         $local = $resolver->getAbsolutePath($resolver->getShowWebImagesPath($this->id), config('proofgen.fullsize_home_dir')).'/';
 
-        return RsyncCommandBuilder::build($local, config('proofgen.sftp.web_images_path'), $resolver->getShowRemoteWebImagesPath($this->id), $dry_run === true);
+        return RsyncCommandBuilder::build($local, config('proofgen.sftp.web_images_path'), $resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug), $dry_run === true);
     }
 
     /**
@@ -154,7 +180,7 @@ class Show extends Model
         $resolver = app(PathResolver::class);
         $local = $resolver->getAbsolutePath($resolver->getShowHighresImagesPath($this->id), config('proofgen.fullsize_home_dir')).'/';
 
-        return RsyncCommandBuilder::build($local, config('proofgen.sftp.highres_images_path'), $resolver->getShowRemoteHighresImagesPath($this->id), $dry_run === true);
+        return RsyncCommandBuilder::build($local, config('proofgen.sftp.highres_images_path'), $resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug), $dry_run === true);
     }
 
     /**
@@ -166,7 +192,7 @@ class Show extends Model
         $path_resolver = app(PathResolver::class);
 
         // Ensure the remote directory exists
-        $remote_proofs_path = '/'.$path_resolver->getShowRemoteProofsPath($this->id);
+        $remote_proofs_path = '/'.$path_resolver->getShowRemoteProofsPath($this->ferraraphoto_slug);
         if (! Storage::disk('remote_proofs')->exists($remote_proofs_path)) {
             Storage::disk('remote_proofs')->makeDirectory($remote_proofs_path);
         }
@@ -193,7 +219,7 @@ class Show extends Model
         $path_resolver = app(PathResolver::class);
 
         // Ensure the remote directory exists
-        $remote_proofs_path = '/'.$path_resolver->getShowRemoteProofsPath($this->id);
+        $remote_proofs_path = '/'.$path_resolver->getShowRemoteProofsPath($this->ferraraphoto_slug);
         if (! Storage::disk('remote_proofs')->exists($remote_proofs_path)) {
             Storage::disk('remote_proofs')->makeDirectory($remote_proofs_path);
         }
@@ -221,7 +247,7 @@ class Show extends Model
         $dry_run = true;
 
         // Ensure the remote directory exists
-        $remote_web_images_path = '/'.$path_resolver->getShowRemoteWebImagesPath($this->id);
+        $remote_web_images_path = '/'.$path_resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug);
         if (! Storage::disk('remote_web_images')->exists($remote_web_images_path)) {
             Storage::disk('remote_web_images')->makeDirectory($remote_web_images_path);
         }
@@ -249,7 +275,7 @@ class Show extends Model
         $dry_run = false;
 
         // Ensure the remote directory exists
-        $remote_web_images_path = '/'.$path_resolver->getShowRemoteWebImagesPath($this->id);
+        $remote_web_images_path = '/'.$path_resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug);
         if (! Storage::disk('remote_web_images')->exists($remote_web_images_path)) {
             Storage::disk('remote_web_images')->makeDirectory($remote_web_images_path);
         }
@@ -312,7 +338,7 @@ class Show extends Model
         $dry_run = true;
 
         // Ensure the remote directory exists
-        $remote_highres_images_path = '/'.$path_resolver->getShowRemoteHighresImagesPath($this->id);
+        $remote_highres_images_path = '/'.$path_resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug);
         if (! Storage::disk('remote_highres_images')->exists($remote_highres_images_path)) {
             Storage::disk('remote_highres_images')->makeDirectory($remote_highres_images_path);
         }
@@ -340,7 +366,7 @@ class Show extends Model
         $dry_run = false;
 
         // Ensure the remote directory exists
-        $remote_highres_images_path = '/'.$path_resolver->getShowRemoteHighresImagesPath($this->id);
+        $remote_highres_images_path = '/'.$path_resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug);
         if (! Storage::disk('remote_highres_images')->exists($remote_highres_images_path)) {
             Storage::disk('remote_highres_images')->makeDirectory($remote_highres_images_path);
         }

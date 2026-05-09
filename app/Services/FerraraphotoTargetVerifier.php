@@ -63,10 +63,13 @@ class FerraraphotoTargetVerifier
      */
     public function verifyShow(Show|string $show): array
     {
-        $showId = $show instanceof Show ? $show->id : $show;
-        $proofsPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteProofsPath($showId));
-        $webPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteWebImagesPath($showId));
-        $highresPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteHighresImagesPath($showId));
+        // When given a Show model use its ferraraphoto_slug accessor (which honors
+        // the operator override). When given a bare string (operator-typed lookup
+        // from the connector panel) use the string as-is.
+        $slug = $show instanceof Show ? $show->ferraraphoto_slug : $show;
+        $proofsPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteProofsPath($slug));
+        $webPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteWebImagesPath($slug));
+        $highresPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteHighresImagesPath($slug));
 
         return $this->summarize([
             'proofs' => $this->checkDisk('remote_proofs', $proofsPath),
@@ -82,7 +85,8 @@ class FerraraphotoTargetVerifier
     public function verifyClass(ShowClass|string $showClass): array
     {
         if ($showClass instanceof ShowClass) {
-            $showId = $showClass->show_id;
+            // Honor the show's ferraraphoto_slug override; falls back to id when null.
+            $slug = $showClass->show?->ferraraphoto_slug ?? $showClass->show_id;
             $className = $showClass->name;
         } else {
             $parts = explode('_', $showClass, 2);
@@ -94,11 +98,13 @@ class FerraraphotoTargetVerifier
                 ]);
             }
             [$showId, $className] = $parts;
+            // String form is operator-supplied — use it directly, no override lookup.
+            $slug = $showId;
         }
 
-        $proofsPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteProofsPath($showId, $className));
-        $webPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteWebImagesPath($showId, $className));
-        $highresPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteHighresImagesPath($showId, $className));
+        $proofsPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteProofsPath($slug, $className));
+        $webPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteWebImagesPath($slug, $className));
+        $highresPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteHighresImagesPath($slug, $className));
 
         return $this->summarize([
             'proofs' => $this->checkDisk('remote_proofs', $proofsPath),
