@@ -10,7 +10,6 @@ use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Photo;
 use App\Models\PhotoIssue;
 use App\Models\Show;
-use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
 use App\Services\PathResolver;
 use App\Services\PhotoService;

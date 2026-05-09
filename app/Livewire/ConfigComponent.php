@@ -3,7 +3,6 @@
 namespace App\Livewire;
 
 use App\Models\Configuration;
-use App\Proofgen\Image;
 use App\Services\SampleImagesService;
 use App\Services\SwiftCompatibilityService;
 use App\Services\UpdateService;

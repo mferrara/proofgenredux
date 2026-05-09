@@ -164,7 +164,7 @@ class PhotoIssuesComponent extends Component
             }
 
             $allocated = $show->getNextProofNumber();
-            $photo = $this->reimportQuarantinedSource($issue, $allocated);
+            $this->reimportQuarantinedSource($issue, $allocated);
 
             $this->markResolved($issue, 'Imported under new proof number '.$allocated.'.');
             $this->toast('Imported as '.$allocated.'.', 'success');
@@ -184,6 +184,13 @@ class PhotoIssuesComponent extends Component
      * that produced the issue. `dispatchJobs: true` queues derivative regen so
      * thumbnails/web/highres appear immediately rather than waiting for the next
      * class-view reconciliation pass.
+     *
+     * NOTE: this runs synchronously inside the Livewire request — archive write +
+     * original write + DB row + bury source + 3 job dispatches. For the typical
+     * 20-30MB JPG that's well under a second; for very large medium-format files
+     * (100MB+) on slow archive disks it could approach the request timeout. If that
+     * ever bites, move this to a queued ResolveImportConflict job and have the UI
+     * poll for completion.
      */
     private function reimportQuarantinedSource(PhotoIssue $issue, string $proofNumber): \App\Models\Photo
     {
@@ -376,7 +383,7 @@ class PhotoIssuesComponent extends Component
         $issue->forceFill([
             'status' => PhotoIssue::STATUS_IGNORED,
             'resolved_at' => now(),
-            'resolved_by_user' => auth()->user()?->name ?? 'operator',
+            'resolved_by_user' => \Illuminate\Support\Facades\Auth::user()?->name ?? 'operator',
             'notes' => $this->appendNote($issue->notes, $note ?: 'Marked ignored.'),
         ])->save();
 
@@ -395,7 +402,7 @@ class PhotoIssuesComponent extends Component
         $issue->forceFill([
             'status' => PhotoIssue::STATUS_RESOLVED,
             'resolved_at' => now(),
-            'resolved_by_user' => auth()->user()?->name ?? 'operator',
+            'resolved_by_user' => \Illuminate\Support\Facades\Auth::user()?->name ?? 'operator',
             'notes' => $this->appendNote($issue->notes, $combined),
         ])->save();
     }

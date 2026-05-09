@@ -550,16 +550,16 @@ When this passes, the import/audit/move/quarantine/graveyard pipeline is healthy
 
 ## 15. Known follow-ups / sharp edges
 
-Surfaced during the resolver/audit/upload work. None blocking; documented so they don't get lost.
+Surfaced during the resolver/audit/upload work. The first three are resolved; the last two are documented constraints that aren't currently blocking but are worth knowing about.
 
-- **`ShowClass` upload-output parsing matches on `show->name`, not `show->id`.** `proofUploads()` / `webImageUploads()` / `highresImageUploads()` use `str_starts_with(strtolower($line), strtolower($this->show->name))`. Today `name === id` everywhere, but if a `Show.name` ever drifts (operator renames "Buck 24" → id "SHOW1"), uploaded files won't be tracked. Either drop the dependency on `name` or add an explicit invariant.
-- **`*_uploaded_at` semantics**. The flag is updated whenever rsync output names a file. On idempotent re-uploads rsync output is empty for already-present files, so `*_uploaded_at` reflects "last time this specific file was actually transferred," not "first uploaded." Usually fine; worth knowing.
-- **`ShowClass::resetPhotos()` has three minor sharp edges noted by the reset test author**:
-  - Logs `'Reset N photos'` after deleting them in the loop — count is correct but wording is mildly misleading.
-  - If an original on disk has no matching `Photo` row (a true orphan), the local file gets renamed but the archive copy is left under its old proof-number name → divergence between disks. Should probably skip-with-log or rename both.
-  - No transaction / failure isolation. Mid-loop `Storage::move` failure leaves a partial reset. Acceptable for single-tenant local use, but a structured retry/rollback would be safer.
-- **`PhotoIssuesComponent::reimportQuarantinedSource` runs synchronously inside the Livewire request.** Resolution actions can write archive + original + DB row + dispatch jobs in one click. Acceptable for the file sizes / single-user workflow, but if a future change makes any of those slow, consider moving to a queued job.
-- **Audit ingest scan walks `Storage::disk('fullsize')->allFiles()`** unfiltered. For very large installs this could be slow. The implementation-time choice was simplicity over a directory-by-directory walk; revisit if it becomes an issue.
+- **Sync resolution actions in `PhotoIssuesComponent::reimportQuarantinedSource`** (documented constraint). The action writes archive + original + DB row + dispatches three derivative jobs synchronously inside the Livewire request. For typical 20-30MB JPGs that's well under a second. For 100MB+ medium-format files on slow archive disks it could approach the request timeout. If that ever bites, move it to a queued `ResolveImportConflict` job and have the UI poll for completion. The method's docblock notes the same.
+- **`*_uploaded_at` semantics** (documented). rsync only emits a filename when it actually transfers, so on a re-run with byte-identical remotes the parser sees an empty list and the timestamp doesn't update. So `*_uploaded_at` reflects "last time this exact file was sent across the wire" — intentional, since legitimate re-transfers (after archive conflicts or remote drift) should bump the marker. The `ShowClass::webImageUploads()` docblock spells this out.
+
+### Resolved 2026-05-10
+
+- ~~Upload parsers compared rsync output filenames to `$this->show->name`~~ — fixed in commit "Fix upload parsers to use show->id"; all path/upload code now uses `show->id`. Display-only callers (toast text) keep `name`. Regression test in `UploadChainTest::test_upload_tracking_works_when_show_display_name_differs_from_id`.
+- ~~`ShowClass::resetPhotos()` failure isolation, orphan-archive divergence, log wording~~ — refactored into per-photo `try/catch` returning a stats array; orphan originals (no Photo row) now move their archive copy alongside via `PhotoArchiveService::movePhysicalArchive`; misleading log line replaced with structured `Log::debug` of the stats. Coverage in `ShowClassResetTest`.
+- ~~Audit ingest scan walked `Storage::disk('fullsize')->allFiles()` unfiltered~~ — replaced with a `classDirectories()` generator that walks `directories()` per-show + `files()` per-class so large installs only do `O(shows × classes)` directory scans.
 
 ---
 

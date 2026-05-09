@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Intervention\Image\Image;
+use Illuminate\Support\Facades\Log;
 
 class PhotoMetadata extends Model
 {
@@ -167,7 +167,7 @@ class PhotoMetadata extends Model
 
         if (($this->width === $this->height) && ($this->width !== null && $this->height !== null)) {
             $orientation = 'sq';
-            \Log::debug('somehow this is sq, make it make sense: '.$this->width.'x'.$this->height);
+            Log::debug('somehow this is sq, make it make sense: '.$this->width.'x'.$this->height);
         } elseif ($this->width > $this->height) {
             $orientation = 'la';
         } elseif ($this->width < $this->height) {
