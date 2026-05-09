@@ -1,5 +1,10 @@
 # Proofgen Redux Project Notes
 
+## Reference docs
+- **Photo pipeline**: `docs/photo-pipeline.md` — end-to-end flowchart of how a JPG moves from ingest folder through resolver/archive/originals/derivatives/upload, with decision matrices, service catalog, and key invariants. **Read this first when changing anything in the import or audit pipeline.**
+- **Ferraraphoto integration**: `docs/FERRARAPHOTO_INTEGRATION.md` — sister Laravel 4.2 app at `/Users/mikeferrara/Documents/code/ferraraphoto`; rsync-coupled by show slug.
+- **Archive backups**: `docs/archive-backups.md` — archive copy semantics + audit/repair workflows.
+
 ## TODO items
 - [ ] Consolidate artisan commands that aren't in the proofgen namespace into the proofgen namespace (e.g., `php artisan coreimage:daemon start|stop|restart` and `php artisan swift:compile`)
 - [ ] Make favicon from the logo
@@ -35,7 +40,7 @@ This is a Laravel application that processes event photography images for a phot
    - Monitors directories with full-size images from photographers
    - Processes images through multiple steps:
      - Renames files with proof numbers (configurable)
-     - Creates archive copies (configurable)
+     - Creates verified archive copies with per-photo archive metadata (configurable)
      - Generates thumbnails with watermarks (configurable)
      - Creates web-optimized versions (configurable) (this web-optimized version is what we call a "web image" and it's a paid product, rather than the customer ordering a printed photograph, this is effectively a digital copy of their image sans watermarks and at a quality and size that can be used for social media purposes)
      - Uploads proofs & web image to remote server via SFTP/rsync (configurable)
@@ -64,7 +69,7 @@ This is a Laravel application that processes event photography images for a phot
    - Within each class folder:
      - Raw images placed directly in class folder for processing
      - After processing, renamed images moved to "originals" subfolder
-     - Thumbnails/proofs stored in separate subfolder, sibling to "originals" named "proofs"
+   - Generated proofs, web images, and highres images are stored in separate top-level trees under `proofs/{show}/{class}`, `web_images/{show}/{class}`, and `highres_images/{show}/{class}`.
    - This "proofs" folder is in the exact structure expected by the remote server
    - The remote server will expect the files within the "proofs" folder to be placed within the /{show_id}/{class_id}/ directory
 
@@ -106,6 +111,17 @@ The project now includes a robust sample image handling system:
 - Upload images: `php artisan proofgen:upload-samples`
 - Upload from custom path: `php artisan proofgen:upload-samples --path=/path/to/images`
 - Upload without overwriting: `php artisan proofgen:upload-samples --no-overwrite`
+
+## Photo Archive Backup System
+
+- Archive backups are local second copies of imported originals, usually pointed at a fast external drive through `archive_home_dir`.
+- Database-backed `fullsize_home_dir` and `archive_home_dir` values are applied to the `fullsize` and `archive` filesystem disks at runtime.
+- Import writes the archive copy before deleting the ingest source file from the class folder.
+- Import records `photos.sha1` from the same bytes used for the original/archive writes, instead of relying on `Photo::created` to reread the moved file.
+- `photos` records track `archive_path`, `archive_sha1`, `archive_size`, and `archived_at`.
+- Archive writes are idempotent: identical existing files are reused, while different existing files are moved into the class `_conflicts` folder before the current copy is written.
+- Class renames, selected photo moves, and class resets move archive files so backups reflect the current recoverable show/class layout.
+- Audit and repair command: `php artisan proofgen:audit-archives`; add `--repair` to backfill missing or mismatched archive files from local originals.
 
 ### Implementation Details
 
