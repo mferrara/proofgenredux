@@ -77,6 +77,19 @@ class ShowViewComponent extends Component
         }
     }
 
+    public bool $showStorageUsage = false;
+
+    public function loadStorageUsage(): void
+    {
+        $this->showStorageUsage = true;
+    }
+
+    public function refreshStorageUsage(): void
+    {
+        app(\App\Services\StorageUsageService::class)->refreshShow($this->show);
+        $this->showStorageUsage = true;
+    }
+
     public function render()
     {
         $pathResolver = app(PathResolver::class);
@@ -163,6 +176,9 @@ class ShowViewComponent extends Component
             'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
             'show_open_issue_count' => $showOpenIssueCount,
+            'storage_usage' => $this->showStorageUsage
+                ? app(\App\Services\StorageUsageService::class)->showUsage($this->show)
+                : null,
         ])->title($this->show->id.' - Proofgen');
     }
 

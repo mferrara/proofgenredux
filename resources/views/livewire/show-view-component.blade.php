@@ -54,6 +54,10 @@
             @include('components.partials.action-panel')
         </div>
 
+        <div class="mb-8">
+            @include('livewire.partials.storage-usage-panel', ['storage_usage' => $storage_usage])
+        </div>
+
         {{-- Class folders --}}
         <flux:heading size="lg" level="2" class="mb-3">Classes</flux:heading>
         <flux:card class="!p-0 overflow-hidden">

@@ -122,4 +122,8 @@
             @endforeach
         </div>
     @endif
+
+    <div class="mt-8">
+        @include('livewire.partials.misc-storage-panel', ['misc_storage' => $misc_storage])
+    </div>
 </div>

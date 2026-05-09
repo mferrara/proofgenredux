@@ -29,6 +29,21 @@ class HomeComponent extends Component
         $this->archive_base_path = config('proofgen.archive_home_dir');
     }
 
+    public bool $showMiscStorage = false;
+
+    public function loadMiscStorage(): void
+    {
+        $this->showMiscStorage = true;
+    }
+
+    public function refreshMiscStorage(): void
+    {
+        $service = app(\App\Services\StorageUsageService::class);
+        $service->sampleImagesUsage(forceRefresh: true);
+        $service->backupsUsage(forceRefresh: true);
+        $this->showMiscStorage = true;
+    }
+
     public function render()
     {
         $this->working_full_path = $this->fullsize_base_path.'/'.$this->working_path;
@@ -47,9 +62,19 @@ class HomeComponent extends Component
             }
         }
 
+        $miscStorage = null;
+        if ($this->showMiscStorage) {
+            $service = app(\App\Services\StorageUsageService::class);
+            $miscStorage = [
+                'sample_images' => $service->sampleImagesUsage(),
+                'backups' => $service->backupsUsage(),
+            ];
+        }
+
         return view('livewire.home-component')
             ->with('shows', $shows)
             ->with('top_level_directories', $top_level_directories)
+            ->with('misc_storage', $miscStorage)
             ->title('Proofgen Home');
     }
 

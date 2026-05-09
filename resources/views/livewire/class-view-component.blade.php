@@ -68,6 +68,10 @@
         @include('components.partials.action-panel')
     </div>
 
+    <div class="mb-8">
+        @include('livewire.partials.storage-usage-panel', ['storage_usage' => $storage_usage])
+    </div>
+
     {{-- Folder layout --}}
     <flux:card class="!p-0 overflow-hidden mb-8">
         <div class="px-5 py-3 border-b border-zinc-200 dark:border-white/10 bg-zinc-50/50 dark:bg-white/[0.02]">

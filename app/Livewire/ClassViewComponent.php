@@ -123,6 +123,19 @@ class ClassViewComponent extends Component
         }
     }
 
+    public bool $showStorageUsage = false;
+
+    public function loadStorageUsage(): void
+    {
+        $this->showStorageUsage = true;
+    }
+
+    public function refreshStorageUsage(): void
+    {
+        app(\App\Services\StorageUsageService::class)->classUsage($this->showClass, forceRefresh: true);
+        $this->showStorageUsage = true;
+    }
+
     public function render()
     {
         return view('livewire.class-view-component', [
@@ -134,6 +147,9 @@ class ClassViewComponent extends Component
             'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
             'open_issue_count' => PhotoIssue::open()->where('show_class_id', $this->showClass->id)->count(),
+            'storage_usage' => $this->showStorageUsage
+                ? app(\App\Services\StorageUsageService::class)->classUsage($this->showClass)
+                : null,
         ])->title($this->show.' '.$this->class.' - Proofgen');
     }
 
