@@ -161,6 +161,12 @@ class PhotoIssuesComponentTest extends TestCase
         // Archive copy was written.
         $this->assertTrue(Storage::disk('archive')->exists('SHOW1/101/'.$allocated.'.jpg'));
         $this->assertNotNull($newPhoto->archive_path);
+
+        // Derivative regen jobs are queued so thumbnails/web/highres show up immediately
+        // after resolution rather than waiting for the next class-view reconciliation.
+        \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\Photo\GenerateThumbnails::class);
+        \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\Photo\GenerateWebImage::class);
+        \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\Photo\GenerateHighresImage::class);
     }
 
     public function test_mark_ignored_sets_status_and_writes_note(): void

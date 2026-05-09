@@ -83,6 +83,7 @@
                             <th class="py-2 pr-3 font-medium">Buried</th>
                             <th class="py-2 pr-3 font-medium text-right">Size</th>
                             <th class="py-2 pr-3 font-medium">SHA1</th>
+                            <th class="py-2 pr-3 font-medium text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -107,6 +108,15 @@
                                 </td>
                                 <td class="py-2 pr-3 font-mono text-right whitespace-nowrap">{{ $this->formatBytes($entry['size']) }}</td>
                                 <td class="py-2 pr-3 font-mono text-xs">{{ $entry['sha1'] ? substr($entry['sha1'], 0, 10) : '—' }}</td>
+                                <td class="py-2 pr-3 text-right">
+                                    <flux:button
+                                        size="xs"
+                                        variant="ghost"
+                                        icon="folder-open"
+                                        title="Reveal buried file in Finder"
+                                        wire:click="revealInFinder(@js($entry['graveyard_path']), @js($disk))"
+                                    />
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

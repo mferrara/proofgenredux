@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Models\ShowClass;
+use App\Services\FinderRevealService;
 use App\Services\ImportConflictHintService;
 use App\Services\PhotoArchiveService;
 use App\Services\PhotoImportIdentityResolver;
@@ -60,6 +61,21 @@ class PhotoIssuesComponent extends Component
     public function updatingShowClassFilter(): void
     {
         $this->resetPage();
+    }
+
+    public function revealInFinder(string $relativePath, string $disk = 'fullsize'): void
+    {
+        try {
+            $root = rtrim((string) config("filesystems.disks.{$disk}.root"), '/');
+            if ($root === '') {
+                throw new \RuntimeException('Disk root not configured: '.$disk);
+            }
+            $absolute = $root.'/'.ltrim($relativePath, '/');
+            app(FinderRevealService::class)->reveal($absolute);
+        } catch (\Throwable $e) {
+            Log::warning('Reveal in Finder failed: '.$e->getMessage());
+            $this->toast('Reveal failed: '.$e->getMessage(), 'danger');
+        }
     }
 
     public function openIssue(int $issueId): void
@@ -165,8 +181,9 @@ class PhotoIssuesComponent extends Component
     /**
      * The operator has already decided this conflict resolves to "import this file
      * under THIS proof number." `bypassResolver: true` skips the classification step
-     * that produced the issue. Derivative jobs are not dispatched here — the class
-     * view's reconciliation queues them when the operator returns to that class.
+     * that produced the issue. `dispatchJobs: true` queues derivative regen so
+     * thumbnails/web/highres appear immediately rather than waiting for the next
+     * class-view reconciliation pass.
      */
     private function reimportQuarantinedSource(PhotoIssue $issue, string $proofNumber): \App\Models\Photo
     {
@@ -174,7 +191,7 @@ class PhotoIssuesComponent extends Component
             imagePath: $issue->quarantine_path,
             proofNumberOverride: $proofNumber,
             debug: false,
-            dispatchJobs: false,
+            dispatchJobs: true,
             bypassResolver: true,
         );
 

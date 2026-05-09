@@ -116,15 +116,26 @@
                                     <span title="{{ $issue->created_at?->toDayDateTimeString() }}">{{ $issue->created_at?->diffForHumans() }}</span>
                                 </td>
                                 <td class="py-2 px-4 text-right">
-                                    @if($issue->isOpen())
-                                        <flux:button size="xs" variant="primary" wire:click="openIssue({{ $issue->id }})">
-                                            View / Resolve
-                                        </flux:button>
-                                    @else
-                                        <flux:button size="xs" variant="ghost" wire:click="openIssue({{ $issue->id }})">
-                                            View
-                                        </flux:button>
-                                    @endif
+                                    <div class="inline-flex items-center gap-1">
+                                        @if($issue->quarantine_path)
+                                            <flux:button
+                                                size="xs"
+                                                variant="ghost"
+                                                icon="folder-open"
+                                                title="Reveal quarantined source in Finder"
+                                                wire:click="revealInFinder(@js($issue->quarantine_path), 'fullsize')"
+                                            />
+                                        @endif
+                                        @if($issue->isOpen())
+                                            <flux:button size="xs" variant="primary" wire:click="openIssue({{ $issue->id }})">
+                                                View / Resolve
+                                            </flux:button>
+                                        @else
+                                            <flux:button size="xs" variant="ghost" wire:click="openIssue({{ $issue->id }})">
+                                                View
+                                            </flux:button>
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
@@ -169,15 +180,33 @@
                         </div>
                     @endif
                     @if($selectedIssue->quarantine_path)
-                        <div>
-                            <span class="text-zinc-500">Quarantined source (in <code>_import_conflicts/</code>):</span>
-                            <code class="font-mono ml-1 text-amber-600 dark:text-amber-400 break-all">{{ $selectedIssue->quarantine_path }}</code>
+                        <div class="flex items-start gap-2">
+                            <div class="grow">
+                                <span class="text-zinc-500">Quarantined source (in <code>_import_conflicts/</code>):</span>
+                                <code class="font-mono ml-1 text-amber-600 dark:text-amber-400 break-all">{{ $selectedIssue->quarantine_path }}</code>
+                            </div>
+                            <flux:button
+                                size="xs"
+                                variant="ghost"
+                                icon="folder-open"
+                                title="Reveal in Finder"
+                                wire:click="revealInFinder(@js($selectedIssue->quarantine_path), 'fullsize')"
+                            />
                         </div>
                     @endif
                     @if($selectedIssue->issue_type === \App\Models\PhotoIssue::TYPE_ARCHIVE_CONFLICT && ($selectedIssue->evidence['archive_path'] ?? null))
-                        <div>
-                            <span class="text-zinc-500">Existing archive copy (under <code>_conflicts/</code> on archive disk):</span>
-                            <code class="font-mono ml-1">{{ $selectedIssue->evidence['archive_path'] }}</code>
+                        <div class="flex items-start gap-2">
+                            <div class="grow">
+                                <span class="text-zinc-500">Existing archive copy (under <code>_conflicts/</code> on archive disk):</span>
+                                <code class="font-mono ml-1">{{ $selectedIssue->evidence['archive_path'] }}</code>
+                            </div>
+                            <flux:button
+                                size="xs"
+                                variant="ghost"
+                                icon="folder-open"
+                                title="Reveal in Finder"
+                                wire:click="revealInFinder(@js($selectedIssue->evidence['archive_path']), 'archive')"
+                            />
                         </div>
                     @endif
                     <div class="text-zinc-500 italic pt-1 border-t border-zinc-100 dark:border-white/5">

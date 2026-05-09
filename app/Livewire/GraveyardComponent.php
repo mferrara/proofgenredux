@@ -2,8 +2,10 @@
 
 namespace App\Livewire;
 
+use App\Services\FinderRevealService;
 use App\Services\GraveyardService;
 use Flux\Flux;
+use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -69,6 +71,30 @@ class GraveyardComponent extends Component
             variant: $result['deleted_count'] > 0 ? 'success' : 'warning',
             position: 'top right',
         );
+    }
+
+    public function revealInFinder(string $relativePath, ?string $disk = null): void
+    {
+        $disk ??= $this->disk;
+        try {
+            if (! in_array($disk, GraveyardService::DISKS, true)) {
+                throw new \RuntimeException('Unknown disk: '.$disk);
+            }
+            $root = rtrim((string) config("filesystems.disks.{$disk}.root"), '/');
+            if ($root === '') {
+                throw new \RuntimeException('Disk root not configured: '.$disk);
+            }
+            $absolute = $root.'/'.ltrim($relativePath, '/');
+            app(FinderRevealService::class)->reveal($absolute);
+        } catch (\Throwable $e) {
+            Log::warning('Reveal in Finder failed: '.$e->getMessage());
+            Flux::toast(
+                text: 'Reveal failed: '.$e->getMessage(),
+                heading: 'Finder',
+                variant: 'danger',
+                position: 'top right',
+            );
+        }
     }
 
     public function render()
