@@ -8,6 +8,7 @@ use App\Jobs\ShowClass\UploadHighresImages;
 use App\Jobs\ShowClass\UploadProofs;
 use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Photo;
+use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Proofgen\Image;
 use App\Proofgen\ShowClass;
@@ -132,6 +133,7 @@ class ClassViewComponent extends Component
             ...$this->showClass->processingCounts(),
             'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
+            'open_issue_count' => PhotoIssue::open()->where('show_class_id', $this->showClass->id)->count(),
         ])->title($this->show.' '.$this->class.' - Proofgen');
     }
 
@@ -627,14 +629,21 @@ class ClassViewComponent extends Component
             $photo = Photo::find($photoId);
             if ($photo) {
                 if ($this->deleteFiles) {
-                    // Delete all associated files
+                    // Derived files: regenerate-able, plain delete is fine.
                     $photo->deleteLocalProofs();
                     $photo->deleteLocalWebImage();
                     $photo->deleteLocalHighresImage();
 
-                    // Delete original
+                    // Original is source-of-truth: route through graveyard instead of unlink.
                     if (file_exists($photo->full_path)) {
-                        unlink($photo->full_path);
+                        app(\App\Services\SafeFileMover::class)->buryAbsolute(
+                            $photo->full_path,
+                            \App\Services\SafeFileMover::REASON_PHOTO_DELETED,
+                            [
+                                'photo_id' => $photo->id,
+                                'sha1' => $photo->sha1,
+                            ],
+                        );
                     }
                 }
 

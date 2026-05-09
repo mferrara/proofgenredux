@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Helpers\DirectoryNameValidator;
 use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Jobs\ShowClass\ResetClassPhotos;
+use App\Models\PhotoIssue;
 use App\Models\ShowClass as ShowClassModel;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
@@ -87,6 +88,15 @@ class ShowViewComponent extends Component
         // Eager-load class models once instead of querying per directory.
         $class_models = $this->show->classes()->get()->keyBy('id');
 
+        // Open issue counts per class within this show.
+        $issueCountsByClass = PhotoIssue::open()
+            ->where('show_id', $this->show->id)
+            ->selectRaw('show_class_id, COUNT(*) as c')
+            ->groupBy('show_class_id')
+            ->pluck('c', 'show_class_id')
+            ->all();
+        $showOpenIssueCount = array_sum($issueCountsByClass);
+
         $class_folders = [];
         foreach ($current_path_directories as $directory) {
             $folder_name = basename($directory);
@@ -110,6 +120,7 @@ class ShowViewComponent extends Component
                 $images_imported = $show_class->getImportedImages();
             }
 
+            $class_id = $this->show->id.'_'.$folder_name;
             $class_folders[] = [
                 'path' => $folder_name,
                 'images_pending_processing_count' => count($images_to_process),
@@ -119,6 +130,7 @@ class ShowViewComponent extends Component
                 'is_valid' => $is_valid_directory,
                 'validation_error' => $validation_error,
                 'suggested_name' => $suggested_name,
+                'open_issue_count' => $issueCountsByClass[$class_id] ?? 0,
             ];
         }
 
@@ -150,6 +162,7 @@ class ShowViewComponent extends Component
             'photos_pending_highres_image_uploads' => $this->show->photosHighresImagedNotUploaded(),
             'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
+            'show_open_issue_count' => $showOpenIssueCount,
         ])->title($this->show->id.' - Proofgen');
     }
 

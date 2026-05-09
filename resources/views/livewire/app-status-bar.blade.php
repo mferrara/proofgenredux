@@ -10,7 +10,40 @@
 @endphp
 
 <div class="w-full border-b border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-900/40">
+    @if($graveyardAlert)
+        <div class="w-full bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-500/30">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-x-4 text-sm">
+                <div class="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                    <flux:icon name="exclamation-triangle" class="size-4 shrink-0" />
+                    <span>
+                        <strong>{{ $graveyardAlert['agedTotal'] }}</strong>
+                        aged file(s) in the graveyard on
+                        <strong>{{ implode(', ', $graveyardAlert['disks']) }}</strong>.
+                        <a href="{{ route('graveyard') }}" class="underline underline-offset-2 hover:text-amber-700 dark:hover:text-amber-200">Review &amp; purge</a>.
+                    </span>
+                </div>
+                <flux:button wire:click="snoozeGraveyardAlert" size="xs" variant="ghost">
+                    Snooze 24h
+                </flux:button>
+            </div>
+        </div>
+    @endif
+
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-end gap-x-4 text-sm">
+        {{-- Issues --}}
+        <div class="flex items-center gap-1.5">
+            <span class="text-zinc-500 dark:text-zinc-400">Issues</span>
+            @if($openIssuesCount > 0)
+                <a href="{{ route('photo-issues') }}" class="no-underline">
+                    <flux:badge color="amber" size="sm" icon="exclamation-triangle">{{ $openIssuesCount }} open</flux:badge>
+                </a>
+            @else
+                <flux:badge color="emerald" size="sm">None</flux:badge>
+            @endif
+        </div>
+
+        <div class="h-4 w-px bg-zinc-200 dark:bg-white/10"></div>
+
         {{-- Backups --}}
         <div class="flex items-center gap-1.5">
             <span class="text-zinc-500 dark:text-zinc-400">Backups</span>

@@ -21,6 +21,12 @@
                     <x-nav-link href="{{ route('server-connection') }}" :active="request()->routeIs('server-connection')">
                         {{ __('Server Config') }}
                     </x-nav-link>
+                    <x-nav-link href="{{ route('graveyard') }}" :active="request()->routeIs('graveyard')">
+                        {{ __('Graveyard') }}
+                    </x-nav-link>
+                    <x-nav-link href="{{ route('photo-issues') }}" :active="request()->routeIs('photo-issues')">
+                        {{ __('Issues') }}
+                    </x-nav-link>
                 </div>
             </div>
 

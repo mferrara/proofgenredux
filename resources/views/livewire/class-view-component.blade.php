@@ -44,6 +44,13 @@
             @if(isset($flash_message) && strlen($flash_message))
                 <flux:badge color="emerald" size="sm">{{ $flash_message }}</flux:badge>
             @endif
+            @if(($open_issue_count ?? 0) > 0)
+                <a href="{{ route('photo-issues', ['show_class_id' => $show_class->id]) }}">
+                    <flux:badge color="amber" size="sm" icon="exclamation-triangle">
+                        {{ $open_issue_count }} {{ str('issue')->plural($open_issue_count) }}
+                    </flux:badge>
+                </a>
+            @endif
             <flux:button
                 size="sm"
                 variant="ghost"

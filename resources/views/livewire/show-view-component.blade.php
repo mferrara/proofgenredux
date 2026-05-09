@@ -23,6 +23,13 @@
             @if(isset($flash_message) && strlen($flash_message))
                 <flux:badge color="emerald" size="sm">{{ $flash_message }}</flux:badge>
             @endif
+            @if(($show_open_issue_count ?? 0) > 0)
+                <a href="{{ route('photo-issues', ['show_id' => $show_id]) }}">
+                    <flux:badge color="amber" size="sm" icon="exclamation-triangle">
+                        {{ $show_open_issue_count }} {{ str('issue')->plural($show_open_issue_count) }}
+                    </flux:badge>
+                </a>
+            @endif
             <flux:button
                 size="sm"
                 variant="ghost"
@@ -166,6 +173,13 @@
                                         @if($highresUpload) <flux:badge color="purple" size="sm">{{ $highresUpload }} highres upload</flux:badge> @endif
                                         @if($proofsPending + $proofUpload + $webPending + $webUpload + $highresPending + $highresUpload === 0)
                                             <flux:badge color="emerald" size="sm" icon="check">All done</flux:badge>
+                                        @endif
+                                        @if(($class_folder_data['open_issue_count'] ?? 0) > 0)
+                                            <a href="{{ route('photo-issues', ['show_class_id' => $sc->id]) }}">
+                                                <flux:badge color="amber" size="sm" icon="exclamation-triangle">
+                                                    {{ $class_folder_data['open_issue_count'] }} {{ str('issue')->plural($class_folder_data['open_issue_count']) }}
+                                                </flux:badge>
+                                            </a>
                                         @endif
                                     </div>
                                 @else

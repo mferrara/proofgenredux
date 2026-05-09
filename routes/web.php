@@ -19,6 +19,9 @@ Route::middleware([
     Route::get('/show/{show_id}', \App\Livewire\ShowViewComponent::class);
     Route::get('/show/{show}/class/{class}', \App\Livewire\ClassViewComponent::class);
 
+    Route::get('/graveyard', \App\Livewire\GraveyardComponent::class)->name('graveyard');
+    Route::get('/photo-issues', \App\Livewire\PhotoIssuesComponent::class)->name('photo-issues');
+
     Route::get('/settings', \App\Livewire\ConfigComponent::class)->name('settings');
     Route::get('/config/server', \App\Livewire\ServerConnectionComponent::class)->name('server-connection');
 

@@ -2,8 +2,11 @@
 
 namespace App\Livewire;
 
+use App\Models\PhotoIssue;
+use App\Services\GraveyardService;
 use App\Services\HorizonService;
 use Flux\Flux;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -138,6 +141,50 @@ class AppStatusBar extends Component
         }
     }
 
+    public function snoozeGraveyardAlert(): void
+    {
+        // 25h TTL so the cache entry outlives the 24h "snoozed_until" timestamp itself.
+        Cache::put('graveyard_alert_snoozed_until', now()->addHours(24), now()->addHours(25));
+    }
+
+    /**
+     * Returns either ['agedTotal' => int, 'disks' => string[]] when an alert
+     * banner should be shown, or null when there's nothing to alert about
+     * (no aged files, or the user has snoozed within the last 24h).
+     */
+    public function gravyardAlert(): ?array
+    {
+        $snoozedUntil = Cache::get('graveyard_alert_snoozed_until');
+        if ($snoozedUntil instanceof \DateTimeInterface && now()->lt($snoozedUntil)) {
+            return null;
+        }
+
+        $summary = app(GraveyardService::class)->summary();
+        $agedDisks = [];
+        $agedTotal = 0;
+
+        foreach ($summary as $disk => $stats) {
+            if (($stats['aged_file_count'] ?? 0) > 0) {
+                $agedDisks[] = $disk;
+                $agedTotal += $stats['aged_file_count'];
+            }
+        }
+
+        if ($agedTotal === 0) {
+            return null;
+        }
+
+        return [
+            'agedTotal' => $agedTotal,
+            'disks' => $agedDisks,
+        ];
+    }
+
+    public function openIssuesCount(): int
+    {
+        return PhotoIssue::open()->count();
+    }
+
     public function render()
     {
         // Check if Horizon is running using the service
@@ -147,6 +194,8 @@ class AppStatusBar extends Component
         return view('livewire.app-status-bar', [
             'isHorizonRunning' => $isHorizonRunning,
             'autoRestartEnabled' => config('proofgen.auto_restart_horizon', false),
+            'graveyardAlert' => $this->gravyardAlert(),
+            'openIssuesCount' => $this->openIssuesCount(),
         ]);
     }
 }
