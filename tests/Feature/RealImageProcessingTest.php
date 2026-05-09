@@ -258,17 +258,19 @@ class RealImageProcessingTest extends TestCase
         putenv('WATERMARK_FONT='.storage_path('watermark_fonts/Georgia.ttf'));
         putenv('LARGE_THUMBNAIL_QUALITY=90');
 
-        // Mock Redis for proof numbers
-        $mock = \Mockery::mock('alias:'.Redis::class);
-        $mock->shouldReceive('client')->andReturn($mock);
-        $mock->shouldReceive('exists')->andReturn(false);
-        $mock->shouldReceive('rpush')->andReturn(true);
-        $mock->shouldReceive('lpop')->andReturnUsing(function () {
+        // Mock Redis for proof numbers using the facade (no alias mock — alias mocks
+        // pollute global class state and break sibling tests).
+        $redisClient = \Mockery::mock();
+        $redisClient->shouldReceive('exists')->andReturn(false);
+        $redisClient->shouldReceive('rpush')->andReturn(true);
+        $redisClient->shouldReceive('lpop')->andReturnUsing(function () {
             static $proofNum = 1;
 
             return 'TEST'.str_pad($proofNum++, 3, '0', STR_PAD_LEFT);
         });
-        $mock->shouldReceive('llen')->andReturn(0);
+        $redisClient->shouldReceive('llen')->andReturn(0);
+
+        Redis::shouldReceive('client')->andReturn($redisClient);
 
         // Create service instances
         $this->pathResolver = new PathResolver;
