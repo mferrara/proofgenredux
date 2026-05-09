@@ -1,7 +1,7 @@
 # Proofgen Redux Project Notes
 
 ## Reference docs
-- **Photo pipeline**: `docs/photo-pipeline.md` — end-to-end flowchart of how a JPG moves from ingest folder through resolver/archive/originals/derivatives/upload, with decision matrices, service catalog, and key invariants. **Read this first when changing anything in the import or audit pipeline.**
+- **Photo pipeline**: `docs/photo-pipeline.md` — end-to-end flowchart of how a JPG moves from ingest folder through resolver/archive/originals/derivatives/upload, with decision matrices, service catalog, key invariants, and known follow-ups. **Read this first when changing anything in the import or audit pipeline.** §15 lists the sharp edges worth knowing about (upload-parser fragility, reset-photos rough edges, audit walk performance, etc.).
 - **Ferraraphoto integration**: `docs/FERRARAPHOTO_INTEGRATION.md` — sister Laravel 4.2 app at `/Users/mikeferrara/Documents/code/ferraraphoto`; rsync-coupled by show slug.
 - **Archive backups**: `docs/archive-backups.md` — archive copy semantics + audit/repair workflows.
 
@@ -9,15 +9,9 @@
 - [x] Consolidate artisan commands that aren't in the proofgen namespace into the proofgen namespace (renamed `swift:compile` -> `proofgen:swift-compile`, `swift:check` -> `proofgen:swift-check`, `coreimage:daemon` -> `proofgen:coreimage-daemon`, `proofs:migrate` -> `proofgen:migrate-proofs`)
 - [x] Make favicon from the logo (generated 16/32/180/192/512 PNGs + multi-res ICO from the purple-orb portion of `application-logo.blade.php`; source SVG at `resources/svg/favicon-source.svg`, outputs in `public/`, referenced from all three layouts)
 - [x] Update web image and highres image uploads to happen _after_ the proofs are uploaded to ensure that the proofs are prioritized for upload (chained at the class level via Bus::chain in 2026-05; show-level upload is synchronous and already proofs-first)
-- [ ] Implement something that is able to report the current filesize/storage usage of the following at the show and class levels:
-  - [ ] Fullsize images
-  - [ ] Proofs
-  - [ ] Web images
-  - [ ] Highres images
-  - [ ] Combined total
-- [ ] Implement a way to determine and report the storage usage of the /backups directory
-- [ ] Implement a way to determine and report the storage usage of the /storage/sample_images directory
-- [ ] Add a "Download Sample Images" button to the configuration page
+- [x] Storage usage reporting at show + class level (originals, proofs, web, highres, archive, total) — `App\Services\StorageUsageService`; lazy-loaded panels on `ShowViewComponent` + `ClassViewComponent`. Cached 10 min.
+- [x] /backups + storage/sample_images directory sizing — same service (`backupsUsage()`, `sampleImagesUsage()`); panel on `HomeComponent`.
+- [x] "Download Sample Images" button on configuration page — `ConfigComponent::downloadSampleImages()` with progress toast.
 
 ## Development Environment Access Information
 

@@ -241,16 +241,32 @@ PhotoImportPlan {
     originalFilename            // basename
     extension                   // lowercased
     sha1, size                  // of source bytes
+    sourceMtime                 // ?int — file mtime at resolve time
     filenameIsNumberedForShow   // bool
     intendedProofNumber         // ?string — only set if filename was numbered
     allocatesNewProofNumber     // bool — true if IMPORT_NEW from raw filename
     existingByContent           // ?Photo — sha1 match
     existingByProofNumber       // ?Photo — proof# match in same show
+    captureFingerprint          // array — EXIF forensic fields (see below)
     evidence                    // array — extra context for issues
 }
 ```
 
-The resolver **does not mutate**. It reads bytes, hashes, queries the DB. Test: `tests/Unit/Services/PhotoImportIdentityResolverTest.php`.
+**Capture fingerprint** — populated via `PhotoMetadata::fingerprintFromFile()`. When the source is EXIF-bearing (most pro-camera files), the resolver pulls these forensic identifiers and shooting context onto the plan and into any resulting `photo_issues.evidence` JSON:
+
+| Field | EXIF source |
+|---|---|
+| `camera_make`, `camera_model`, `software` | IFD0 |
+| `lens_make`, `lens_model` | EXIF.LensMake/LensModel |
+| `body_serial_number`, `lens_serial_number` | EXIF.BodySerialNumber, LensSerialNumber |
+| `image_unique_id` | EXIF.ImageUniqueID (32-char hex on cameras that emit it; near-perfect frame identifier) |
+| `subsec_time_original` | EXIF.SubSecTimeOriginal (burst-mode disambiguation) |
+| `gps_latitude`, `gps_longitude`, `gps_altitude` | GPS.* (signed decimal degrees, signed altitude) |
+| `color_space`, `white_balance`, `exposure_program`, `metering_mode`, `flash`, `focal_length_35mm` | EXIF |
+
+Fingerprint is empty `[]` for non-EXIF files. Same fields are persisted on the `photo_metadata` row at Photo creation time so they're queryable across the catalog.
+
+The resolver **does not mutate**. It reads bytes, hashes, queries the DB, parses EXIF off the source path. Test: `tests/Unit/Services/PhotoImportIdentityResolverTest.php` + `tests/Feature/PhotoMetadataFingerprintTest.php`.
 
 ---
 
@@ -286,8 +302,8 @@ See §4.5. Photo created, source buried, derivative jobs dispatched (when `dispa
 | Action | Issue types it applies to | What it does |
 |---|---|---|
 | **Discard incoming** | duplicate_content, proof_collision | `SafeFileMover::bury()` the quarantined source. Resolve issue. |
-| **Assign next proof number** | duplicate_content | `Show::getNextProofNumber()` then `PhotoService::processPhoto(quarantine_path, $newNumber, bypassResolver: true)`. Resolve. |
-| **Replace existing with incoming** | proof_collision, duplicate_content | Modal confirm → bury existing's original + archive → `$existing->delete()` → relocate quarantined bytes if needed → `processPhoto(..., bypassResolver: true)` under existing's proof number. Resolve. |
+| **Assign next proof number** | duplicate_content | `Show::getNextProofNumber()` then `PhotoService::processPhoto(quarantine_path, $newNumber, bypassResolver: true, dispatchJobs: true)`. Resolve. Derivative regen jobs fire so thumbnails appear immediately. |
+| **Replace existing with incoming** | proof_collision, duplicate_content | Modal confirm → bury existing's original + archive → `$existing->delete()` → relocate quarantined bytes if needed → `processPhoto(..., bypassResolver: true, dispatchJobs: true)` under existing's proof number. Resolve. |
 | **Move existing photo to this class** | duplicate_content (cross-class) | `PhotoMoveService::movePhotos([$existing->id], $thisClassId)` → bury quarantined incoming. Resolve. |
 | **Run safe repair** | missing_archive, metadata_mismatch | `PhotoArchiveService::repairPhoto($photo)`. Resolve if status now `ok`. |
 | **Mark ignored** | any | `status = ignored` + notes. No file changes. |
@@ -313,6 +329,8 @@ Cross-table checks:
 - `findDuplicateProofNumberGroups()` — multiple photos with same proof number (within or across shows).
 - `findOrphanOriginals()` — files in `{show}/{class}/originals/` with no Photo row.
 - `findPhotosWithoutOriginalOrArchive()` — high-risk: DB row only, both file copies missing.
+- `findIngestStragglers()` — non-image files in `{show}/{class}/` ingest landing zone (e.g. `notes.txt`, `proof_sheet.pdf`). `.DS_Store`/`Thumbs.db`/`desktop.ini` are silently ignored. Image files are treated as pending-import.
+- `findOrphanQuarantineFiles()` — files in `{show}/{class}/_import_conflicts/` without a matching open `photo_issues` row (typically when an issue was resolved but disk wasn't cleaned up, or vice versa).
 
 All non-OK findings are persisted as `photo_issues` rows via `recordOrUpdateIssue()` (idempotent upsert keyed on `issue_type` + `existing_photo_id` + `status=open`, so re-runs don't duplicate rows).
 
@@ -476,9 +494,12 @@ Alphabetical reference. File paths are absolute from repo root.
 | `App\Services\PhotoImportIssueRecorder` | `app/Services/PhotoImportIssueRecorder.php` | Quarantines source + creates `photo_issues` row for resolver-flagged imports |
 | `App\Services\PhotoImportPlan` | `app/Services/PhotoImportPlan.php` | Pure data; resolver output |
 | `App\Services\PhotoMoveService` | `app/Services/PhotoMoveService.php` | Move single photos between classes; derivative follow-through |
-| `App\Services\PhotoService` | `app/Services/PhotoService.php` | The orchestrator — every import call lands here |
+| `App\Services\PhotoService` | `app/Services/PhotoService.php` | The orchestrator — every import call lands here. `bypassResolver: true` skips classification for operator-driven re-imports |
 | `App\Services\ClassRenameService` | `app/Services/ClassRenameService.php` | Rename whole class folder; bulk directory moves |
 | `App\Services\SafeFileMover` | `app/Services/SafeFileMover.php` | The single legitimate "delete" path. `bury()` + `quarantineImport()` + `buryAbsolute()` |
+| `App\Services\FinderRevealService` | `app/Services/FinderRevealService.php` | macOS-only — shells out to `open -R` for "Reveal in Finder" buttons. Validates path is under a known disk root |
+| `App\Services\StorageUsageService` | `app/Services/StorageUsageService.php` | Walks image trees to report bytes + file counts at class/show scope plus `_graveyard/sample_images/backups`. Cached 10 min |
+| `App\Models\PhotoMetadata` | `app/Models/PhotoMetadata.php` | EXIF-rich metadata model. `fingerprintFromFile()` and `extractForensicFields()` are the static helpers used by the resolver |
 
 ---
 
@@ -495,11 +516,18 @@ The full Phase 1–6 test sweep (sanity check):
   tests/Feature/ArchiveBackupTest.php \
   tests/Feature/GraveyardComponentTest.php \
   tests/Feature/PhotoMoveServiceTest.php \
+  tests/Feature/UploadChainTest.php \
+  tests/Feature/ShowClassResetTest.php \
+  tests/Feature/PhotoMetadataFingerprintTest.php \
+  tests/Feature/FinderRevealComponentsTest.php \
+  tests/Feature/ConfigComponentSampleImagesTest.php \
   tests/Feature/ImageProcessingWorkflowTest.php \
   tests/Unit/Services/SafeFileMoverTest.php \
   tests/Unit/Services/PhotoImportIdentityResolverTest.php \
   tests/Unit/Services/ImportConflictHintServiceTest.php \
   tests/Unit/Services/GraveyardServiceTest.php \
+  tests/Unit/Services/StorageUsageServiceTest.php \
+  tests/Unit/Services/FinderRevealServiceTest.php \
   tests/Unit/Proofgen/ImageTest.php
 ```
 
@@ -520,4 +548,19 @@ When this passes, the import/audit/move/quarantine/graveyard pipeline is healthy
 
 ---
 
-*Last updated: 2026-05-09. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
+## 15. Known follow-ups / sharp edges
+
+Surfaced during the resolver/audit/upload work. None blocking; documented so they don't get lost.
+
+- **`ShowClass` upload-output parsing matches on `show->name`, not `show->id`.** `proofUploads()` / `webImageUploads()` / `highresImageUploads()` use `str_starts_with(strtolower($line), strtolower($this->show->name))`. Today `name === id` everywhere, but if a `Show.name` ever drifts (operator renames "Buck 24" → id "SHOW1"), uploaded files won't be tracked. Either drop the dependency on `name` or add an explicit invariant.
+- **`*_uploaded_at` semantics**. The flag is updated whenever rsync output names a file. On idempotent re-uploads rsync output is empty for already-present files, so `*_uploaded_at` reflects "last time this specific file was actually transferred," not "first uploaded." Usually fine; worth knowing.
+- **`ShowClass::resetPhotos()` has three minor sharp edges noted by the reset test author**:
+  - Logs `'Reset N photos'` after deleting them in the loop — count is correct but wording is mildly misleading.
+  - If an original on disk has no matching `Photo` row (a true orphan), the local file gets renamed but the archive copy is left under its old proof-number name → divergence between disks. Should probably skip-with-log or rename both.
+  - No transaction / failure isolation. Mid-loop `Storage::move` failure leaves a partial reset. Acceptable for single-tenant local use, but a structured retry/rollback would be safer.
+- **`PhotoIssuesComponent::reimportQuarantinedSource` runs synchronously inside the Livewire request.** Resolution actions can write archive + original + DB row + dispatch jobs in one click. Acceptable for the file sizes / single-user workflow, but if a future change makes any of those slow, consider moving to a queued job.
+- **Audit ingest scan walks `Storage::disk('fullsize')->allFiles()`** unfiltered. For very large installs this could be slow. The implementation-time choice was simplicity over a directory-by-directory walk; revisit if it becomes an issue.
+
+---
+
+*Last updated: 2026-05-10. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
