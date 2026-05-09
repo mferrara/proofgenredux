@@ -18,11 +18,13 @@ class PhotoImportPlan
         public readonly string $extension,
         public readonly string $sha1,
         public readonly int $size,
+        public readonly ?int $sourceMtime,
         public readonly bool $filenameIsNumberedForShow,
         public readonly ?string $intendedProofNumber,
         public readonly bool $allocatesNewProofNumber,
         public readonly ?Photo $existingByContent,
         public readonly ?Photo $existingByProofNumber,
+        public readonly array $captureFingerprint = [],
         public readonly array $evidence = [],
     ) {}
 

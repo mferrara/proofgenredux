@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Photo;
+use App\Models\PhotoMetadata;
 use App\Models\Show;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -52,9 +53,15 @@ class PhotoImportIdentityResolver
         $contents = Storage::disk('fullsize')->get($sourcePath);
         $sha1 = sha1($contents);
         $size = strlen($contents);
+        $mtime = Storage::disk('fullsize')->lastModified($sourcePath);
 
         $basename = basename($sourcePath);
         $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+
+        // EXIF read needs an absolute path. We deliberately read from the live source
+        // before any move; the resolver still doesn't mutate anything.
+        $absolutePath = rtrim((string) config('proofgen.fullsize_home_dir'), '/').'/'.ltrim($sourcePath, '/');
+        $captureFingerprint = PhotoMetadata::fingerprintFromFile($absolutePath);
 
         $embeddedProofNumber = $this->extractEmbeddedProofNumber($basename, $showId);
         $filenameIsNumbered = $embeddedProofNumber !== null;
@@ -93,11 +100,13 @@ class PhotoImportIdentityResolver
             extension: $extension,
             sha1: $sha1,
             size: $size,
+            sourceMtime: $mtime,
             filenameIsNumberedForShow: $filenameIsNumbered,
             intendedProofNumber: $intendedProofNumber,
             allocatesNewProofNumber: $allocatesNewProofNumber,
             existingByContent: $existingByContent,
             existingByProofNumber: $existingByProofNumber,
+            captureFingerprint: $captureFingerprint,
             evidence: $evidence,
         );
     }

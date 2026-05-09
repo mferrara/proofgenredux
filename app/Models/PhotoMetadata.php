@@ -27,6 +27,10 @@ class PhotoMetadata extends Model
         'height' => 'integer',
         'width' => 'integer',
         'exif_timestamp' => 'datetime',
+        'gps_latitude' => 'decimal:7',
+        'gps_longitude' => 'decimal:7',
+        'gps_altitude' => 'decimal:2',
+        'focal_length_35mm' => 'decimal:1',
     ];
 
     public function photo(): BelongsTo
@@ -118,6 +122,8 @@ class PhotoMetadata extends Model
             $width = $computed['Width'] ?? null;
         }
 
+        $forensic = self::extractForensicFields($exif_data);
+
         $this->shutter_speed = $shutter_speed;
         $this->aperture = $fnumber;
         $this->iso = $iso_speed_ratings;
@@ -130,6 +136,23 @@ class PhotoMetadata extends Model
         $this->exif_timestamp = $exif_timestamp;
         $this->height = $height;
         $this->width = $width;
+
+        $this->subsec_time_original = $forensic['subsec_time_original'];
+        $this->lens_make = $forensic['lens_make'];
+        $this->lens_model = $forensic['lens_model'];
+        $this->body_serial_number = $forensic['body_serial_number'];
+        $this->lens_serial_number = $forensic['lens_serial_number'];
+        $this->image_unique_id = $forensic['image_unique_id'];
+        $this->gps_latitude = $forensic['gps_latitude'];
+        $this->gps_longitude = $forensic['gps_longitude'];
+        $this->gps_altitude = $forensic['gps_altitude'];
+        $this->software = $forensic['software'];
+        $this->color_space = $forensic['color_space'];
+        $this->white_balance = $forensic['white_balance'];
+        $this->exposure_program = $forensic['exposure_program'];
+        $this->metering_mode = $forensic['metering_mode'];
+        $this->flash = $forensic['flash'];
+        $this->focal_length_35mm = $forensic['focal_length_35mm'];
 
         // When the cameras are turned to the side their sensor is still _technically_ shooting
         // an image with a height and width in landscape as far as the aspect ratio is concerned
@@ -191,5 +214,190 @@ class PhotoMetadata extends Model
             // Optional: Round to 1 decimal place for display
             $this->megapixels = round($this->megapixels, 1);
         }
+    }
+
+    /**
+     * Pull forensic identifiers + shooting context from a parsed EXIF array without
+     * persisting anything. Used by PhotoImportIdentityResolver to attach a fingerprint
+     * to the import plan and by audit findings to surface near-duplicate context.
+     */
+    public static function extractForensicFields(array $exif_data): array
+    {
+        $ifd0 = $exif_data['IFD0'] ?? [];
+        $exif = $exif_data['EXIF'] ?? [];
+        $gps = $exif_data['GPS'] ?? [];
+
+        return [
+            'subsec_time_original' => self::stringOrNull($exif['SubSecTimeOriginal'] ?? $exif['SubSecTime'] ?? null),
+            'lens_make' => self::stringOrNull($exif['LensMake'] ?? $ifd0['LensMake'] ?? null),
+            'lens_model' => self::stringOrNull($exif['LensModel'] ?? $ifd0['LensModel'] ?? null),
+            'body_serial_number' => self::stringOrNull(
+                $exif['BodySerialNumber']
+                ?? $ifd0['BodySerialNumber']
+                ?? $exif['SerialNumber']
+                ?? $ifd0['SerialNumber']
+                ?? null
+            ),
+            'lens_serial_number' => self::stringOrNull($exif['LensSerialNumber'] ?? $ifd0['LensSerialNumber'] ?? null),
+            'image_unique_id' => self::stringOrNull($exif['ImageUniqueID'] ?? $ifd0['ImageUniqueID'] ?? null),
+            'gps_latitude' => self::gpsCoordinate($gps['GPSLatitude'] ?? null, $gps['GPSLatitudeRef'] ?? null),
+            'gps_longitude' => self::gpsCoordinate($gps['GPSLongitude'] ?? null, $gps['GPSLongitudeRef'] ?? null),
+            'gps_altitude' => self::gpsAltitude($gps['GPSAltitude'] ?? null, $gps['GPSAltitudeRef'] ?? null),
+            'software' => self::stringOrNull($ifd0['Software'] ?? null),
+            'color_space' => self::colorSpaceName($exif['ColorSpace'] ?? null),
+            'white_balance' => self::whiteBalanceName($exif['WhiteBalance'] ?? null),
+            'exposure_program' => self::exposureProgramName($exif['ExposureProgram'] ?? null),
+            'metering_mode' => self::meteringModeName($exif['MeteringMode'] ?? null),
+            'flash' => self::flashName($exif['Flash'] ?? null),
+            'focal_length_35mm' => self::rationalToFloat($exif['FocalLengthIn35mmFilm'] ?? null),
+        ];
+    }
+
+    /**
+     * Read the source file's EXIF and return the forensic payload, or an empty array
+     * when the file isn't EXIF-bearing. Suitable for one-shot use during import.
+     */
+    public static function fingerprintFromFile(string $absolutePath): array
+    {
+        if (! is_file($absolutePath)) {
+            return [];
+        }
+
+        $exif = @exif_read_data($absolutePath, 'EXIF', true);
+        if ($exif === false) {
+            return [];
+        }
+
+        $forensic = self::extractForensicFields($exif);
+        $forensic['exif_timestamp'] = $exif['EXIF']['DateTimeOriginal']
+            ?? $exif['IFD0']['DateTime']
+            ?? null;
+        $forensic['camera_make'] = self::stringOrNull($exif['IFD0']['Make'] ?? null);
+        $forensic['camera_model'] = self::stringOrNull($exif['IFD0']['Model'] ?? null);
+
+        return $forensic;
+    }
+
+    private static function stringOrNull(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $str = trim((string) $value);
+
+        return $str === '' ? null : $str;
+    }
+
+    private static function rationalToFloat(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+        $parts = explode('/', (string) $value);
+        if (count($parts) === 2 && (float) $parts[1] !== 0.0) {
+            return (float) $parts[0] / (float) $parts[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * EXIF GPS arrays come as [degrees, minutes, seconds] each as rational strings.
+     * Returns signed decimal degrees (south/west = negative).
+     */
+    private static function gpsCoordinate(mixed $components, ?string $ref): ?float
+    {
+        if (! is_array($components) || count($components) !== 3) {
+            return null;
+        }
+        $deg = self::rationalToFloat($components[0]);
+        $min = self::rationalToFloat($components[1]);
+        $sec = self::rationalToFloat($components[2]);
+        if ($deg === null || $min === null || $sec === null) {
+            return null;
+        }
+        $decimal = $deg + ($min / 60) + ($sec / 3600);
+        if ($ref === 'S' || $ref === 'W') {
+            $decimal = -$decimal;
+        }
+
+        return round($decimal, 7);
+    }
+
+    private static function gpsAltitude(mixed $altitude, mixed $ref): ?float
+    {
+        $value = self::rationalToFloat($altitude);
+        if ($value === null) {
+            return null;
+        }
+        // Ref 1 (or "\x01") = below sea level per EXIF spec.
+        if ($ref === 1 || $ref === "\x01" || $ref === '1') {
+            $value = -$value;
+        }
+
+        return round($value, 2);
+    }
+
+    private static function colorSpaceName(mixed $value): ?string
+    {
+        return match ((int) $value) {
+            1 => 'sRGB',
+            2 => 'Adobe RGB',
+            65535 => 'Uncalibrated',
+            default => null,
+        };
+    }
+
+    private static function whiteBalanceName(mixed $value): ?string
+    {
+        return match ((int) $value) {
+            0 => 'Auto',
+            1 => 'Manual',
+            default => null,
+        };
+    }
+
+    private static function exposureProgramName(mixed $value): ?string
+    {
+        return match ((int) $value) {
+            1 => 'Manual',
+            2 => 'Program AE',
+            3 => 'Aperture Priority',
+            4 => 'Shutter Priority',
+            5 => 'Creative',
+            6 => 'Action',
+            7 => 'Portrait',
+            8 => 'Landscape',
+            9 => 'Bulb',
+            default => null,
+        };
+    }
+
+    private static function meteringModeName(mixed $value): ?string
+    {
+        return match ((int) $value) {
+            1 => 'Average',
+            2 => 'Center-weighted',
+            3 => 'Spot',
+            4 => 'Multi-spot',
+            5 => 'Multi-segment',
+            6 => 'Partial',
+            255 => 'Other',
+            default => null,
+        };
+    }
+
+    private static function flashName(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $int = (int) $value;
+        $fired = ($int & 0x01) === 0x01;
+
+        return $fired ? 'Fired' : 'Not fired';
     }
 }

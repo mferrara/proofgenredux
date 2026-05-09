@@ -58,6 +58,8 @@ class PhotoImportIssueRecorder
             'evidence' => $plan->evidence + [
                 'quarantine_sidecar' => $quarantineResult['sidecar_path'],
                 'original_filename' => $plan->originalFilename,
+                'source_mtime' => $plan->sourceMtime,
+                'capture_fingerprint' => $plan->captureFingerprint,
             ],
         ]);
     }
