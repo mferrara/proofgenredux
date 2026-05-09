@@ -6,6 +6,7 @@ use App\Models\Configuration;
 use App\Providers\ConfigurationServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ConfigurationServiceProviderTest extends TestCase
@@ -74,5 +75,20 @@ class ConfigurationServiceProviderTest extends TestCase
 
         // Verify updated config value is loaded
         $this->assertEquals('updated_value', Config::get('proofgen.dynamic_key'));
+    }
+
+    public function test_database_image_roots_update_filesystem_disks()
+    {
+        Configuration::setConfig('fullsize_home_dir', '/db/fullsize', 'path');
+        Configuration::setConfig('archive_home_dir', '/db/archive', 'path');
+
+        Storage::fake('fullsize');
+        Storage::fake('archive');
+
+        $provider = new ConfigurationServiceProvider($this->app);
+        $provider->boot();
+
+        $this->assertSame('/db/fullsize', Config::get('filesystems.disks.fullsize.root'));
+        $this->assertSame('/db/archive', Config::get('filesystems.disks.archive.root'));
     }
 }

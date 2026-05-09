@@ -545,6 +545,8 @@ class ConfigComponent extends Component
         $this->loadConfigurations();
         $this->initializeConfigValues();
         $this->initializeTempThumbnailValues();
+        Configuration::overrideApplicationConfig();
+        app(\App\Services\ImageDiskConfigurator::class)->apply();
 
         Flux::toast(text: 'The settings have saved successfully.', heading: 'Settings saved', variant: 'success', position: 'top right');
         $this->dispatchUpdateEvent();

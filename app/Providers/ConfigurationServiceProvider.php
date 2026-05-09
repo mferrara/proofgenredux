@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Configuration;
+use App\Services\ImageDiskConfigurator;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -34,6 +35,11 @@ class ConfigurationServiceProvider extends ServiceProvider
             // Load configuration overrides from cache/database and set them with the application config() helper
             // Log::debug('Loading configurations.');
             Configuration::overrideApplicationConfig();
+
+            // Database-backed image roots must also update the underlying
+            // Storage disk roots. Otherwise the UI config and actual writes
+            // can point at different directories.
+            app(ImageDiskConfigurator::class)->apply();
 
             // After configs are overlaid, reconfigure the remote_* storage disks
             // if the transport driver is set to 'local' so they map to a local

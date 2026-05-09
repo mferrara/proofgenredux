@@ -44,11 +44,11 @@ exactly** between the two systems (e.g. `2026R12` on both sides).
 These three SFTP paths are configured in proofgen's settings (Settings → Server (SFTP) and the
 underlying `proofgen.sftp.*` config):
 
-| Local source (under `fullsize_home_dir`) | proofgen config key            | Remote destination on ferraraphoto host                            |
-|------------------------------------------|--------------------------------|--------------------------------------------------------------------|
-| `{show}/{class}/proofs/`                 | `sftp.path`                    | `/home/forge/<host>/public/proofs/{show}/{class}/`                 |
-| `{show}/{class}/web_images/`             | `sftp.web_images_path`         | `/home/forge/<host>/app/storage/web_images/{show}/{class}/`        |
-| `{show}/{class}/highres_images/`         | `sftp.highres_images_path`     | `/home/forge/<host>/app/storage/high_res_images/{show}/{class}/`   |
+| Local source (under the `fullsize` disk root) | proofgen config key        | Remote destination on ferraraphoto host                            |
+|-----------------------------------------------|----------------------------|--------------------------------------------------------------------|
+| `proofs/{show}/{class}/`                      | `sftp.path`                | `/home/forge/<host>/public/proofs/{show}/{class}/`                 |
+| `web_images/{show}/{class}/`                  | `sftp.web_images_path`     | `/home/forge/<host>/app/storage/web_images/{show}/{class}/`        |
+| `highres_images/{show}/{class}/`              | `sftp.highres_images_path` | `/home/forge/<host>/app/storage/high_res_images/{show}/{class}/`   |
 
 The current values point at staging:
 - `sftp.path` → `/home/forge/staging.ferraraphoto.com/public/proofs`

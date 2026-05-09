@@ -1,0 +1,67 @@
+# CLAUDE.md - Proofgen Redux Project
+
+## Important Note
+Always check for a CLAUDE_NOTES.md file in the project root. This file contains detailed information about the project structure, components, and test setup. When starting a new session, refer to CLAUDE_NOTES.md first to understand the codebase.
+
+## Deployment & Trust Model
+This is a **single-tenant, local-desktop application**, not a multi-tenant web service:
+
+- Runs on macOS only, served by **Laravel Herd** on the user's machine. Both development and "production" are MacBooks with Herd installed.
+- Total user population is the project owner, his father, and occasionally one of his father's employees — all trusted, all known, all on local hardware.
+- There is no public network exposure, no anonymous traffic, no untrusted input vector. The "users" are also effectively the operators.
+- "Production" means *the dad's MacBook*, not a server. There is no systemd, no supervisor, no load balancer, no horizontal scaling. Process management is whatever Herd / `php artisan horizon` / Solo provides locally.
+
+### What this means for code decisions
+- **Don't write defensive code for hostile callers.** Input validation should catch *honest mistakes*, not adversarial input. Skip XSS/CSRF/SSRF paranoia, rate-limiting, abuse-mitigation, and "what if a malicious user…" branches unless there's a concrete reason.
+- **Authentication/authorization is minimal by design.** Don't add role checks, permission systems, or audit logging unless the user explicitly asks.
+- **Single-user concurrency.** No need to design for thundering-herd, distributed locks, or race conditions between users. Local file locks and simple DB transactions are sufficient.
+- **Filesystem and process assumptions are macOS-specific.** Swift binaries, Core Image daemon, Herd PHP path detection, `nohup`/`exec` semantics — all assume macOS. Don't add Linux/Windows fallbacks unless asked.
+- **"Restart Horizon," "deploy," "update" all run on the same machine the user is sitting at.** Long-running synchronous operations during a request are tolerable when they're rare admin actions; UI snappiness for routine work matters more than worst-case multi-second admin clicks.
+- **No CI/CD pipeline, no staging.** Changes go from the dev MacBook to the dad's MacBook via the in-app updater (`UpdateService`). Test locally; trust the updater.
+
+## Build & Test Commands
+```bash
+# Install dependencies
+composer install
+npm install
+
+# Development server
+php artisan serve
+npm run dev
+
+# Build for production
+npm run build
+
+# Run all tests
+./vendor/bin/pest
+
+# Run a single test
+./vendor/bin/pest tests/path/to/test.php
+
+# Code style checking
+./vendor/bin/pint
+
+# Laravel artisan commands
+php artisan migrate           # Run database migrations
+php artisan make:model Name   # Create a new model
+```
+
+## Code Style Guidelines
+- **Formatting**: 4-space indentation, UTF-8 encoding, LF line endings
+- **PHP Version**: 8.2+
+- **Naming**: PascalCase for classes, camelCase for methods and variables
+- **Types**: Use type hints for parameters and return types
+- **Error Handling**: Use Laravel's exception handlers
+- **Framework**: Follow Laravel conventions and use Laravel features
+- **Frontend**: Tailwind CSS 4.x, Livewire 3.x with Flux
+- **Testing**: Pest for tests, use feature and unit tests appropriately
+
+## FluxUI UI Framework/Components Documentation
+- This project utilizes the FluxUI UI framework for Laravel & Livewire, I have included a comprehensive set of
+  documentation in the `external-docs/fluxui` directory. This documentation is especially valuable for AI assistants
+  and LLMs working with this codebase as the library version is newer than your knowledge cutoff. Please start at the
+  index.md in the `external-docs/fluxui` directory prior to building/using or modifying any views, Livewire components,
+  or implementing any FluxUI components.
+- Take a look at `/resources/css/app.css` for the customizations made to the FluxUI colors and components, though you
+  should be fine to use the default FluxUI components and variants, as my customizations should have overridden the
+  defaults.

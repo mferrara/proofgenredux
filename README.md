@@ -8,7 +8,7 @@ Proofgen Redux monitors directories containing full-size images from photographe
 
 1. **Image Processing Steps**:
    - Renames files with proof numbers (configurable)
-   - Creates archive copies (configurable)
+   - Creates verified archive copies on the configured archive disk (configurable)
    - Generates thumbnails with watermarks (configurable)
    - Creates web-optimized versions (configurable)
    - Uploads proofs & web images to remote server via SFTP/rsync (configurable)
@@ -133,13 +133,53 @@ FULLSIZE_HOME_DIR/
 ├── ShowName/              # e.g., "2023R41"
 │   ├── ClassID/          # e.g., "121", "127"
 │   │   ├── IMG_xxxx.jpg  # Raw images to process
-│   │   ├── originals/    # Renamed images moved here after processing
-│   │   └── proofs/       # Generated thumbnails/proofs
+│   │   └── originals/    # Renamed images moved here after processing
+├── proofs/
+│   └── ShowName/
+│       └── ClassID/      # Generated thumbnails/proofs
+├── web_images/
+│   └── ShowName/
+│       └── ClassID/      # Generated web-resolution images
+└── highres_images/
+    └── ShowName/
+        └── ClassID/      # Generated high-resolution images
 ```
 
 ### Configuration
-- **FULLSIZE_HOME_DIR**: Base directory containing show folders
-- **ARCHIVE_HOME_DIR**: Backup location for full-size images (ideally external drive)
+- **FULLSIZE_HOME_DIR / fullsize_home_dir**: Base directory containing show folders. The database-backed setting is applied to the `fullsize` filesystem disk at runtime.
+- **ARCHIVE_HOME_DIR / archive_home_dir**: Backup location for full-size images, ideally a fast external drive carried separately from the laptop. The database-backed setting is applied to the `archive` filesystem disk at runtime.
+
+## Photo Archive Backups
+
+When archive backups are enabled, import writes a second verified copy of each imported original to the `archive` disk before the ingest source file is removed from the class folder. Archive files use the current recoverable class layout:
+
+```
+ARCHIVE_HOME_DIR/
+├── ShowName/
+│   └── ClassID/
+│       └── ProofNumber.jpg
+```
+
+Each `photos` record stores `archive_path`, `archive_sha1`, `archive_size`, and `archived_at` so the database can report whether the local original has a matching backup copy. If an archive file already exists with the same contents, import reuses it. If a different file already exists at that path, Proofgen moves the old copy into that class's `_conflicts` folder before writing the new current copy; it does not blind-delete the old backup.
+
+Class renames and selected photo moves also move the archive copy and refresh the photo archive metadata. Resetting a class moves archive files to the reset filenames so the archive stays close to the current local filesystem state. Deleting photos from the UI does not delete archive copies.
+
+Use the audit command to check or repair archive coverage:
+
+```bash
+# Report archive state for all photos
+php artisan proofgen:audit-archives
+
+# Limit to one show or class
+php artisan proofgen:audit-archives --show=2023R41
+php artisan proofgen:audit-archives --show=2023R41 --class=121
+
+# Backfill missing/mismatched archive copies from local originals and refresh metadata
+php artisan proofgen:audit-archives --repair
+
+# Machine-readable output
+php artisan proofgen:audit-archives --format=json
+```
 
 ## Main Components
 
@@ -245,7 +285,7 @@ Customizations to FluxUI colors and components can be found in `/resources/css/a
 
 ## Getting Started with Image Processing
 
-1. Set `FULLSIZE_HOME_DIR` in your `.env` file to point to your images parent folder
+1. Set `fullsize_home_dir` in Settings (or `FULLSIZE_HOME_DIR` before database configuration exists) to point to your images parent folder
 2. Create a show folder (e.g., "20Buckeye") inside the FULLSIZE_HOME_DIR
 3. Create class folders (e.g., "0001") inside the show folder
 4. Place full-size images inside the class folders
@@ -259,4 +299,4 @@ The application is transitioning from `.env` file configuration to database-stor
 
 ## Additional Documentation
 
-For developers and AI assistants, see `CLAUDE.md` for important project instructions and `CLAUDE_NOTES.md` for detailed project notes and TODO items.
+For developers and AI assistants, see `CLAUDE.md` for important project instructions, `CLAUDE_NOTES.md` for detailed project notes and TODO items, and `docs/archive-backups.md` for the photo archive recovery contract.
