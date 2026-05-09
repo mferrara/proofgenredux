@@ -6,6 +6,7 @@
 - **Archive backups**: `docs/archive-backups.md` — archive copy semantics + audit/repair workflows.
 
 ## TODO items
+- [ ] Upgrade `intervention/image-laravel` 1.x → 4.x (and `intervention/image` 3.x → 4.x). Deferred during the 2026-05 framework upgrade because Intervention v4 broke the API surface we use heavily (`ImageManager::gd()` removed, `->read()` removed in favor of `->decode*()`, exception hierarchy restructured). Will require a focused refactor of `app/Proofgen/Image.php`, `app/Livewire/ConfigComponent.php`, `app/Services/ImageEnhancementService.php`, `app/Services/CoreImageEnhancementService.php`, `app/Services/CoreImageDaemonService.php`. Until then we're pinned to Intervention v3.x.
 - [x] Consolidate artisan commands that aren't in the proofgen namespace into the proofgen namespace (renamed `swift:compile` -> `proofgen:swift-compile`, `swift:check` -> `proofgen:swift-check`, `coreimage:daemon` -> `proofgen:coreimage-daemon`, `proofs:migrate` -> `proofgen:migrate-proofs`)
 - [x] Make favicon from the logo (generated 16/32/180/192/512 PNGs + multi-res ICO from the purple-orb portion of `application-logo.blade.php`; source SVG at `resources/svg/favicon-source.svg`, outputs in `public/`, referenced from all three layouts)
 - [x] Update web image and highres image uploads to happen _after_ the proofs are uploaded to ensure that the proofs are prioritized for upload (chained at the class level via Bus::chain in 2026-05; show-level upload is synchronous and already proofs-first)
