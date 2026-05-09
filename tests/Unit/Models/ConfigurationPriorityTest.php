@@ -3,7 +3,9 @@
 namespace Tests\Unit\Models;
 
 use App\Models\Configuration;
+use App\Providers\ConfigurationServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
@@ -16,7 +18,7 @@ class ConfigurationPriorityTest extends TestCase
         parent::setUp();
 
         // Clear cache before tests
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
     }
 
     /**
@@ -92,7 +94,7 @@ class ConfigurationPriorityTest extends TestCase
         Configuration::setConfig('provider_test', 'db_value', 'string');
 
         // Create a provider instance directly
-        $provider = new \App\Providers\ConfigurationServiceProvider($this->app);
+        $provider = new ConfigurationServiceProvider($this->app);
         $provider->boot();
 
         // Check that the database value takes precedence
@@ -156,7 +158,7 @@ class ConfigurationPriorityTest extends TestCase
     public function test_configuration_priority_hierarchy()
     {
         // 1. Clear cache
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
 
         // 2. Setup test values
         // Set .env equivalent (Laravel config)
@@ -180,7 +182,7 @@ class ConfigurationPriorityTest extends TestCase
         $config->save();
 
         // Clear cache again
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
 
         // Apply configuration overrides again
         Configuration::overrideApplicationConfig();
@@ -192,7 +194,7 @@ class ConfigurationPriorityTest extends TestCase
         $config->delete();
 
         // Clear cache again
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
 
         // Reset the configuration repository to ensure we're starting fresh
         Config::set('proofgen.priority_test', 'env_value');

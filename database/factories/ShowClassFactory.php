@@ -7,7 +7,7 @@ use App\Models\ShowClass;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\ShowClass>
+ * @extends Factory<ShowClass>
  */
 class ShowClassFactory extends Factory
 {

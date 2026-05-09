@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Photo;
+use Illuminate\View\View;
 use Livewire\Component;
 
 class ProofSearchComponent extends Component
@@ -100,7 +101,7 @@ class ProofSearchComponent extends Component
     /**
      * Render the component.
      *
-     * @return \Illuminate\View\View
+     * @return View
      */
     public function render()
     {

@@ -2,6 +2,7 @@
 
 namespace App\Jobs\ShowClass;
 
+use App\Models\ShowClass;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -34,7 +35,7 @@ class UploadProofs implements ShouldQueue
      */
     public function handle(): void
     {
-        $showClass = \App\Models\ShowClass::find($this->show.'_'.$this->class);
+        $showClass = ShowClass::find($this->show.'_'.$this->class);
         $uploaded = $showClass->proofUploads();
         if (count($uploaded)) {
             Log::info('Uploaded '.count($uploaded).' proofs for '.$this->show.' '.$this->class);

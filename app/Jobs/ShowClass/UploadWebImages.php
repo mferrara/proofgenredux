@@ -2,6 +2,7 @@
 
 namespace App\Jobs\ShowClass;
 
+use App\Models\ShowClass;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -34,7 +35,7 @@ class UploadWebImages implements ShouldQueue
      */
     public function handle(): void
     {
-        $showClass = \App\Models\ShowClass::find($this->show.'_'.$this->class);
+        $showClass = ShowClass::find($this->show.'_'.$this->class);
         $web_uploaded = $showClass->webImageUploads();
         if (count($web_uploaded)) {
             Log::info('Uploaded '.count($web_uploaded).' web images for '.$this->show.' '.$this->class);

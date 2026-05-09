@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\RestartHorizon;
 use App\Models\Configuration;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -200,7 +201,7 @@ class HorizonService
         // Push a job to the queue to restart Horizon
         // This is intentionally sent to the 'default' queue,
         // not 'horizon' which would be processed by the Horizon worker we're restarting
-        Queue::push(new \App\Jobs\RestartHorizon);
+        Queue::push(new RestartHorizon);
 
         // Log::info('Scheduled Horizon restart job');
     }

@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Services\CoreImageDaemonService;
+use App\Services\SwiftCompatibilityService;
 use App\Services\SwiftCompilationService;
 use Illuminate\Console\Command;
 
@@ -57,7 +59,7 @@ class CompileSwiftBinariesCommand extends Command
         $this->newLine();
 
         // Show current Swift version
-        $compatibility = app(\App\Services\SwiftCompatibilityService::class)->checkCompatibility();
+        $compatibility = app(SwiftCompatibilityService::class)->checkCompatibility();
         if ($compatibility['version']) {
             $this->info("Swift version: {$compatibility['version']}");
             $this->newLine();
@@ -84,7 +86,7 @@ class CompileSwiftBinariesCommand extends Command
             $this->info('All Swift binaries compiled successfully!');
 
             // Check if daemon needs to be restarted
-            $daemonService = app(\App\Services\CoreImageDaemonService::class);
+            $daemonService = app(CoreImageDaemonService::class);
             if ($daemonService->isCoreImageAvailable()) {
                 $this->newLine();
                 $this->warn('Note: Core Image daemon is running. You may want to restart it to use the new binaries:');
@@ -140,7 +142,7 @@ class CompileSwiftBinariesCommand extends Command
 
         // Check daemon status
         try {
-            $daemonService = app(\App\Services\CoreImageDaemonService::class);
+            $daemonService = app(CoreImageDaemonService::class);
             $this->info('Core Image Daemon Status');
             $this->info('=======================');
 

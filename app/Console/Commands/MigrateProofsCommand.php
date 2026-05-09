@@ -45,7 +45,7 @@ class MigrateProofsCommand extends Command
     /**
      * The path resolver instance.
      *
-     * @var \App\Services\PathResolver
+     * @var PathResolver
      */
     protected $pathResolver;
 
@@ -70,7 +70,7 @@ class MigrateProofsCommand extends Command
         // Get base path from command line or config
         try {
             $basePath = $this->option('base-path') ?? config('proofgen.fullsize_home_dir');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // If not found in config, fall back to .env
             $basePath = $this->option('base-path') ?? env('FULLSIZE_HOME_DIR');
         }

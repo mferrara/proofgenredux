@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\Photo;
 use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Models\ShowClass;
@@ -13,6 +14,7 @@ use App\Services\PhotoMoveService;
 use App\Services\PhotoService;
 use App\Services\SafeFileMover;
 use Flux\Flux;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Url;
@@ -192,7 +194,7 @@ class PhotoIssuesComponent extends Component
      * ever bites, move this to a queued ResolveImportConflict job and have the UI
      * poll for completion.
      */
-    private function reimportQuarantinedSource(PhotoIssue $issue, string $proofNumber): \App\Models\Photo
+    private function reimportQuarantinedSource(PhotoIssue $issue, string $proofNumber): Photo
     {
         $result = app(PhotoService::class)->processPhoto(
             imagePath: $issue->quarantine_path,
@@ -383,7 +385,7 @@ class PhotoIssuesComponent extends Component
         $issue->forceFill([
             'status' => PhotoIssue::STATUS_IGNORED,
             'resolved_at' => now(),
-            'resolved_by_user' => \Illuminate\Support\Facades\Auth::user()?->name ?? 'operator',
+            'resolved_by_user' => Auth::user()?->name ?? 'operator',
             'notes' => $this->appendNote($issue->notes, $note ?: 'Marked ignored.'),
         ])->save();
 
@@ -402,7 +404,7 @@ class PhotoIssuesComponent extends Component
         $issue->forceFill([
             'status' => PhotoIssue::STATUS_RESOLVED,
             'resolved_at' => now(),
-            'resolved_by_user' => \Illuminate\Support\Facades\Auth::user()?->name ?? 'operator',
+            'resolved_by_user' => Auth::user()?->name ?? 'operator',
             'notes' => $this->appendNote($issue->notes, $combined),
         ])->save();
     }
