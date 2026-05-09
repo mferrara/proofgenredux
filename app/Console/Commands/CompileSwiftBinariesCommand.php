@@ -12,7 +12,7 @@ class CompileSwiftBinariesCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'swift:compile 
+    protected $signature = 'proofgen:swift-compile
                             {--clean : Remove existing binaries before compiling}
                             {--status : Show current binary status without compiling}';
 
@@ -88,7 +88,7 @@ class CompileSwiftBinariesCommand extends Command
             if ($daemonService->isCoreImageAvailable()) {
                 $this->newLine();
                 $this->warn('Note: Core Image daemon is running. You may want to restart it to use the new binaries:');
-                $this->info('  php artisan coreimage:daemon restart');
+                $this->info('  php artisan proofgen:coreimage-daemon restart');
             }
             
             return Command::SUCCESS;
@@ -135,7 +135,7 @@ class CompileSwiftBinariesCommand extends Command
         }
 
         if (!$allExist) {
-            $this->warn('Some binaries are missing. Run "php artisan swift:compile" to compile them.');
+            $this->warn('Some binaries are missing. Run "php artisan proofgen:swift-compile" to compile them.');
         }
 
         // Check daemon status
@@ -154,7 +154,7 @@ class CompileSwiftBinariesCommand extends Command
                 }
             } else {
                 $this->warn('✗ Daemon is not running');
-                $this->line('  Start with: php artisan coreimage:daemon start');
+                $this->line('  Start with: php artisan proofgen:coreimage-daemon start');
             }
         } catch (\Exception $e) {
             $this->error('Could not check daemon status: ' . $e->getMessage());

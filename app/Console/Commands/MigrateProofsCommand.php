@@ -14,7 +14,7 @@ class MigrateProofsCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'proofs:migrate
+    protected $signature = 'proofgen:migrate-proofs
                             {--base-path= : Specify the base path where show directories are located (default: fullsize_home_dir from config)}
                             {--dry-run : Run without making any changes, just report what would be done}
                             {--move : Move files instead of copying them (deletes originals after successful copy and removes empty directories)}';

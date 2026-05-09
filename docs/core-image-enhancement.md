@@ -61,16 +61,16 @@ The `EnhancementServiceFactory` checks for services in this order:
 
 ```bash
 # Check daemon status
-php artisan coreimage:daemon status
+php artisan proofgen:coreimage-daemon status
 
 # Start daemon
-php artisan coreimage:daemon start
+php artisan proofgen:coreimage-daemon start
 
 # Stop daemon
-php artisan coreimage:daemon stop
+php artisan proofgen:coreimage-daemon stop
 
 # Restart daemon
-php artisan coreimage:daemon restart
+php artisan proofgen:coreimage-daemon restart
 ```
 
 ### Automatic Startup

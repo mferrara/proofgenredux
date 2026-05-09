@@ -64,13 +64,13 @@ swift --version
 
 ```bash
 # Check Swift compatibility
-php artisan swift:check
+php artisan proofgen:swift-check
 
 # Check Core Image daemon status
-php artisan coreimage:daemon status
+php artisan proofgen:coreimage-daemon status
 
 # Start Core Image daemon
-php artisan coreimage:daemon start
+php artisan proofgen:coreimage-daemon start
 ```
 
 ### Troubleshooting

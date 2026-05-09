@@ -12,7 +12,7 @@ class SwiftCompatibilityCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'swift:check {--force : Force re-check, ignoring cache}';
+    protected $signature = 'proofgen:swift-check {--force : Force re-check, ignoring cache}';
 
     /**
      * The console command description.
@@ -79,7 +79,7 @@ class SwiftCompatibilityCommand extends Command
                     $this->info('✓ Core Image daemon is running');
                 } else {
                     $this->warn('Core Image daemon is not running');
-                    $this->info('Start it with: php artisan coreimage:daemon start');
+                    $this->info('Start it with: php artisan proofgen:coreimage-daemon start');
                 }
             } catch (\Exception $e) {
                 $this->warn('Could not check daemon status: ' . $e->getMessage());

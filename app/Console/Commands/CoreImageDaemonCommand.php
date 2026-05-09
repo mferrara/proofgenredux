@@ -12,7 +12,7 @@ class CoreImageDaemonCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'coreimage:daemon {action : start|stop|status|restart}';
+    protected $signature = 'proofgen:coreimage-daemon {action : start|stop|status|restart}';
 
     /**
      * The console command description.
