@@ -1,11 +1,19 @@
 <?php
 
+use App\Providers\AppServiceProvider;
+use App\Providers\ConfigurationServiceProvider;
+use App\Providers\FortifyServiceProvider;
+use App\Providers\HorizonServiceProvider;
+use App\Providers\JetstreamServiceProvider;
+use App\Providers\PathServiceProvider;
+use App\Providers\SampleImagesServiceProvider;
+
 return [
-    App\Providers\AppServiceProvider::class,
-    App\Providers\ConfigurationServiceProvider::class,
-    App\Providers\FortifyServiceProvider::class,
-    App\Providers\HorizonServiceProvider::class,
-    App\Providers\JetstreamServiceProvider::class,
-    App\Providers\PathServiceProvider::class,
-    App\Providers\SampleImagesServiceProvider::class,
+    AppServiceProvider::class,
+    ConfigurationServiceProvider::class,
+    FortifyServiceProvider::class,
+    HorizonServiceProvider::class,
+    JetstreamServiceProvider::class,
+    PathServiceProvider::class,
+    SampleImagesServiceProvider::class,
 ];

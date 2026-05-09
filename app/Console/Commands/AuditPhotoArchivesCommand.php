@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\PhotoArchiveService;
 use App\Services\PhotoAuditService;
 use Illuminate\Console\Command;
 use RuntimeException;
@@ -27,7 +28,7 @@ class AuditPhotoArchivesCommand extends Command
         }
 
         try {
-            app(\App\Services\PhotoArchiveService::class)->assertConfiguredRootAvailable();
+            app(PhotoArchiveService::class)->assertConfiguredRootAvailable();
         } catch (RuntimeException $e) {
             $this->error($e->getMessage());
 

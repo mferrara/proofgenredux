@@ -1,6 +1,12 @@
 <?php
 
+use App\Livewire\ClassViewComponent;
+use App\Livewire\ConfigComponent;
+use App\Livewire\GraveyardComponent;
 use App\Livewire\HomeComponent;
+use App\Livewire\PhotoIssuesComponent;
+use App\Livewire\ServerConnectionComponent;
+use App\Livewire\ShowViewComponent;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 
@@ -16,14 +22,14 @@ Route::middleware([
 
     Route::get('/', HomeComponent::class)->name('home');
 
-    Route::get('/show/{show_id}', \App\Livewire\ShowViewComponent::class);
-    Route::get('/show/{show}/class/{class}', \App\Livewire\ClassViewComponent::class);
+    Route::get('/show/{show_id}', ShowViewComponent::class);
+    Route::get('/show/{show}/class/{class}', ClassViewComponent::class);
 
-    Route::get('/graveyard', \App\Livewire\GraveyardComponent::class)->name('graveyard');
-    Route::get('/photo-issues', \App\Livewire\PhotoIssuesComponent::class)->name('photo-issues');
+    Route::get('/graveyard', GraveyardComponent::class)->name('graveyard');
+    Route::get('/photo-issues', PhotoIssuesComponent::class)->name('photo-issues');
 
-    Route::get('/settings', \App\Livewire\ConfigComponent::class)->name('settings');
-    Route::get('/config/server', \App\Livewire\ServerConnectionComponent::class)->name('server-connection');
+    Route::get('/settings', ConfigComponent::class)->name('settings');
+    Route::get('/config/server', ServerConnectionComponent::class)->name('server-connection');
 
     Route::get('/dashboard', function () {
         return view('dashboard');

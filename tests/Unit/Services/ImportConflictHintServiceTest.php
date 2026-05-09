@@ -8,6 +8,7 @@ use App\Models\Show;
 use App\Models\ShowClass;
 use App\Services\ImportConflictHintService;
 use App\Services\PhotoImportIdentityResolver;
+use App\Services\PhotoImportPlan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
@@ -73,7 +74,7 @@ class ImportConflictHintServiceTest extends TestCase
         return $photo->fresh();
     }
 
-    private function resolvePlan(string $sourceRelativePath): \App\Services\PhotoImportPlan
+    private function resolvePlan(string $sourceRelativePath): PhotoImportPlan
     {
         return app(PhotoImportIdentityResolver::class)->resolve($sourceRelativePath, '22Buck', explode('/', $sourceRelativePath)[1]);
     }

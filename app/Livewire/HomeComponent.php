@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Show;
 use App\Proofgen\Utility;
+use App\Services\StorageUsageService;
 use Flux\Flux;
 use Livewire\Component;
 
@@ -38,7 +39,7 @@ class HomeComponent extends Component
 
     public function refreshMiscStorage(): void
     {
-        $service = app(\App\Services\StorageUsageService::class);
+        $service = app(StorageUsageService::class);
         $service->sampleImagesUsage(forceRefresh: true);
         $service->backupsUsage(forceRefresh: true);
         $this->showMiscStorage = true;
@@ -64,7 +65,7 @@ class HomeComponent extends Component
 
         $miscStorage = null;
         if ($this->showMiscStorage) {
-            $service = app(\App\Services\StorageUsageService::class);
+            $service = app(StorageUsageService::class);
             $miscStorage = [
                 'sample_images' => $service->sampleImagesUsage(),
                 'backups' => $service->backupsUsage(),

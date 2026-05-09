@@ -12,10 +12,16 @@ use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Proofgen\ShowClass;
 use App\Services\PathResolver;
+use App\Services\PhotoMoveService;
 use App\Services\PhotoService;
+use App\Services\SafeFileMover;
+use App\Services\StorageUsageService;
 use Exception;
 use Flux\Flux;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Intervention\Image\Laravel\Facades\Image;
 use Livewire\Component;
 
 class ClassViewComponent extends Component
@@ -131,7 +137,7 @@ class ClassViewComponent extends Component
 
     public function refreshStorageUsage(): void
     {
-        app(\App\Services\StorageUsageService::class)->classUsage($this->showClass, forceRefresh: true);
+        app(StorageUsageService::class)->classUsage($this->showClass, forceRefresh: true);
         $this->showStorageUsage = true;
     }
 
@@ -147,7 +153,7 @@ class ClassViewComponent extends Component
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
             'open_issue_count' => PhotoIssue::open()->where('show_class_id', $this->showClass->id)->count(),
             'storage_usage' => $this->showStorageUsage
-                ? app(\App\Services\StorageUsageService::class)->classUsage($this->showClass)
+                ? app(StorageUsageService::class)->classUsage($this->showClass)
                 : null,
         ])->title($this->show.' '.$this->class.' - Proofgen');
     }
@@ -501,7 +507,7 @@ class ClassViewComponent extends Component
             $jobs[] = new UploadHighresImages($this->show, $this->class);
         }
         if (! empty($jobs)) {
-            \Illuminate\Support\Facades\Bus::chain($jobs)->dispatch();
+            Bus::chain($jobs)->dispatch();
         }
 
         $message = '';
@@ -606,7 +612,7 @@ class ClassViewComponent extends Component
             return;
         }
 
-        $photoMoveService = app(\App\Services\PhotoMoveService::class);
+        $photoMoveService = app(PhotoMoveService::class);
         $results = $photoMoveService->movePhotos($this->selectedPhotos, $this->targetClass);
 
         if (count($results['success']) > 0) {
@@ -651,9 +657,9 @@ class ClassViewComponent extends Component
 
                     // Original is source-of-truth: route through graveyard instead of unlink.
                     if (file_exists($photo->full_path)) {
-                        app(\App\Services\SafeFileMover::class)->buryAbsolute(
+                        app(SafeFileMover::class)->buryAbsolute(
                             $photo->full_path,
-                            \App\Services\SafeFileMover::REASON_PHOTO_DELETED,
+                            SafeFileMover::REASON_PHOTO_DELETED,
                             [
                                 'photo_id' => $photo->id,
                                 'sha1' => $photo->sha1,
@@ -700,15 +706,15 @@ class ClassViewComponent extends Component
 
         // Load image data
         try {
-            $thumbnailData = \Illuminate\Support\Facades\Storage::disk('fullsize')->get($largeThumbnailPath);
-            $base64 = \Intervention\Image\Laravel\Facades\Image::read($thumbnailData)->toJpeg(90);
+            $thumbnailData = Storage::disk('fullsize')->get($largeThumbnailPath);
+            $base64 = Image::read($thumbnailData)->toJpeg(90);
             $this->modalImageData = [
                 'photo' => $photo,
                 'image' => 'data:image/jpeg;base64,'.base64_encode($base64),
                 'path' => $largeThumbnailPath,
             ];
             $this->showImageModal = true;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Handle error - show toast notification
             Log::error('Failed to load large thumbnail: '.$e->getMessage());
             Flux::toast(

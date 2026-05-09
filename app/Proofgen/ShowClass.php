@@ -6,6 +6,8 @@ use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
 use App\Services\PathResolver;
+use App\Services\PhotoService;
+use Illuminate\Support\Facades\Redis;
 
 class ShowClass
 {
@@ -256,7 +258,7 @@ class ShowClass
         // Route through PhotoService so the resolver runs and decides whether to allocate
         // a proof number. Bypassing it would re-introduce the "burn a proof number on a
         // duplicate file" bug.
-        app(\App\Services\PhotoService::class)->processPhoto($image_path, null, false, false);
+        app(PhotoService::class)->processPhoto($image_path, null, false, false);
     }
 
     /**
@@ -266,7 +268,7 @@ class ShowClass
     {
         $redis_key = 'available_proof_numbers_'.$this->show_folder;
 
-        $redis_client = \Illuminate\Support\Facades\Redis::client();
+        $redis_client = Redis::client();
         // Do we have a redis list with the $redis_key or, if we have one, but it's empty...
         if (! $redis_client->exists($redis_key) || $redis_client->llen($redis_key) === 0) {
             // Generate the proof numbers

@@ -3,14 +3,21 @@
 namespace App\Livewire;
 
 use App\Helpers\DirectoryNameValidator;
+use App\Jobs\Show\UploadShowHighresImages;
+use App\Jobs\Show\UploadShowProofs;
+use App\Jobs\Show\UploadShowWebImages;
 use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Jobs\ShowClass\ResetClassPhotos;
 use App\Models\PhotoIssue;
+use App\Models\Show;
 use App\Models\ShowClass as ShowClassModel;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
+use App\Services\ClassRenameService;
 use App\Services\PathResolver;
+use App\Services\StorageUsageService;
 use Flux\Flux;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
@@ -21,7 +28,7 @@ class ShowViewComponent extends Component
 
     public string $show_id = '';
 
-    protected \App\Models\Show $show;
+    protected Show $show;
 
     public string $fullsize_base_path = '';
 
@@ -49,7 +56,7 @@ class ShowViewComponent extends Component
 
     public function boot()
     {
-        $this->show = \App\Models\Show::find($this->show_id);
+        $this->show = Show::find($this->show_id);
     }
 
     private function discoverClasses(): void
@@ -86,7 +93,7 @@ class ShowViewComponent extends Component
 
     public function refreshStorageUsage(): void
     {
-        app(\App\Services\StorageUsageService::class)->refreshShow($this->show);
+        app(StorageUsageService::class)->refreshShow($this->show);
         $this->showStorageUsage = true;
     }
 
@@ -177,7 +184,7 @@ class ShowViewComponent extends Component
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
             'show_open_issue_count' => $showOpenIssueCount,
             'storage_usage' => $this->showStorageUsage
-                ? app(\App\Services\StorageUsageService::class)->showUsage($this->show)
+                ? app(StorageUsageService::class)->showUsage($this->show)
                 : null,
         ])->title($this->show->id.' - Proofgen');
     }
@@ -255,7 +262,7 @@ class ShowViewComponent extends Component
 
     public function uploadPendingProofs(): void
     {
-        \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\Show\UploadShowProofs($this->show->id));
+        Bus::dispatch(new UploadShowProofs($this->show->id));
         $this->setFlashMessage('Proof uploads queued for '.$this->show->id.'.');
     }
 
@@ -263,10 +270,10 @@ class ShowViewComponent extends Component
     {
         // Chain proofs → web → highres so customer-visible proofs hit
         // the server first; web/highres run sequentially after.
-        \Illuminate\Support\Facades\Bus::chain([
-            new \App\Jobs\Show\UploadShowProofs($this->show->id),
-            new \App\Jobs\Show\UploadShowWebImages($this->show->id),
-            new \App\Jobs\Show\UploadShowHighresImages($this->show->id),
+        Bus::chain([
+            new UploadShowProofs($this->show->id),
+            new UploadShowWebImages($this->show->id),
+            new UploadShowHighresImages($this->show->id),
         ])->dispatch();
 
         $this->setFlashMessage('Uploads queued for '.$this->show->id.'.');
@@ -466,7 +473,7 @@ class ShowViewComponent extends Component
         }
 
         // Use the ClassRenameService to handle the rename
-        $renameService = app(\App\Services\ClassRenameService::class);
+        $renameService = app(ClassRenameService::class);
         $result = $renameService->renameClass($showClass, $new_name);
 
         if ($result['success']) {

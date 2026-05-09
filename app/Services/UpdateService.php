@@ -232,11 +232,11 @@ class UpdateService
             // Step 8: Compile Swift binaries if on macOS
             if (PHP_OS_FAMILY === 'Darwin') {
                 $steps[] = 'Checking Swift compatibility...';
-                $swiftCompatibility = app(\App\Services\SwiftCompatibilityService::class)->checkCompatibility();
+                $swiftCompatibility = app(SwiftCompatibilityService::class)->checkCompatibility();
 
                 if ($swiftCompatibility['compatible']) {
                     $steps[] = 'Compiling Swift binaries...';
-                    $swiftCompilationService = app(\App\Services\SwiftCompilationService::class);
+                    $swiftCompilationService = app(SwiftCompilationService::class);
                     $compilationResult = $swiftCompilationService->compileAll();
 
                     if ($compilationResult['success']) {
@@ -244,7 +244,7 @@ class UpdateService
 
                         // Step 9: Restart Core Image daemon
                         $steps[] = 'Restarting Core Image daemon...';
-                        $daemonService = app(\App\Services\CoreImageDaemonService::class);
+                        $daemonService = app(CoreImageDaemonService::class);
 
                         // Stop the daemon if it's running
                         if ($daemonService->isCoreImageAvailable()) {

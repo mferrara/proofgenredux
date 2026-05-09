@@ -428,7 +428,7 @@ class UploadChainTest extends TestCase
         $this->seedPhotoWithProofs('SHOW1_00001');
         $this->seedPhotoWithProofs('SHOW1_00002');
 
-        \App\Jobs\ShowClass\UploadProofs::dispatchSync($this->show->id, $this->class->name);
+        UploadProofs::dispatchSync($this->show->id, $this->class->name);
 
         foreach (['SHOW1_00001', 'SHOW1_00002'] as $proofNumber) {
             $photo = Photo::find('SHOW1_101_'.$proofNumber)->fresh();

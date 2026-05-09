@@ -2,6 +2,7 @@
 
 namespace App\Jobs\ShowClass;
 
+use App\Models\ShowClass;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -34,7 +35,7 @@ class UploadHighresImages implements ShouldQueue
      */
     public function handle(): void
     {
-        $showClass = \App\Models\ShowClass::find($this->show.'_'.$this->class);
+        $showClass = ShowClass::find($this->show.'_'.$this->class);
         $highres_uploaded = $showClass->highresImageUploads();
         if (count($highres_uploaded)) {
             Log::info('Uploaded '.count($highres_uploaded).' highres images for '.$this->show.' '.$this->class);

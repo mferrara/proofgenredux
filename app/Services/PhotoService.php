@@ -10,6 +10,7 @@ use App\Jobs\ShowClass\UploadProofs;
 use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Photo;
 use App\Models\Show;
+use App\Models\ShowClass;
 use App\Proofgen\Image;
 use Exception;
 
@@ -106,7 +107,7 @@ class PhotoService
         $imageObj = new Image($imagePath, $this->pathResolver);
         $photo = $imageObj->processImage($finalProofNumber, $debug);
 
-        $show_class = \App\Models\ShowClass::find($imageObj->show.'_'.$imageObj->class);
+        $show_class = ShowClass::find($imageObj->show.'_'.$imageObj->class);
         $proofDestPath = $show_class->proofs_path;
         $webImagesPath = $show_class->web_images_path;
         $highresImagesPath = $show_class->highres_images_path;
@@ -183,7 +184,7 @@ class PhotoService
         // Normalize paths to ensure consistency
         $photo = Photo::find($photo_id);
         if (! $photo) {
-            throw new \Exception("Photo not found with ID: {$photo_id}");
+            throw new Exception("Photo not found with ID: {$photo_id}");
         }
         $photoPath = $photo->relative_path;
         $photoPath = $this->pathResolver->normalizePath($photoPath);

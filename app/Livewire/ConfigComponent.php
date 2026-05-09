@@ -2,9 +2,15 @@
 
 namespace App\Livewire;
 
+use App\Helpers\EnhancementServiceFactory;
 use App\Models\Configuration;
+use App\Proofgen\Image;
+use App\Services\CoreImageDaemonService;
+use App\Services\HorizonService;
+use App\Services\ImageDiskConfigurator;
 use App\Services\SampleImagesService;
 use App\Services\SwiftCompatibilityService;
+use App\Services\SwiftCompilationService;
 use App\Services\UpdateService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -191,7 +197,7 @@ class ConfigComponent extends Component
 
         try {
             // Get the HorizonService
-            $horizonService = app(\App\Services\HorizonService::class);
+            $horizonService = app(HorizonService::class);
 
             // Stop Horizon
             if ($horizonService->stop()) {
@@ -234,7 +240,7 @@ class ConfigComponent extends Component
 
         try {
             // Get the HorizonService
-            $horizonService = app(\App\Services\HorizonService::class);
+            $horizonService = app(HorizonService::class);
 
             // Force kill Horizon
             if ($horizonService->forceKill()) {
@@ -539,7 +545,7 @@ class ConfigComponent extends Component
         $this->initializeConfigValues();
         $this->initializeTempThumbnailValues();
         Configuration::overrideApplicationConfig();
-        app(\App\Services\ImageDiskConfigurator::class)->apply();
+        app(ImageDiskConfigurator::class)->apply();
 
         Flux::toast(text: 'The settings have saved successfully.', heading: 'Settings saved', variant: 'success', position: 'top right');
         $this->dispatchUpdateEvent();
@@ -568,7 +574,7 @@ class ConfigComponent extends Component
     public function scheduleHorizonRestart(): void
     {
         try {
-            $horizonService = app(\App\Services\HorizonService::class);
+            $horizonService = app(HorizonService::class);
 
             if (! $horizonService->isRunning()) {
                 Flux::toast(text: 'Horizon not running, no restart required.',
@@ -607,7 +613,7 @@ class ConfigComponent extends Component
 
         try {
             // Get the HorizonService
-            $horizonService = app(\App\Services\HorizonService::class);
+            $horizonService = app(HorizonService::class);
 
             // Use direct restart instead of queued job
             if ($horizonService->restartDirect()) {
@@ -653,7 +659,7 @@ class ConfigComponent extends Component
 
         try {
             // Get the HorizonService
-            $horizonService = app(\App\Services\HorizonService::class);
+            $horizonService = app(HorizonService::class);
 
             // Start Horizon directly
             if ($horizonService->start()) {
@@ -969,7 +975,7 @@ class ConfigComponent extends Component
         // Apply enhancement if enabled
         if ($enhancementEnabled) {
             try {
-                $enhancementService = \App\Helpers\EnhancementServiceFactory::getService('preview');
+                $enhancementService = EnhancementServiceFactory::getService('preview');
 
                 // Get enhancement parameters from config values
                 // Use temporary values if we're in preview mode (not saved yet)
@@ -1333,22 +1339,22 @@ class ConfigComponent extends Component
 
         if ($size === 'small') {
             // Small thumbnail watermark
-            $watermark = \App\Proofgen\Image::watermarkSmallProof($originalFilename);
+            $watermark = Image::watermarkSmallProof($originalFilename);
             $image->place($watermark, 'bottom-left', 10, 10)->save();
         } elseif ($size === 'large') {
             // Large thumbnail watermark
             if ($image->width() > $image->height()) {
                 // Landscape orientation
                 $text = 'Proof# '.$originalFilename.' - Illegal to use - Ferrara Photography';
-                $watermark = \App\Proofgen\Image::watermarkLargeProof($text, $image->width());
+                $watermark = Image::watermarkLargeProof($text, $image->width());
                 $image->place($watermark, 'center')->save();
             } else {
                 // Portrait orientation - two watermarks
-                $watermark_top = \App\Proofgen\Image::watermarkLargeProof(
+                $watermark_top = Image::watermarkLargeProof(
                     'Proof# '.$originalFilename.' - Proof# '.$originalFilename,
                     $image->width()
                 );
-                $watermark_bot = \App\Proofgen\Image::watermarkLargeProof(
+                $watermark_bot = Image::watermarkLargeProof(
                     'Illegal to use - Ferrara Photography',
                     $image->width()
                 );
@@ -1380,8 +1386,8 @@ class ConfigComponent extends Component
         $watermark = imagecreatefrompng($watermarkPath);
 
         // Determine average color of bottom portion
-        $averageColor = \App\Proofgen\Image::determineAverageColor($imagePath);
-        $darkness = \App\Proofgen\Image::determineWatermarkDarknessFromAverageColor(
+        $averageColor = Image::determineAverageColor($imagePath);
+        $darkness = Image::determineWatermarkDarknessFromAverageColor(
             $averageColor[0],
             $averageColor[1],
             $averageColor[2]
@@ -1422,7 +1428,7 @@ class ConfigComponent extends Component
      */
     protected function updateHorizonStatus(): void
     {
-        $horizonService = app(\App\Services\HorizonService::class);
+        $horizonService = app(HorizonService::class);
         $this->isHorizonRunning = $horizonService->isRunning();
     }
 
@@ -1432,7 +1438,7 @@ class ConfigComponent extends Component
     protected function checkSwiftBinariesStatus(): void
     {
         if (PHP_OS_FAMILY === 'Darwin') {
-            $compilationService = app(\App\Services\SwiftCompilationService::class);
+            $compilationService = app(SwiftCompilationService::class);
             $this->swiftBinariesStatus = $compilationService->checkBinariesStatus();
         }
     }
@@ -1456,7 +1462,7 @@ class ConfigComponent extends Component
         $this->compilingSwiftBinaries = true;
 
         try {
-            $compilationService = app(\App\Services\SwiftCompilationService::class);
+            $compilationService = app(SwiftCompilationService::class);
             $results = $compilationService->compileAll();
 
             if ($results['success']) {
@@ -1468,7 +1474,7 @@ class ConfigComponent extends Component
                 );
 
                 // Check if daemon needs to be restarted
-                $daemonService = app(\App\Services\CoreImageDaemonService::class);
+                $daemonService = app(CoreImageDaemonService::class);
                 if ($daemonService->isCoreImageAvailable()) {
                     Flux::modal('swift-restart-daemon')->show();
                 }
@@ -1509,7 +1515,7 @@ class ConfigComponent extends Component
     public function restartCoreImageDaemon(): void
     {
         try {
-            $daemonService = app(\App\Services\CoreImageDaemonService::class);
+            $daemonService = app(CoreImageDaemonService::class);
 
             // Stop the daemon if running
             if ($daemonService->isCoreImageAvailable()) {
@@ -1660,7 +1666,7 @@ class ConfigComponent extends Component
         // Get process info if Horizon is running
         $horizonProcessInfo = [];
         if ($this->isHorizonRunning) {
-            $horizonService = app(\App\Services\HorizonService::class);
+            $horizonService = app(HorizonService::class);
             $horizonProcessInfo = $horizonService->getProcessInfo();
         }
 

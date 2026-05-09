@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\HorizonService;
+use App\Services\SwiftCompatibilityService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -52,7 +53,7 @@ class AppServiceProvider extends ServiceProvider
 
             if ($shouldClear) {
                 try {
-                    app(\App\Services\SwiftCompatibilityService::class)->clearCache();
+                    app(SwiftCompatibilityService::class)->clearCache();
                     touch($lockFile);
                     Log::info('Swift compatibility cache cleared on deployment');
                 } catch (\Exception $e) {

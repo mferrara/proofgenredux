@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\CoreImageDaemonService;
 use App\Services\SwiftCompatibilityService;
 use Illuminate\Console\Command;
 
@@ -75,7 +76,7 @@ class SwiftCompatibilityCommand extends Command
 
             // Check if daemon is running
             try {
-                $daemonService = app(\App\Services\CoreImageDaemonService::class);
+                $daemonService = app(CoreImageDaemonService::class);
                 if ($daemonService->isCoreImageAvailable()) {
                     $this->info('✓ Core Image daemon is running');
                 } else {
