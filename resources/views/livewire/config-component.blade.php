@@ -337,6 +337,18 @@
                                         @error('configValues.'.$config->id)
                                             <flux:error class="mt-1">{{ $message }}</flux:error>
                                         @enderror
+                                    @elseif($config->type === 'integer' || $config->type === 'float')
+                                        <flux:input
+                                            type="number"
+                                            step="{{ $config->type === 'integer' ? '1' : '0.01' }}"
+                                            wire:model.defer="configValues.{{ $config->id }}"
+                                            wire:key="{{ $config->key }}-input"
+                                            wire:dirty.class="!border-amber-400 dark:!border-amber-500"
+                                            class="font-mono w-32"
+                                        />
+                                        @error('configValues.'.$config->id)
+                                            <flux:error class="mt-1">{{ $message }}</flux:error>
+                                        @enderror
                                     @else
                                         @php $isRemotePath = $this->isRemotePathLike($config->key); @endphp
                                         <flux:input

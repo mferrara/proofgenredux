@@ -215,15 +215,17 @@ A local "show run" looks like:
    on the proofgen `shows` table, populated either by manual selection from a list of shows pulled
    from the ferraraphoto API, or by a fuzzy-match-and-confirm flow.
 3. ~~**Pre-upload validation**: nothing currently confirms that a matching show/class exists on the
-   ferraraphoto side before rsync runs.~~ **Partially addressed 2026-05.** `App\Services\
-   FerraraphotoTargetVerifier` checks all three remote disks (`remote_proofs`, `remote_web_images`,
-   `remote_highres_images`) for a given show or class via `Storage::disk()->exists()`. Surfaced as
-   a lazy-loaded "Ferraraphoto target" panel on `ShowViewComponent` and `ClassViewComponent`
-   alongside the existing storage-usage panel — operators can click "Check" to verify the remote
-   has the show/class directories before uploading. Status is advisory (uploads still proceed) but
-   makes "I uploaded but the customer can't find their photo" loud rather than silent. **Still TODO**:
-   wire the verifier into the upload jobs themselves so a missing-target situation logs a warning
-   in the job output.
+   ferraraphoto side before rsync runs.~~ **Done 2026-05.** `App\Services\FerraraphotoTargetVerifier`
+   checks all three remote disks (`remote_proofs`, `remote_web_images`, `remote_highres_images`)
+   for a given show or class via `Storage::disk()->exists()`. Surfaced two ways:
+   - **UI**: a lazy-loaded "Ferraraphoto target" panel on `ShowViewComponent` and
+     `ClassViewComponent` alongside the storage-usage panel. Operators click "Check" to see
+     per-disk badges (ready/missing/unreachable).
+   - **Upload jobs**: `UploadProofs`/`UploadWebImages`/`UploadHighresImages` call
+     `verifyClassThrottled()` (5-min cache to collapse the proofs→web→highres chain into one
+     SFTP round-trip set) and log a warning when the relevant remote dir doesn't exist.
+     `failed()` handlers re-verify with a fresh check and log the likely cause (missing target
+     vs unreachable disk).
 4. **Cloud storage migration**: out of scope. Notes in the user message: a future direction is
    pushing to object storage and POSTing metadata to ferraraphoto, which would let ferraraphoto
    serve files from the bucket. Not relevant to the current task.
