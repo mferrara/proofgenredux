@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\Storage;
 
 class ClassRenameService
 {
+    public function __construct(private ?PhotoArchiveService $photoArchiveService = null)
+    {
+        $this->photoArchiveService ??= app(PhotoArchiveService::class);
+    }
+
     public function renameClass(ShowClass $showClass, string $newName): array
     {
         $oldName = $showClass->name;
@@ -95,6 +100,15 @@ class ClassRenameService
             Log::debug("Renamed fullsize directory from '{$oldPath}' to '{$newPath}'");
         }
 
+        // Rename in proofs storage
+        $proofsOldPath = 'proofs/'.$oldPath;
+        $proofsNewPath = 'proofs/'.$newPath;
+        if (Storage::disk('fullsize')->exists($proofsOldPath)) {
+            Storage::disk('fullsize')->move($proofsOldPath, $proofsNewPath);
+            $renamedPaths[] = ['disk' => 'fullsize', 'old' => $proofsOldPath, 'new' => $proofsNewPath];
+            Log::debug("Renamed proofs directory from '{$proofsOldPath}' to '{$proofsNewPath}'");
+        }
+
         // Rename in web_images storage
         $webImagesOldPath = 'web_images/'.$oldPath;
         $webImagesNewPath = 'web_images/'.$newPath;
@@ -114,7 +128,7 @@ class ClassRenameService
         }
 
         // Rename in archive storage if configured
-        if (config('proofgen.archive_home_dir')) {
+        if (config('proofgen.archive_enabled') && config('proofgen.archive_home_dir')) {
             if (Storage::disk('archive')->exists($oldPath)) {
                 Storage::disk('archive')->move($oldPath, $newPath);
                 $renamedPaths[] = ['disk' => 'archive', 'old' => $oldPath, 'new' => $newPath];
@@ -150,12 +164,19 @@ class ClassRenameService
         // Check all the directories we need to rename
         $pathsToCheck = [
             ['disk' => 'fullsize', 'path' => $oldPath, 'type' => 'main'],
+            ['disk' => 'fullsize', 'path' => 'proofs/'.$oldPath, 'type' => 'proofs'],
             ['disk' => 'fullsize', 'path' => 'web_images/'.$oldPath, 'type' => 'web_images'],
             ['disk' => 'fullsize', 'path' => 'highres_images/'.$oldPath, 'type' => 'highres_images'],
         ];
 
         // Add archive if configured
-        if (config('proofgen.archive_home_dir')) {
+        if (config('proofgen.archive_enabled') && config('proofgen.archive_home_dir')) {
+            try {
+                $this->photoArchiveService->assertConfiguredRootAvailable();
+            } catch (\RuntimeException $e) {
+                $errors[] = $e->getMessage();
+            }
+
             $pathsToCheck[] = ['disk' => 'archive', 'path' => $oldPath, 'type' => 'archive'];
         }
 
@@ -209,11 +230,26 @@ class ClassRenameService
 
         foreach ($photos as $photo) {
             $newPhotoId = $newClassId.'_'.$photo->proof_number;
+            $archiveMetadata = null;
+            if ($this->photoArchiveService->enabled() && $this->photoArchiveService->configured()) {
+                $newArchivePath = $this->photoArchiveService->pathFor(
+                    $showClass->show_id,
+                    $newName,
+                    $photo->proof_number.'.'.$photo->file_type
+                );
+                $archiveMetadata = Storage::disk('archive')->exists($newArchivePath)
+                    ? $this->photoArchiveService->metadataForPath($newArchivePath)
+                    : null;
+            }
 
             // Create new photo record with updated ID
             $newPhoto = $photo->replicate();
             $newPhoto->id = $newPhotoId;
             $newPhoto->show_class_id = $newClassId;
+            $newPhoto->archive_path = $archiveMetadata['archive_path'] ?? null;
+            $newPhoto->archive_sha1 = $archiveMetadata['archive_sha1'] ?? null;
+            $newPhoto->archive_size = $archiveMetadata['archive_size'] ?? null;
+            $newPhoto->archived_at = $archiveMetadata['archived_at'] ?? null;
 
             // Save without triggering events
             $newPhoto->saveQuietly();

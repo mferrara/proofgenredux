@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\Photo\GenerateHighresImage;
+use App\Jobs\Photo\GenerateThumbnails;
+use App\Jobs\Photo\GenerateWebImage;
 use App\Models\Photo;
 use App\Models\Show;
 use App\Models\ShowClass;
@@ -9,6 +12,8 @@ use App\Services\PathResolver;
 use App\Services\PhotoMoveService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PhotoMoveServiceTest extends TestCase
@@ -34,30 +39,42 @@ class PhotoMoveServiceTest extends TestCase
         $this->photoMoveService = app(PhotoMoveService::class);
         $this->pathResolver = app(PathResolver::class);
 
+        config(['testing.skip_file_operations' => true]);
+
         // Create temp directory
         $this->tempPath = storage_path('app/test_photo_move_'.uniqid());
         File::makeDirectory($this->tempPath, 0755, true);
 
         // Configure test disk
         config(['proofgen.fullsize_home_dir' => $this->tempPath]);
+        config(['filesystems.disks.fullsize' => [
+            'driver' => 'local',
+            'root' => $this->tempPath,
+            'throw' => true,
+        ]]);
+        Storage::forgetDisk('fullsize');
 
-        // Create test show and classes
-        $this->show = Show::create([
-            'id' => 'TestShow2024',
-            'name' => 'Test Show 2024',
-        ]);
+        // Create test show and classes (skip model events that touch the filesystem)
+        Show::withoutEvents(function () {
+            $this->show = Show::create([
+                'id' => 'TestShow2024',
+                'name' => 'Test Show 2024',
+            ]);
+        });
 
-        $this->sourceClass = ShowClass::create([
-            'id' => 'TestShow2024_ClassA',
-            'show_id' => 'TestShow2024',
-            'name' => 'ClassA',
-        ]);
+        ShowClass::withoutEvents(function () {
+            $this->sourceClass = ShowClass::create([
+                'id' => 'TestShow2024_ClassA',
+                'show_id' => 'TestShow2024',
+                'name' => 'ClassA',
+            ]);
 
-        $this->targetClass = ShowClass::create([
-            'id' => 'TestShow2024_ClassB',
-            'show_id' => 'TestShow2024',
-            'name' => 'ClassB',
-        ]);
+            $this->targetClass = ShowClass::create([
+                'id' => 'TestShow2024_ClassB',
+                'show_id' => 'TestShow2024',
+                'name' => 'ClassB',
+            ]);
+        });
 
         // Create directory structure
         $this->createDirectoryStructure();
@@ -334,6 +351,97 @@ class PhotoMoveServiceTest extends TestCase
 
         // Verify photo2 was not moved
         $this->assertNotNull(Photo::find($photo2->id));
+    }
+
+    public function test_existing_derivatives_move_with_photo()
+    {
+        $photo = $this->createPhotoWithAllFiles('77777');
+
+        $results = $this->photoMoveService->movePhotos([$photo->id], $this->targetClass->id);
+
+        $this->assertCount(1, $results['success']);
+        $this->assertCount(0, $results['errors']);
+
+        // Original
+        $this->assertFileExists($this->tempPath.'/TestShow2024/ClassB/originals/77777.jpg');
+
+        // Each thumbnail size
+        foreach (config('proofgen.thumbnails') as $config) {
+            $suffix = $config['suffix'];
+            $this->assertFileDoesNotExist($this->tempPath.'/proofs/TestShow2024/ClassA/77777'.$suffix.'.jpg');
+            $this->assertFileExists($this->tempPath.'/proofs/TestShow2024/ClassB/77777'.$suffix.'.jpg');
+        }
+
+        $this->assertFileExists($this->tempPath.'/web_images/TestShow2024/ClassB/77777_web.jpg');
+        $this->assertFileExists($this->tempPath.'/highres_images/TestShow2024/ClassB/77777_highres.jpg');
+    }
+
+    public function test_dispatches_regen_jobs_when_derivatives_missing_but_marked_generated()
+    {
+        Queue::fake();
+
+        // Create only the original; mark generated_at on derivatives so missing files
+        // trigger regen rather than being treated as never-generated.
+        $this->createTestImage(
+            $this->tempPath.'/TestShow2024/ClassA/originals/88888.jpg',
+            'original 88888'
+        );
+
+        $photo = Photo::create([
+            'id' => 'TestShow2024_ClassA_88888',
+            'proof_number' => '88888',
+            'show_class_id' => 'TestShow2024_ClassA',
+            'sha1' => sha1('88888'),
+            'file_type' => 'jpg',
+            'proofs_generated_at' => now(),
+            'web_image_generated_at' => now(),
+            'highres_image_generated_at' => now(),
+        ]);
+
+        $results = $this->photoMoveService->movePhotos([$photo->id], $this->targetClass->id);
+
+        $this->assertCount(1, $results['success'], json_encode($results['errors']));
+
+        $newPhotoId = 'TestShow2024_ClassB_88888';
+
+        Queue::assertPushed(GenerateThumbnails::class, function ($job) use ($newPhotoId) {
+            return $job->photo_id === $newPhotoId
+                && $job->proofs_destination_path === 'proofs/TestShow2024/ClassB';
+        });
+        Queue::assertPushed(GenerateWebImage::class, function ($job) use ($newPhotoId) {
+            return $job->photo_id === $newPhotoId
+                && $job->web_destination_path === 'web_images/TestShow2024/ClassB';
+        });
+        Queue::assertPushed(GenerateHighresImage::class, function ($job) use ($newPhotoId) {
+            return $job->photo_id === $newPhotoId
+                && $job->highres_destination_path === 'highres_images/TestShow2024/ClassB';
+        });
+    }
+
+    public function test_move_succeeds_when_no_derivatives_exist()
+    {
+        Queue::fake();
+
+        $this->createTestImage(
+            $this->tempPath.'/TestShow2024/ClassA/originals/66666.jpg',
+            'original 66666'
+        );
+
+        $photo = Photo::create([
+            'id' => 'TestShow2024_ClassA_66666',
+            'proof_number' => '66666',
+            'show_class_id' => 'TestShow2024_ClassA',
+            'sha1' => sha1('66666'),
+            'file_type' => 'jpg',
+        ]);
+
+        $results = $this->photoMoveService->movePhotos([$photo->id], $this->targetClass->id);
+
+        $this->assertCount(1, $results['success'], json_encode($results['errors']));
+        $this->assertFileExists($this->tempPath.'/TestShow2024/ClassB/originals/66666.jpg');
+
+        // Nothing was previously generated, so nothing to regen.
+        Queue::assertNothingPushed();
     }
 
     public function test_creates_missing_directories_during_move()
