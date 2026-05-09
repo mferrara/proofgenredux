@@ -29,7 +29,8 @@ test('new users can register', function () {
     ]);
 
     $this->assertAuthenticated();
-    $response->assertRedirect(route('dashboard', absolute: false));
+    // Fortify is configured to redirect to '/' (see config/fortify.php), not '/dashboard'.
+    $response->assertRedirect(config('fortify.home'));
 })->skip(function () {
     return ! Features::enabled(Features::registration());
 }, 'Registration support is not enabled.');

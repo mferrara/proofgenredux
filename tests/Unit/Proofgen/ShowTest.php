@@ -46,6 +46,14 @@ class ShowTest extends TestCase
             ->with($this->show)
             ->andReturn("/{$this->show}");
 
+        $pathResolver->shouldReceive('getShowHighresImagesPath')
+            ->with($this->show)
+            ->andReturn("/highres_images/{$this->show}");
+
+        $pathResolver->shouldReceive('getShowRemoteHighresImagesPath')
+            ->with($this->show)
+            ->andReturn("/{$this->show}");
+
         // Add expectations for getAbsolutePath method
         $pathResolver->shouldReceive('getAbsolutePath')
             ->with("/proofs/{$this->show}", '/test/fullsize')

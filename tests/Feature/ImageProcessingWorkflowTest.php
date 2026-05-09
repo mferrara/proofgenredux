@@ -44,13 +44,15 @@ class ImageProcessingWorkflowTest extends TestCase
         Storage::disk('fullsize')->makeDirectory("/proofs/{$this->show}/{$this->class}");
         Storage::disk('fullsize')->makeDirectory("/web_images/{$this->show}/{$this->class}");
 
-        // Mock Redis for proof numbers
-        $this->mock = Mockery::mock('alias:'.Redis::class);
-        $this->mock->shouldReceive('client')->andReturn($this->mock);
-        $this->mock->shouldReceive('exists')->andReturn(false);
-        $this->mock->shouldReceive('rpush')->andReturn(true);
-        $this->mock->shouldReceive('lpop')->andReturn('TEST001');
-        $this->mock->shouldReceive('llen')->andReturn(0);
+        // Mock Redis for proof numbers using the facade (no alias mock — alias mocks
+        // pollute global class state and break sibling tests).
+        $redisClient = Mockery::mock();
+        $redisClient->shouldReceive('exists')->andReturn(false);
+        $redisClient->shouldReceive('rpush')->andReturn(true);
+        $redisClient->shouldReceive('lpop')->andReturn('TEST001');
+        $redisClient->shouldReceive('llen')->andReturn(0);
+
+        Redis::shouldReceive('client')->andReturn($redisClient);
     }
 
     /**

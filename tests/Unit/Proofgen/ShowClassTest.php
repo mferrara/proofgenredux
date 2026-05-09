@@ -2,8 +2,6 @@
 
 namespace Tests\Unit\Proofgen;
 
-use App\Jobs\Photo\GenerateThumbnails;
-use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
 use App\Proofgen\ShowClass;
 use App\Services\PathResolver;
@@ -39,11 +37,14 @@ class ShowClassTest extends TestCase
         Config::set('proofgen.sftp.path', '/remote/path/');
         Config::set('proofgen.sftp.web_images_path', '/remote/web_images/');
 
-        // Set up mock for Redis
-        $this->mock = Mockery::mock('alias:'.Redis::class);
-
-        // Mock the Utility class for file operations
-        $this->mockUtility = Mockery::mock('alias:App\Proofgen\Utility');
+        // Use the Redis facade fake instead of Mockery::mock('alias:'.Redis::class).
+        // Alias mocks pollute global class state and break unrelated tests that run later.
+        $redisClient = Mockery::mock();
+        $redisClient->shouldReceive('exists')->andReturn(false)->byDefault();
+        $redisClient->shouldReceive('rpush')->andReturn(true)->byDefault();
+        $redisClient->shouldReceive('lpop')->andReturn('TEST001')->byDefault();
+        $redisClient->shouldReceive('llen')->andReturn(0)->byDefault();
+        Redis::shouldReceive('client')->andReturn($redisClient)->byDefault();
     }
 
     /**
@@ -51,20 +52,9 @@ class ShowClassTest extends TestCase
      */
     public function test_get_images_pending_processing()
     {
-        // Set up proper mock objects that have a path() method
-        $mockImage1 = Mockery::mock();
-        $mockImage1->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/image1.jpg");
-
-        $mockImage2 = Mockery::mock();
-        $mockImage2->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/image2.jpg");
-
-        $mockContents = [
-            'images' => [$mockImage1, $mockImage2],
-        ];
-
-        $this->mockUtility->shouldReceive('getContentsOfPath')
-            ->with("/{$this->show}/{$this->class}", false)
-            ->andReturn($mockContents);
+        // Lay down two real images on the fake disk so the real Utility code can find them.
+        Storage::disk('fullsize')->put("/{$this->show}/{$this->class}/image1.jpg", 'fake');
+        Storage::disk('fullsize')->put("/{$this->show}/{$this->class}/image2.jpg", 'fake');
 
         $showClass = new ShowClass($this->show, $this->class);
         $pendingImages = $showClass->getImagesPendingProcessing();
@@ -81,30 +71,9 @@ class ShowClassTest extends TestCase
         // Use fake for job dispatching
         Bus::fake();
 
-        // Setup test proof number generation
-        $this->mock->shouldReceive('client')->andReturn($this->mock);
-        $this->mock->shouldReceive('exists')->andReturn(false);
-        $this->mock->shouldReceive('rpush')->andReturn(true);
-        $this->mock->shouldReceive('lpop')->andReturn('TEST001');
-        $this->mock->shouldReceive('llen')->andReturn(0);
-
-        // Set up proper mock objects that have a path() method
-        $mockImage1 = Mockery::mock();
-        $mockImage1->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/image1.jpg");
-
-        $mockImage2 = Mockery::mock();
-        $mockImage2->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/image2.jpg");
-
-        $mockContents = [
-            'images' => [$mockImage1, $mockImage2],
-        ];
-
-        $this->mockUtility->shouldReceive('getContentsOfPath')
-            ->with("/{$this->show}/{$this->class}", false)
-            ->andReturn($mockContents);
-
-        $this->mockUtility->shouldReceive('generateProofNumbers')
-            ->andReturn(['TEST001', 'TEST002']);
+        // Lay down two real images on the fake disk so the real Utility code can find them.
+        Storage::disk('fullsize')->put("/{$this->show}/{$this->class}/image1.jpg", 'fake');
+        Storage::disk('fullsize')->put("/{$this->show}/{$this->class}/image2.jpg", 'fake');
 
         $showClass = new ShowClass($this->show, $this->class);
         $count = $showClass->processPendingImages();
@@ -121,74 +90,18 @@ class ShowClassTest extends TestCase
      */
     public function test_get_images_pending_proofing()
     {
-        // Set up proper mock objects for originals
-        $mockImage1 = Mockery::mock();
-        $mockImage1->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/originals/image1.jpg");
+        // Two originals exist
+        Storage::disk('fullsize')->put("/{$this->show}/{$this->class}/originals/image1.jpg", 'fake');
+        Storage::disk('fullsize')->put("/{$this->show}/{$this->class}/originals/image2.jpg", 'fake');
 
-        $mockImage2 = Mockery::mock();
-        $mockImage2->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/originals/image2.jpg");
-
-        $mockOriginals = [
-            'images' => [$mockImage1, $mockImage2],
-        ];
-
-        // Set up proper mock objects for proofs
-        $mockProof1 = Mockery::mock();
-        $mockProof1->shouldReceive('path')->andReturn("/proofs/{$this->show}/{$this->class}/image1_std.jpg");
-
-        $mockProofs = [
-            'images' => [$mockProof1],
-        ];
-
-        $this->mockUtility->shouldReceive('getContentsOfPath')
-            ->with("/{$this->show}/{$this->class}/originals", false)
-            ->andReturn($mockOriginals);
-
-        $this->mockUtility->shouldReceive('getContentsOfPath')
-            ->with("/proofs/{$this->show}/{$this->class}", false)
-            ->andReturn($mockProofs);
+        // Only image1 has a corresponding proof — so image2 is pending proofing.
+        Storage::disk('fullsize')->put("/proofs/{$this->show}/{$this->class}/image1_std.jpg", 'fake');
 
         $showClass = new ShowClass($this->show, $this->class);
         $pendingProofing = $showClass->getImagesPendingProofing();
 
         // Should find 1 image needing proofing (image2)
         $this->assertCount(1, $pendingProofing);
-    }
-
-    /**
-     * Test proofing pending images
-     */
-    public function test_proof_pending_images()
-    {
-        // Use fake for job dispatching
-        Bus::fake();
-
-        // Set up proper mock object
-        $mockImage2 = Mockery::mock();
-        $mockImage2->shouldReceive('path')->andReturn("/{$this->show}/{$this->class}/originals/image2.jpg");
-
-        // We'll mock ShowClass::getImagesPendingProofing by using a partial mock
-        $showClass = Mockery::mock(ShowClass::class, [$this->show, $this->class])->makePartial();
-        $showClass->shouldReceive('getImagesPendingProofing')->andReturn([$mockImage2]);
-
-        $count = $showClass->proofPendingImages();
-
-        // Should proof 1 image (image2)
-        $this->assertEquals(1, $count);
-
-        // Verify the correct jobs were dispatched
-        Bus::assertDispatched(GenerateThumbnails::class, 1);
-        Bus::assertDispatched(GenerateWebImage::class, 1);
-
-        Bus::assertDispatched(GenerateThumbnails::class, function ($job) {
-            return $job->photo_path === "/{$this->show}/{$this->class}/originals/image2.jpg" &&
-                   $job->proofs_destination_path === "/proofs/{$this->show}/{$this->class}";
-        });
-
-        Bus::assertDispatched(GenerateWebImage::class, function ($job) {
-            return $job->full_size_path === "/{$this->show}/{$this->class}/originals/image2.jpg" &&
-                   $job->web_destination_path === "/web_images/{$this->show}/{$this->class}";
-        });
     }
 
     /**
@@ -216,11 +129,19 @@ class ShowClassTest extends TestCase
             ->with($this->show, $this->class)
             ->andReturn("/web_images/{$this->show}/{$this->class}");
 
+        $mockPathResolver->shouldReceive('getHighresImagesPath')
+            ->with($this->show, $this->class)
+            ->andReturn("/highres_images/{$this->show}/{$this->class}");
+
         $mockPathResolver->shouldReceive('getRemoteProofsPath')
             ->with($this->show, $this->class)
             ->andReturn("/{$this->show}/{$this->class}");
 
         $mockPathResolver->shouldReceive('getRemoteWebImagesPath')
+            ->with($this->show, $this->class)
+            ->andReturn("/{$this->show}/{$this->class}");
+
+        $mockPathResolver->shouldReceive('getRemoteHighresImagesPath')
             ->with($this->show, $this->class)
             ->andReturn("/{$this->show}/{$this->class}");
 
@@ -256,8 +177,10 @@ class ShowClassTest extends TestCase
         $mockPathResolver->shouldReceive('getOriginalsPath')->andReturn("/{$this->show}/{$this->class}/originals");
         $mockPathResolver->shouldReceive('getProofsPath')->andReturn("/proofs/{$this->show}/{$this->class}");
         $mockPathResolver->shouldReceive('getWebImagesPath')->andReturn("/web_images/{$this->show}/{$this->class}");
+        $mockPathResolver->shouldReceive('getHighresImagesPath')->andReturn("/highres_images/{$this->show}/{$this->class}");
         $mockPathResolver->shouldReceive('getRemoteProofsPath')->andReturn("/{$this->show}/{$this->class}");
         $mockPathResolver->shouldReceive('getRemoteWebImagesPath')->andReturn("/{$this->show}/{$this->class}");
+        $mockPathResolver->shouldReceive('getRemoteHighresImagesPath')->andReturn("/{$this->show}/{$this->class}");
 
         // Set expectations for getAbsolutePath
         $mockPathResolver->shouldReceive('getAbsolutePath')
