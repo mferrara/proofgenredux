@@ -115,43 +115,34 @@ class PhotoAuditService
      * aren't in originals/, _import_conflicts/, _graveyard/, or any other system folder.
      * Image files are treated as "pending import" — they'll be picked up next discovery
      * pass — and not flagged. Non-image files are flagged as stragglers.
+     *
+     * Walks targeted directories instead of Storage::allFiles() to keep large installs
+     * (thousands of classes) from doing one giant recursive scan.
      */
     public function findIngestStragglers(?string $showFilter = null, ?string $classFilter = null): array
     {
         $stragglers = [];
 
-        foreach (Storage::disk('fullsize')->allFiles() as $file) {
-            // Top-level only: shape must be {show}/{class}/{file}
-            $parts = explode('/', $file);
-            if (count($parts) !== 3) {
-                continue;
+        foreach ($this->classDirectories($showFilter, $classFilter) as [$show, $class, $classDir]) {
+            // Storage::files() is non-recursive so we get top-level entries only.
+            foreach (Storage::disk('fullsize')->files($classDir) as $file) {
+                $basename = basename($file);
+                if (in_array($basename, self::SILENTLY_IGNORED_BASENAMES, true)) {
+                    continue;
+                }
+                $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+                if (in_array($extension, self::IMAGE_EXTENSIONS, true)) {
+                    continue;
+                }
+                $stragglers[] = [
+                    'path' => $file,
+                    'show' => $show,
+                    'class' => $class,
+                    'basename' => $basename,
+                    'extension' => $extension,
+                    'size' => Storage::disk('fullsize')->size($file),
+                ];
             }
-            [$show, $class, $basename] = $parts;
-            if (in_array($show, ['_graveyard', 'proofs', 'web_images', 'highres_images'], true)) {
-                continue;
-            }
-            if ($showFilter !== null && $show !== $showFilter) {
-                continue;
-            }
-            if ($classFilter !== null && $class !== $classFilter) {
-                continue;
-            }
-            if (in_array($basename, self::SILENTLY_IGNORED_BASENAMES, true)) {
-                continue;
-            }
-            $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
-            if (in_array($extension, self::IMAGE_EXTENSIONS, true)) {
-                // Image still in ingest folder is "pending import" — discovery will pick it up.
-                continue;
-            }
-            $stragglers[] = [
-                'path' => $file,
-                'show' => $show,
-                'class' => $class,
-                'basename' => $basename,
-                'extension' => $extension,
-                'size' => Storage::disk('fullsize')->size($file),
-            ];
         }
 
         return $stragglers;
@@ -167,44 +158,61 @@ class PhotoAuditService
     {
         $orphans = [];
 
-        foreach (Storage::disk('fullsize')->allFiles() as $file) {
-            if (! str_contains($file, '/_import_conflicts/')) {
+        foreach ($this->classDirectories($showFilter, $classFilter) as [$show, $class, $classDir]) {
+            $quarantineDir = $classDir.'/_import_conflicts';
+            if (! Storage::disk('fullsize')->exists($quarantineDir)) {
                 continue;
             }
-            if (str_ends_with($file, '.json')) {
-                continue;
+            foreach (Storage::disk('fullsize')->files($quarantineDir) as $file) {
+                if (str_ends_with($file, '.json')) {
+                    continue;
+                }
+                $hasMatchingOpenIssue = PhotoIssue::query()
+                    ->where('quarantine_path', $file)
+                    ->where('status', PhotoIssue::STATUS_OPEN)
+                    ->exists();
+                if ($hasMatchingOpenIssue) {
+                    continue;
+                }
+                $orphans[] = [
+                    'path' => $file,
+                    'show' => $show,
+                    'class' => $class,
+                    'basename' => basename($file),
+                    'size' => Storage::disk('fullsize')->size($file),
+                    'sidecar_exists' => Storage::disk('fullsize')->exists($file.'.json'),
+                ];
             }
-            $parts = explode('/', $file);
-            if (count($parts) < 4 || $parts[2] !== '_import_conflicts') {
-                continue;
-            }
-            [$show, $class] = [$parts[0], $parts[1]];
-            if ($showFilter !== null && $show !== $showFilter) {
-                continue;
-            }
-            if ($classFilter !== null && $class !== $classFilter) {
-                continue;
-            }
-
-            $hasMatchingOpenIssue = PhotoIssue::query()
-                ->where('quarantine_path', $file)
-                ->where('status', PhotoIssue::STATUS_OPEN)
-                ->exists();
-            if ($hasMatchingOpenIssue) {
-                continue;
-            }
-
-            $orphans[] = [
-                'path' => $file,
-                'show' => $show,
-                'class' => $class,
-                'basename' => basename($file),
-                'size' => Storage::disk('fullsize')->size($file),
-                'sidecar_exists' => Storage::disk('fullsize')->exists($file.'.json'),
-            ];
         }
 
         return $orphans;
+    }
+
+    /**
+     * Yields [$show, $class, $classDir] tuples for all show/class folders on the
+     * fullsize disk, honoring optional filters and skipping system top-level dirs
+     * (proofs/, web_images/, highres_images/, _graveyard/).
+     */
+    private function classDirectories(?string $showFilter, ?string $classFilter): \Generator
+    {
+        $skip = ['_graveyard', 'proofs', 'web_images', 'highres_images'];
+        $showDirs = Storage::disk('fullsize')->directories('');
+        foreach ($showDirs as $showDir) {
+            $show = basename($showDir);
+            if (in_array($show, $skip, true)) {
+                continue;
+            }
+            if ($showFilter !== null && $show !== $showFilter) {
+                continue;
+            }
+            foreach (Storage::disk('fullsize')->directories($show) as $classDir) {
+                $class = basename($classDir);
+                if ($classFilter !== null && $class !== $classFilter) {
+                    continue;
+                }
+                yield [$show, $class, $classDir];
+            }
+        }
     }
 
     private function recordStragglerIssue(array $straggler): void
