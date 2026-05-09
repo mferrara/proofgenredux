@@ -1,6 +1,6 @@
 <a href="/">
     <svg xmlns="http://www.w3.org/2000/svg"
-         class="text-indigo-400 hover:text-indigo-500"
+         class="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300"
          width="300px" height="auto" viewBox="0 285 1536 400" version="1.1">
         <path d="M 307.493 338.351 L 302.485 340.683 299.406 344.191 L 296.326 347.699 287.200 364.141 L 278.073
                 380.583 275.458 383.041 L 272.844 385.500 244.672 386.078 L 216.500 386.656 211.426 388.314 L 206.352

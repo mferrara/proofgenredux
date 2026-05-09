@@ -22,12 +22,14 @@
 
         <!-- Styles -->
         @livewireStyles
+        @fluxAppearance
     </head>
-    <body>
-        <div class="font-sans text-gray-900 antialiased">
+    <body class="font-sans antialiased text-gray-900 dark:text-zinc-100 bg-gray-100 dark:bg-zinc-950">
+        <div>
             {{ $slot }}
         </div>
 
         @livewireScripts
+        @fluxScripts
     </body>
 </html>
