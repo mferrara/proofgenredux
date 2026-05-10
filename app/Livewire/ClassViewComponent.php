@@ -2,11 +2,11 @@
 
 namespace App\Livewire;
 
+use App\Jobs\Ferraraphoto\EnsureFerraraphotoShow;
 use App\Jobs\Photo\GenerateThumbnails;
+use App\Jobs\ShowClass\PushPhotoMetadata;
 use App\Jobs\ShowClass\ResetClassPhotos;
-use App\Jobs\ShowClass\UploadHighresImages;
-use App\Jobs\ShowClass\UploadProofs;
-use App\Jobs\ShowClass\UploadWebImages;
+use App\Jobs\ShowClass\UploadDerivedFiles;
 use App\Models\Photo;
 use App\Models\PhotoIssue;
 use App\Models\Show;
@@ -504,28 +504,18 @@ class ClassViewComponent extends Component
         $web_images_queued_for_upload = $this->showClass->photosWebImagedNotUploaded()->count();
         $highres_images_queued_for_upload = $this->showClass->photosHighresImagedNotUploaded()->count();
 
-        // Chain the uploads so proofs hit the server first (they're customer-visible);
-        // web/highres can take longer and shouldn't block the proofs going up.
-        $jobs = [];
-        if ($photos_queued_for_upload > 0) {
-            $jobs[] = new UploadProofs($this->show, $this->class);
-        }
-        if ($web_images_queued_for_upload > 0) {
-            $jobs[] = new UploadWebImages($this->show, $this->class);
-        }
-        if ($highres_images_queued_for_upload > 0) {
-            $jobs[] = new UploadHighresImages($this->show, $this->class);
-        }
-        if (! empty($jobs)) {
-            Bus::chain($jobs)->dispatch();
-        }
-
         $message = '';
         $total_queued = $photos_queued_for_upload + $web_images_queued_for_upload + $highres_images_queued_for_upload;
 
         if ($total_queued === 0) {
             $message = 'Nothing to upload.';
         } else {
+            Bus::chain([
+                new EnsureFerraraphotoShow($this->showModel->id),
+                new UploadDerivedFiles($this->showClass->id),
+                new PushPhotoMetadata($this->showClass->id),
+            ])->dispatch();
+
             $parts = [];
 
             if ($photos_queued_for_upload > 0) {

@@ -3,11 +3,12 @@
 namespace App\Livewire;
 
 use App\Helpers\DirectoryNameValidator;
-use App\Jobs\Show\UploadShowHighresImages;
+use App\Jobs\Ferraraphoto\EnsureFerraraphotoShow;
 use App\Jobs\Show\UploadShowProofs;
-use App\Jobs\Show\UploadShowWebImages;
 use App\Jobs\ShowClass\ImportClassPhotos;
+use App\Jobs\ShowClass\PushPhotoMetadata;
 use App\Jobs\ShowClass\ResetClassPhotos;
+use App\Jobs\ShowClass\UploadDerivedFiles;
 use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Models\ShowClass as ShowClassModel;
@@ -305,15 +306,33 @@ class ShowViewComponent extends Component
 
     public function uploadPendingProofsAndWebImages(): void
     {
-        // Chain proofs → web → highres so customer-visible proofs hit
-        // the server first; web/highres run sequentially after.
-        Bus::chain([
-            new UploadShowProofs($this->show->id),
-            new UploadShowWebImages($this->show->id),
-            new UploadShowHighresImages($this->show->id),
-        ])->dispatch();
+        $jobs = [new EnsureFerraraphotoShow($this->show->id)];
+
+        foreach ($this->show->classes as $showClass) {
+            if (! $this->classHasPendingUploads($showClass)) {
+                continue;
+            }
+
+            $jobs[] = new UploadDerivedFiles($showClass->id);
+            $jobs[] = new PushPhotoMetadata($showClass->id);
+        }
+
+        if (count($jobs) === 1) {
+            $this->setFlashMessage('No uploads pending');
+
+            return;
+        }
+
+        Bus::chain($jobs)->dispatch();
 
         $this->setFlashMessage('Uploads queued for '.$this->show->id.'.');
+    }
+
+    private function classHasPendingUploads(ShowClassModel $showClass): bool
+    {
+        return $showClass->photosProofedNotUploaded()->exists()
+            || $showClass->photosWebImagedNotUploaded()->exists()
+            || $showClass->photosHighresImagedNotUploaded()->exists();
     }
 
     public function regenerateProofs(): void
