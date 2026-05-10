@@ -570,7 +570,7 @@ class ConfigComponent extends Component
             'web_images' => 'Web Images',
             'highres_images' => 'High Resolution Images',
             'enhancement' => 'Image Enhancement',
-            'sftp' => 'Server (SFTP)',
+            'sftp' => 'Legacy SFTP',
             'archive' => 'Archive',
             'system' => 'System Settings',
             // Add more category labels as needed

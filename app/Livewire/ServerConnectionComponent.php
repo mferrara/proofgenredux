@@ -2,6 +2,8 @@
 
 namespace App\Livewire;
 
+use App\Models\Show;
+use App\Models\StorageProfile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 
@@ -23,6 +25,8 @@ class ServerConnectionComponent extends Component
 
     public bool $server_connection_test_result = false;
 
+    public int $legacyLocalShowCount = 0;
+
     public function mount(): void
     {
         $this->host = config('proofgen.sftp.host');
@@ -30,10 +34,21 @@ class ServerConnectionComponent extends Component
         $this->username = config('proofgen.sftp.username');
         $this->key_path = config('proofgen.sftp.private_key');
         $this->proofs_path = config('proofgen.sftp.path');
+        $this->legacyLocalShowCount = Show::query()
+            ->where('storage_profile_id', StorageProfile::LEGACY_LOCAL_ID)
+            ->count();
     }
 
     public function testConnection(): void
     {
+        if ($this->legacyLocalShowCount === 0) {
+            $this->debug_output = 'Legacy SFTP is not currently used by any show.';
+            $this->paths_found = [];
+            $this->server_connection_test_result = false;
+
+            return;
+        }
+
         $this->debug_output = '';
         $this->paths_found = [];
 
@@ -57,6 +72,6 @@ class ServerConnectionComponent extends Component
     public function render()
     {
         return view('livewire.server-connection-component')
-            ->title('Server Connection - Proofgen');
+            ->title('Legacy SFTP - Proofgen');
     }
 }

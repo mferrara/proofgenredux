@@ -1,12 +1,21 @@
 <div class="px-6 lg:px-10 py-6 max-w-3xl mx-auto">
     <div class="mb-6">
-        <flux:heading size="xl" level="1" class="!text-3xl !font-semibold tracking-tight">Server Connection</flux:heading>
+        <flux:heading size="xl" level="1" class="!text-3xl !font-semibold tracking-tight">Legacy SFTP Connection</flux:heading>
         <flux:text class="mt-1">
             Verify the SFTP credentials in
-            <flux:link href="{{ route('settings') }}#cat-sftp">Settings → Server (SFTP)</flux:link>
+            <flux:link href="{{ route('settings') }}#cat-sftp">Settings → Legacy SFTP</flux:link>
             can reach the configured proofs path.
         </flux:text>
     </div>
+
+    @if($legacyLocalShowCount === 0)
+        <div class="mb-4 flex gap-3 rounded-lg px-4 py-3 bg-zinc-50 dark:bg-white/[0.04] border border-zinc-200 dark:border-white/10">
+            <flux:icon name="lock-closed" class="size-5 text-zinc-500 dark:text-zinc-400 shrink-0 mt-0.5" />
+            <div class="text-sm text-zinc-700 dark:text-zinc-300">
+                Legacy SFTP is disabled because no shows are pinned to legacy-local.
+            </div>
+        </div>
+    @endif
 
     {{-- Current settings (read-only) --}}
     <flux:card class="!p-0 overflow-hidden mb-4">
@@ -20,6 +29,7 @@
                 variant="primary"
                 size="sm"
                 icon="signal"
+                :disabled="$legacyLocalShowCount === 0"
             >
                 <span wire:loading.remove wire:target="testConnection">Test connection</span>
                 <span wire:loading wire:target="testConnection">Testing…</span>

@@ -75,7 +75,7 @@
             </flux:text>
         @elseif ($ferraraphoto_status['any_errored'])
             <flux:text class="!text-xs mt-2 text-rose-600 dark:text-rose-400">
-                Couldn't reach the remote ferraraphoto host — check Settings → Server (SFTP).
+                Couldn't reach the remote ferraraphoto host — check Settings → Legacy SFTP.
             </flux:text>
         @endif
     @else

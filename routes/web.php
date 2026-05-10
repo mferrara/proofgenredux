@@ -7,6 +7,7 @@ use App\Livewire\HomeComponent;
 use App\Livewire\PhotoIssuesComponent;
 use App\Livewire\ServerConnectionComponent;
 use App\Livewire\ShowViewComponent;
+use App\Livewire\StorageProfilesComponent;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +30,7 @@ Route::middleware([
     Route::get('/photo-issues', PhotoIssuesComponent::class)->name('photo-issues');
 
     Route::get('/settings', ConfigComponent::class)->name('settings');
+    Route::get('/settings/storage-profiles', StorageProfilesComponent::class)->name('storage-profiles');
     Route::get('/config/server', ServerConnectionComponent::class)->name('server-connection');
 
     Route::get('/dashboard', function () {

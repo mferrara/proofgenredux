@@ -18,8 +18,11 @@
                     <x-nav-link href="{{ route('settings') }}" :active="request()->routeIs('settings')">
                         {{ __('Settings') }}
                     </x-nav-link>
+                    <x-nav-link href="{{ route('storage-profiles') }}" :active="request()->routeIs('storage-profiles')">
+                        {{ __('Storage Profiles') }}
+                    </x-nav-link>
                     <x-nav-link href="{{ route('server-connection') }}" :active="request()->routeIs('server-connection')">
-                        {{ __('Server Config') }}
+                        {{ __('Legacy SFTP') }}
                     </x-nav-link>
                     <x-nav-link href="{{ route('graveyard') }}" :active="request()->routeIs('graveyard')">
                         {{ __('Graveyard') }}
