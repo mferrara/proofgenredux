@@ -37,6 +37,8 @@ class PhotoIssue extends Model
 
     public const TYPE_ORPHAN_QUARANTINE = 'orphan_quarantine';
 
+    public const TYPE_MIGRATION_SOURCE_MISSING = 'migration_source_missing';
+
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
     protected $casts = [
@@ -93,7 +95,8 @@ class PhotoIssue extends Model
             self::TYPE_MISSING_ARCHIVE,
             self::TYPE_ORPHAN_ORIGINAL,
             self::TYPE_INGEST_STRAGGLER,
-            self::TYPE_ORPHAN_QUARANTINE => 'sky',
+            self::TYPE_ORPHAN_QUARANTINE,
+            self::TYPE_MIGRATION_SOURCE_MISSING => 'sky',
             default => 'zinc',
         };
     }
