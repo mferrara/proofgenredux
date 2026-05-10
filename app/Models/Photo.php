@@ -33,6 +33,10 @@ class Photo extends Model
         'archive_size' => 'integer',
         'file_type' => 'string',
         'original_filename' => 'string',
+        'proof_thm_key' => 'string',
+        'proof_std_key' => 'string',
+        'web_image_key' => 'string',
+        'high_res_image_key' => 'string',
         'archived_at' => 'datetime',
         'proofs_generated_at' => 'datetime',
         'proofs_uploaded_at' => 'datetime',
@@ -172,6 +176,36 @@ class Photo extends Model
     public function metadata(): HasOne
     {
         return $this->hasOne(PhotoMetadata::class, 'photo_id', 'id');
+    }
+
+    public function getProofThmObjectKeyAttribute(): ?string
+    {
+        return $this->proof_thm_key;
+    }
+
+    public function getProofStdObjectKeyAttribute(): ?string
+    {
+        return $this->proof_std_key;
+    }
+
+    public function getWebImageObjectKeyAttribute(): ?string
+    {
+        return $this->web_image_key;
+    }
+
+    public function getHighResImageObjectKeyAttribute(): ?string
+    {
+        return $this->high_res_image_key;
+    }
+
+    public function getObjectKeysAttribute(): array
+    {
+        return [
+            'proof_thm' => $this->proof_thm_key,
+            'proof_std' => $this->proof_std_key,
+            'web_image' => $this->web_image_key,
+            'high_res_image' => $this->high_res_image_key,
+        ];
     }
 
     public function getFileContents(): ?string

@@ -10,6 +10,7 @@ use App\Traits\HasPhotosTrait;
 use App\Traits\RsyncHandlerTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Facades\Log;
@@ -42,6 +43,7 @@ class Show extends Model
     protected $casts = [
         'id' => 'string',
         'ferraraphoto_show_slug' => 'string',
+        'storage_profile_id' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -71,6 +73,11 @@ class Show extends Model
     public function classes(): HasMany
     {
         return $this->hasMany(ShowClass::class, 'show_id', 'id');
+    }
+
+    public function storageProfile(): BelongsTo
+    {
+        return $this->belongsTo(StorageProfile::class, 'storage_profile_id', 'id');
     }
 
     public function photos(): HasManyThrough
