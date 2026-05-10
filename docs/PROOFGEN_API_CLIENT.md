@@ -74,8 +74,8 @@ StorageProfile::firstOrCreate(['id' => 'legacy-local'], [
     'driver' => 'local',           // s3 from proofgen's perspective is wrong here — see below
     'root' => null,                // resolved via the existing remote_* SFTP disks (special case)
     'fingerprint' => 'legacy-local-v1',  // synthetic, not a real hash
-    'is_active' => false,
-    'is_writable' => true,
+    'is_active' => true,           // no-behavior-change rollout: new shows still pin here
+    'is_writable' => true,         // until the operator configures and activates a cloud profile
 ]);
 ```
 
