@@ -89,8 +89,8 @@ PROFILE_B2_2024_SHOWS_USE_PATH_STYLE=true
 (The `.env` key transformation: profile id → uppercase, dashes → underscores, prefixed `PROFILE_`,
 suffixed `_KEY` / `_SECRET` / etc.)
 
-The **fingerprint** is sha256 of canonical JSON of `{driver, bucket, region, endpoint, root}`
-(secrets excluded). It exists for two reasons:
+The **fingerprint** is sha256 of canonical JSON of `{driver, bucket, region, endpoint,
+use_path_style, root}` with keys sorted (secrets excluded). It exists for two reasons:
 - **Drift detection.** If someone edits `.env` and points an existing profile name at a different
   bucket, the fingerprint mismatch surfaces a clear error rather than silently corrupting data.
 - **Auto-creation.** When proofgen sees a new profile name in `.env`, it computes the fingerprint
