@@ -13,6 +13,20 @@
             <div>
                 <div class="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Show</div>
                 <flux:heading size="xl" level="1" class="!text-3xl !font-semibold tracking-tight">{{ $show_id }}</flux:heading>
+                @if($storage_profile)
+                    @php
+                        $storageHealthStatus = $storage_profile_health['status'] ?? 'unreachable';
+                        $storageDotClass = match ($storageHealthStatus) {
+                            'ok' => 'bg-emerald-500',
+                            'drift', 'missing_credentials' => 'bg-amber-500',
+                            default => 'bg-rose-500',
+                        };
+                    @endphp
+                    <div class="mt-2 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300">
+                        <span class="size-2 rounded-full {{ $storageDotClass }}"></span>
+                        <span>Stored on: {{ $storage_profile->label }}</span>
+                    </div>
+                @endif
             </div>
             <div wire:loading class="ml-2">
                 <flux:badge color="sky" size="sm" class="animate-pulse">Working…</flux:badge>

@@ -17,9 +17,11 @@ use App\Proofgen\Utility;
 use App\Services\ClassRenameService;
 use App\Services\FerraraphotoTargetVerifier;
 use App\Services\PathResolver;
+use App\Services\Storage\StorageProfileHealthCheck;
 use App\Services\StorageUsageService;
 use Flux\Flux;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
@@ -139,6 +141,15 @@ class ShowViewComponent extends Component
         $pathResolver = app(PathResolver::class);
 
         $this->working_full_path = $pathResolver->getAbsolutePath($this->working_path, $this->fullsize_base_path);
+        $this->show->loadMissing('storageProfile');
+        $storageProfile = $this->show->storageProfile;
+        $storageProfileHealth = $storageProfile
+            ? Cache::remember(
+                'storage-profile-health.'.$storageProfile->id,
+                60,
+                fn () => app(StorageProfileHealthCheck::class)->check($storageProfile),
+            )
+            : null;
 
         $current_path_directories = Utility::getDirectoriesOfPath($this->working_path);
 
@@ -224,6 +235,8 @@ class ShowViewComponent extends Component
                 ? app(StorageUsageService::class)->showUsage($this->show)
                 : null,
             'ferraraphoto_status' => $this->ferraraphotoStatus,
+            'storage_profile' => $storageProfile,
+            'storage_profile_health' => $storageProfileHealth,
         ])->title($this->show->id.' - Proofgen');
     }
 
