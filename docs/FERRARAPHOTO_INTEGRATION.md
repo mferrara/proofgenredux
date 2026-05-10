@@ -1,9 +1,14 @@
 # Proofgen ↔ Ferraraphoto Integration
 
 The two applications are filesystem-coupled today: proofgen (this app) generates and rsync-uploads
-files to specific paths under the ferraraphoto deployment, and ferraraphoto reads from those
-paths when serving the public site, processing PayPal IPNs, and (in the case of instant-delivery
-products) emailing files to the customer.
+files to specific paths under the ferraraphoto deployment, and ferraraphoto reads from those paths
+when serving the public site, processing PayPal IPNs, and emailing instant-delivery products to
+customers.
+
+This document tracks the **current state of the integration** and the **work still ahead** to make
+it a first-class API-driven, cloud-storage-backed integration. The bulk of Phase 1 (instant
+delivery + show linking + pre-upload validation) shipped between 2026-04 and 2026-05 and is now
+production-ready or already in production.
 
 ## Repos
 
@@ -12,13 +17,10 @@ products) emailing files to the customer.
 - **ferraraphoto** — Laravel 4.2 (PHP 7.4) public-facing site. Branch `php7.4-migration` is ahead of
   `master` by 19+ commits as of 2026-04. Lives at `/Users/mikeferrara/Documents/code/ferraraphoto`.
   Production deploy serves from `https://ferraraphoto.com` (and a `staging.ferraraphoto.com` env).
+  **Decision (2026-05):** ferraraphoto stays on L4.2 / PHP 7.4 for the foreseeable future.
+  Modernization is out of scope; the Phase 2 work below adds new code in the existing app.
 
-## How the apps relate today
-
-There is **no API or DB integration**. The apps share state only via the filesystem on the
-ferraraphoto server, accessed by proofgen through SFTP/rsync as user `forge`. Show ↔ show
-identity is maintained by a hand-shared convention: the **show abbreviation/slug must match
-exactly** between the two systems (e.g. `2026R12` on both sides).
+## Current state (post Phase 1)
 
 ```
 ┌────────────────┐         rsync         ┌──────────────────────────┐
@@ -39,7 +41,12 @@ exactly** between the two systems (e.g. `2026R12` on both sides).
 └────────────────┘                       └──────────────────────────┘
 ```
 
-## Path mappings
+There is **no API or DB integration yet**. Show ↔ show identity is maintained by hand-shared
+convention: the **show abbreviation/slug must match exactly** between the two systems
+(e.g. `2026R12` on both sides), with proofgen-side `Show.ferraraphoto_show_slug` available as an
+override when the slugs drift.
+
+### Path mappings
 
 These three SFTP paths are configured in proofgen's settings (Settings → Server (SFTP) and the
 underlying `proofgen.sftp.*` config):
@@ -50,14 +57,7 @@ underlying `proofgen.sftp.*` config):
 | `web_images/{show}/{class}/`                  | `sftp.web_images_path`     | `/home/forge/<host>/app/storage/web_images/{show}/{class}/`        |
 | `highres_images/{show}/{class}/`              | `sftp.highres_images_path` | `/home/forge/<host>/app/storage/high_res_images/{show}/{class}/`   |
 
-The current values point at staging:
-- `sftp.path` → `/home/forge/staging.ferraraphoto.com/public/proofs`
-- `sftp.web_images_path` → `/home/forge/staging.ferraraphoto.com/app/storage/web_images`
-- `sftp.highres_images_path` → `/home/forge/staging.ferraraphoto.com/app/storage/high_res_images`
-
-Production paths drop the `staging.` prefix.
-
-## File naming
+### File naming
 
 | File type        | Filename pattern                              | Source                                    |
 |------------------|-----------------------------------------------|-------------------------------------------|
@@ -66,208 +66,127 @@ Production paths drop the `staging.` prefix.
 | Web image        | `{proof_number}_web.jpg`                      | hardcoded on both sides                   |
 | Highres image    | `{proof_number}_highres.jpg`                  | hardcoded on both sides                   |
 
-`Photo::webImagePath()` and `Photo::highResImagePath()` on ferraraphoto build absolute paths
-using `storage_path()` + `show->slug` + `showclass->class_number` + the suffix above.
+## What shipped in Phase 1 (2026-04 → 2026-05)
 
-## proofgen-side upload code
+All of the items below are committed/merged on the `php7.4-migration` branch on ferraraphoto and
+on `main` for proofgen. Several are already deployed to production; the rest deploy when the
+branch merges.
 
-- **`app/Models/ShowClass.php`** owns the SFTP mechanics:
-  - `proofUploads()` / `webImageUploads()` / `highresImageUploads()` — call rsync, parse output, mark photos uploaded.
-  - `pendingProofUploads()` / `pendingWebImageUploads()` / `pendingHighresImageUploads()` — same as above with `--dry-run` to preview pending work.
-  - `rsyncProofsCommand()` / `rsyncWebImagesCommand()` / `rsyncHighresImagesCommand()` — produce the exact rsync invocation. All three use `rsync -avz -e "ssh -i {private_key}"` and target the `forge@` user. The previous `--delete` flag was removed in 2026-05; cleanup is the website's job.
-- **Jobs** in `app/Jobs/ShowClass/`:
-  - `UploadProofs` — wraps `proofUploads()`.
-  - `UploadWebImages` — wraps `webImageUploads()`.
-  - `UploadHighresImages` — wraps `highresImageUploads()`.
-  - All three currently land on the `default` queue (Horizon supervisor-1).
-- **Trigger UIs**: `ClassViewComponent::uploadPendingProofsAndWebImages()` and the show-level
-  equivalent dispatch the three jobs in parallel when there's pending work for each.
+- **Instant high-res delivery** mirroring the existing instant web image flow. New
+  `instant_high_res_images` flag on shows, new `image_type` column on products, IpnProcessor
+  rewrite consolidating web/high-res paths and adding null-safety.
+- **Per-delivery tracking** in a new `image_deliveries` table (`pending` → `sent` / `failed`),
+  with admin retry button on `/admin/deliveries`.
+- **Path consolidation** on ferraraphoto Photo / Show models (single parameterized
+  `Photo::sendImageToClient($email, $type)`, single private `Show::syncInstantDeliveryFlag`).
+- **Upload ordering** on proofgen: class- and show-level uploads now `Bus::chain` proofs before
+  web/highres so the public-facing files appear before the paid digital products are delivered.
+- **Show-to-show linking override** on proofgen: nullable `ferraraphoto_show_slug` column on
+  `shows`, surfaced via the Show view's "Ferraraphoto target" panel. Pencil edit. All remote-path
+  call sites (`Show::rsync*Command`, `ShowClass::getRemote*PathAttribute`,
+  `FerraraphotoTargetVerifier`, `pendingProofUploads`/etc.) consult the slug accessor; local
+  paths still use the proofgen show id (matches the on-disk directory).
+- **Pre-upload target verification**: `App\Services\FerraraphotoTargetVerifier` checks all three
+  remote disks for a given show or class via `Storage::disk()->exists()`. Surfaced as a
+  lazy-loaded panel on `ShowViewComponent` / `ClassViewComponent` and called by the upload jobs
+  (5-minute cache to collapse the proofs→web→highres chain into one round-trip set).
+- **Local dev integration via `local` transport driver**: `proofgen.sftp.driver = local` swaps
+  rsync-over-SSH for plain `rsync` between local directories. `ConfigurationServiceProvider`
+  rewrites the three `remote_*` Storage disks to local-driver at boot, so `Storage::disk()`
+  call sites don't branch.
+- **High-res product seeder + image_type backfill** on ferraraphoto so fresh installs ship with
+  both web and high-res instant delivery products correctly typed.
+- **Failed-delivery retry UI** at `/admin/deliveries`.
 
-## ferraraphoto-side reception
+There's still one production deployment task owed for Phase 1 (called out in
+`INSTANT_DELIVERY_WORK.md` on the ferraraphoto side):
 
-There is no automatic ingestion of uploaded files. ferraraphoto reads files lazily:
-- **Proofs**: `Show::importClasses()` (admin-triggered) scans `public/proofs/{slug}/`, creates
-  `Showclass` records for each subdirectory, and runs `Showclass::importPhotos()` to ingest the
-  per-class HTML index and per-photo files.
-- **Web / highres**: `Show::checkForWebImagesPath()` and `Show::checkForHighResImagesPath()` only
-  toggle the `instant_web_images` / `instant_high_res_images` boolean flags on the show by checking
-  whether `app/storage/web_images/{slug}/` / `app/storage/high_res_images/{slug}/` exists. Triggered
-  when an admin views the show page. Per-photo lookup happens at IPN time.
-- **Per-photo delivery** (`app/Acme/IpnProcessor.php`): on a successful PayPal IPN containing an
-  "instant" product, look up the photo by proof number, build the file path via
-  `Photo::webImagePath()` / `Photo::highResImagePath()`, attach the file to the email, and BCC the
-  admin. Each delivery is now logged to the `image_deliveries` table (status: `pending` → `sent` /
-  `failed`).
-
-## Show / Showclass identity
-
-Show identity is the **slug**:
-- proofgen: `Show::id` and `Show::name` both match the directory name (e.g. `2026R12`).
-- ferraraphoto: `Show::slug`. Set when creating the show via admin.
-
-Showclass identity is the **class number**:
-- proofgen: `ShowClass::id = "{show_id}_{class_number}"`, `ShowClass::name = class_number`.
-- ferraraphoto: `Showclass::class_number`, plus a `name` column ("Class # 121" or pulled from the
-  Breeze-generated `index.htm`).
-
-There is no enforcement that a show with a given slug exists on both sides before an upload runs.
-Operationally this is "the same abbreviation is used both places by convention."
-
-## Phase 1 — Instant Delivery (committed on `php7.4-migration`, 2026-05)
-
-Three commits landed on `php7.4-migration`:
-1. **Cleanup: consolidate web/highres image methods on Photo and Show.** Photo's two
-   `send*ImageToClient` methods become a single parameterized `sendImageToClient($email, $type)`.
-   Show's two `checkFor*ImagesPath` methods become a single private `syncInstantDeliveryFlag`.
-2. **High-res instant delivery + per-delivery tracking.** Adds `instant_high_res_images` flag on
-   shows, `image_type` column on products, new `image_deliveries` table for per-attempt logging,
-   IpnProcessor rewrite (with bug fixes), granular product visibility based on `image_type`, and
-   product-admin UI.
-3. **Admin: image deliveries log page.** New `/admin/deliveries` page listing recent IPN delivery
-   attempts (web + high-res) with show/status filters.
-
-Migrations have run **locally**. Production deployment still owed:
-- Pull/merge the branch on the production ferraraphoto host
+- Pull/merge the `php7.4-migration` branch on the production ferraraphoto host
 - Run `php artisan migrate`
 - Set `image_type = web` on the existing instant delivery web product via the admin
 - Optionally create a high-res instant delivery product (admin → Pricing → Products) and assign
-  it to the relevant pricelists. Make sure the product `name` contains both "high resolution"
-  (or "high res") and "instant" so `IpnProcessor::detectImageType()` matches it. Or seed it.
+  it to the relevant pricelists. The product `name` must contain both "high resolution" (or
+  "high res") and "instant" so `IpnProcessor::detectImageType()` matches it. Or seed it.
 
-## Local development
+## What's next: Phase 2 — first-class API integration + cloud storage
 
-### Running ferraraphoto locally (PHP 7.4 + MySQL)
+Phase 2 replaces the rsync convention with a real HTTP API and moves proof/web/high-res storage
+from the production server's attached volume to cloud object storage (B2 / S3-compatible /
+MinIO). The migration is staged so existing local-stored shows keep working while new shows
+land in the cloud.
 
-ferraraphoto needs PHP 7.4 + mcrypt. Herd has 7.4 installed alongside the default 7.4/8.x. To
-isolate the ferraraphoto site to 7.4:
+The detailed specs for each work stream live in dedicated docs (created alongside this update):
 
-```bash
-cd /Users/mikeferrara/Documents/code/ferraraphoto
-herd isolate 7.4
-```
+- **Storage profile architecture** — `docs/STORAGE_PROFILES.md` (proofgen + ferraraphoto)
+- **Ferraraphoto API surface** — `docs/FERRARAPHOTO_API_SPEC.md` (the contract Codex will build)
+- **Proofgen-side API client + storage refactor** — `docs/PROOFGEN_API_CLIENT.md`
+- **Bulk migration of legacy proofs** — `docs/PROOF_MIGRATION_PLAN.md`
+- **Customer-facing deliverables page** — `docs/CUSTOMER_DELIVERABLES.md`
 
-If `~/Library/Application Support/Herd/config/valet/Nginx/ferraraphoto.test` is missing the
-nginx server block (only contains the `# ISOLATED_PHP_VERSION=7.4` comment), copy from a
-working sibling:
+### Phase 2 design summary
 
-```bash
-cp "$HOME/Library/Application Support/Herd/config/valet/Nginx/tdr.test" \
-   "$HOME/Library/Application Support/Herd/config/valet/Nginx/ferraraphoto.test"
-sed -i '' 's/tdr.test/ferraraphoto.test/g' \
-   "$HOME/Library/Application Support/Herd/config/valet/Nginx/ferraraphoto.test"
-herd restart
-```
+1. **Multi-disk-profile storage.** Both apps gain a `storage_profiles` table. A profile is a
+   fingerprinted (driver + bucket + region + endpoint) tuple. Credentials still live in `.env`
+   under a per-profile prefix (`PROFILE_<NAME>_KEY`, `PROFILE_<NAME>_SECRET`, etc.); the table
+   stores only non-secret identity. Photos / shows / proofs are pinned to the profile they were
+   first written under, so legacy data stays readable when a new "active" profile is configured.
+   Profile identity is shared across the two apps via the API push so they always agree on
+   which profile holds a given show.
 
-MySQL: ferraraphoto's `.env` points at `127.0.0.1:3306` as root with empty password. Database
-name is `ferraraphoto`. Connect via `mysql -h 127.0.0.1 -uroot ferraraphoto` (the unix-socket
-default for the host `localhost` won't work — Herd's MySQL listens on TCP).
+2. **API direction: proofgen → ferraraphoto.** When proofgen finishes generating + uploading,
+   it POSTs show/class/photo metadata + the storage profile reference to ferraraphoto. The IPN
+   processor and the public site read files via `Storage::disk($profile)->...` instead of the
+   filesystem. ferraraphoto exposes admin-facing endpoints for pull-back ("re-sync this show",
+   "tell me delivery status for this order") but proofgen is the publisher.
 
-Migrations: `~/Library/Application\ Support/Herd/bin/php74 artisan migrate` from the
-ferraraphoto directory. Laravel 4 doesn't ship `migrate:status`; check the `migrations` table
-directly to see what's applied.
+3. **Customer-facing delivery via ferraraphoto routes.** Cloud-stored web/high-res files are
+   never linked directly. Instead, after IPN, the customer gets:
+   - **Web image**: email attachment (~1-3MB) PLUS a "View all your deliverables" CTA pointing
+     at a tokenized `/deliveries/{token}` page.
+   - **High-res image**: email-only CTA (no attachment, sizes are too large for reliable email
+     delivery), pointing at the same `/deliveries/{token}` page.
 
-### Local proofgen → ferraraphoto integration
+   The deliverables page lists all paid deliverables for that order and serves downloads through
+   ferraraphoto's own routes — files stream from cloud through the app, letting us record
+   per-photo download counts / last-downloaded timestamps and keep the storage layer invisible
+   to customers.
 
-A transport driver abstraction was added in 2026-05 (`config/proofgen.php`'s
-`proofgen.sftp.driver`, configurable via Settings → Server (SFTP) → "Connection mode"):
+4. **Bulk migration of legacy proofs.** Existing proofs live on the production server's attached
+   volume. They migrate to the active cloud profile via rclone (with parallel-safe verify) and
+   their associated photos get pinned to the new profile. Originals are **not deleted** during
+   migration — that's a manual confirmation step after the cloud-served path is confirmed
+   working.
 
-- **`sftp`** (default): the historical behavior — `rsync -avz -e "ssh -i {key}" … {user}@{host}:{path}`.
-  Username and private key are now config-driven, no longer hardcoded as `forge`.
-- **`local`**: plain `rsync -avz {source}/ {destpath}/` with no SSH transport. Use this when
-  proofgen runs on the same machine as ferraraphoto (local dev right now, or a future
-  same-server deployment).
-
-To wire up local-dev integration:
-
-1. Settings → Server (SFTP):
-   - **Connection mode**: `local`
-   - **SFTP Proofs Path**: `/Users/mikeferrara/Documents/code/ferraraphoto/public/proofs`
-   - **SFTP Web Images Path**: `/Users/mikeferrara/Documents/code/ferraraphoto/app/storage/web_images`
-   - **SFTP High Resolution Images Path**: `/Users/mikeferrara/Documents/code/ferraraphoto/app/storage/high_res_images`
-   - The host / port / username / key fields are ignored when driver is `local`.
-2. Save. Restart Horizon (Settings → Services → Restart) so queued jobs see the new config.
-3. Test connection from `/config/server` — the page builds a `Storage::disk('remote_proofs')`
-   directory listing; in local mode this just lists the proofs path on disk.
-
-Implementation: `App\Services\Transport\RsyncCommandBuilder` builds the rsync command based on
-the driver. `App\Providers\ConfigurationServiceProvider::applyTransportDriver()` rewrites the
-three `remote_*` Storage disks to use Flysystem's `local` adapter when driver is `local`, so
-`Storage::disk('remote_proofs')->makeDirectory(…)` and friends keep working without branching
-elsewhere.
-
-### Once the bridge is in place (local or SSH)
-
-A local "show run" looks like:
-1. Drop a sample show into `~/shows/{slug}/{class}/IMG_*.jpg` and import in proofgen.
-2. Generate proofs / web / highres in proofgen as normal.
-3. Click Upload → proofgen rsyncs to local ferraraphoto paths.
-4. In ferraraphoto admin, create the matching show (slug must match), then run "Import Classes".
-5. Browse the photo / order one as a customer to test the web/highres instant delivery flow.
-
-## Known gaps / TODOs
-
-1. ~~**Upload ordering** (proofgen): proofs, web images, and highres uploads dispatch in parallel
-   today.~~ **Done 2026-05.** Both class-level `uploadPendingProofsAndWebImages` and the new
-   show-level equivalent now use `Bus::chain` to run proofs first.
-2. ~~**Show linking** (both sides): there is no enforced link between a proofgen show and a
-   ferraraphoto show. The slug-match convention is the only thing keeping them aligned.~~
-   **Done 2026-05.** Proofgen's `shows` table now carries a nullable `ferraraphoto_show_slug`
-   column; `Show::ferraraphoto_slug` accessor returns the override when set or falls back to
-   `Show::id` (preserving prior behavior for every existing row). All remote-path call sites
-   (`Show::rsync*Command`, `ShowClass::getRemote*PathAttribute`, `FerraraphotoTargetVerifier`,
-   pendingProofUploads/etc.) consult the slug accessor; local paths still use the proofgen
-   show id (matches the on-disk directory name). Operator can edit the slug from the
-   "Ferraraphoto target" panel on the show view (pencil icon). A bare-slug API-driven flow
-   (manual selection from ferraraphoto-side list) remains future work — but the manual
-   override unblocks the divergence case today.
-
-   Surfaced two real Eloquent bugs while wiring this up — both fixed:
-   - `Show` and `ShowClass` were missing `protected $keyType = 'string'`. Default int
-     keyType meant `->with('show')` and `->with('photos')` etc. silently coerced string IDs
-     to `0` in the IN-clause and returned no rows. Lazy loading happened to work; eager
-     loading silently broke. Affected any code path that eager-loaded.
-   - `ShowClass::$casts` was missing `'show_id' => 'string'`. Same root cause — string FK
-     coerced to int in the eager-load lookup.
-3. ~~**Pre-upload validation**: nothing currently confirms that a matching show/class exists on the
-   ferraraphoto side before rsync runs.~~ **Done 2026-05.** `App\Services\FerraraphotoTargetVerifier`
-   checks all three remote disks (`remote_proofs`, `remote_web_images`, `remote_highres_images`)
-   for a given show or class via `Storage::disk()->exists()`. Surfaced two ways:
-   - **UI**: a lazy-loaded "Ferraraphoto target" panel on `ShowViewComponent` and
-     `ClassViewComponent` alongside the storage-usage panel. Operators click "Check" to see
-     per-disk badges (ready/missing/unreachable).
-   - **Upload jobs**: `UploadProofs`/`UploadWebImages`/`UploadHighresImages` call
-     `verifyClassThrottled()` (5-min cache to collapse the proofs→web→highres chain into one
-     SFTP round-trip set) and log a warning when the relevant remote dir doesn't exist.
-     `failed()` handlers re-verify with a fresh check and log the likely cause (missing target
-     vs unreachable disk).
-4. **Cloud storage migration**: out of scope. Notes in the user message: a future direction is
-   pushing to object storage and POSTing metadata to ferraraphoto, which would let ferraraphoto
-   serve files from the bucket. Not relevant to the current task.
-5. ~~**High-res product seeder**~~ **Done 2026-05.** `PricingTableSeeder.php` now defines a
-   "High Resolution Image (Instant Delivery)" product alongside the web one, and the loop
-   persists `image_type` from the seeder array so fresh installs ship with both products
-   correctly typed. Existing installs still need the one-time admin edit to backfill
-   `image_type` on their already-seeded web product (called out in INSTANT_DELIVERY_WORK.md).
-6. ~~**Failed-delivery retry UI**~~ **Done 2026-05** (ferraraphoto commit 742b935 — predates
-   this audit). `/admin/deliveries` has a per-row Retry button; route + controller +
-   `IpnProcessor::retryDelivery()` are in place.
+5. **Mixed-profile coexistence.** During the migration window, both rsync-and-local and
+   cloud profiles are valid. The IPN processor + deliverables page key off the photo's pinned
+   profile and use the matching disk. No global cutover.
 
 ## Useful files to read first when picking this up
 
 In **proofgen**:
-- `app/Models/ShowClass.php` (rsync builders and upload methods near the bottom)
-- `app/Jobs/ShowClass/UploadProofs.php`, `UploadWebImages.php`, `UploadHighresImages.php`
-- `app/Livewire/ClassViewComponent.php::uploadPendingProofsAndWebImages()`
-- `config/horizon.php` (queue layout)
-- The Settings → "Server (SFTP)" section for the runtime values
+- `app/Models/Show.php` (`ferraraphoto_slug` accessor, `rsync*Command` builders,
+  `pendingProofUploads`/`proofUploads`/equivalents for web + highres)
+- `app/Models/ShowClass.php` (per-class rsync + upload tracking)
+- `app/Jobs/ShowClass/UploadProofs.php` / `UploadWebImages.php` / `UploadHighresImages.php`
+- `app/Services/FerraraphotoTargetVerifier.php`
+- `app/Services/PathResolver.php` (where remote paths get built)
+- `app/Services/Transport/RsyncCommandBuilder.php` (current `sftp` vs `local` driver)
+- `app/Providers/ConfigurationServiceProvider.php` (`applyTransportDriver` rewrites Storage disks)
+- `config/proofgen.php` (`sftp.*` block) + `config/filesystems.php` (`remote_*` disks)
+- Settings → "Server (SFTP)" UI for the runtime values
 
 In **ferraraphoto**:
 - `app/Acme/IpnProcessor.php` (the actual delivery logic)
-- `app/models/Photo.php::webImagePath()` / `highResImagePath()` / `sendImageToClient()`
+- `app/models/Photo.php` (`webImagePath()` / `highResImagePath()` / `sendImageToClient()`)
 - `app/models/Show.php::syncInstantDeliveryFlag()` and `importClasses()`
 - `app/models/ShowClass.php::importPhotos()`
-- `INSTANT_DELIVERY_WORK.md` at the repo root (status of the uncommitted high-res work)
+- `app/models/ImageDelivery.php`
+- `app/controllers/AdminDeliveryController.php`
+- `app/routes-api.php` (currently a stub — Phase 2 builds it out)
+- `INSTANT_DELIVERY_WORK.md` at the repo root (status of Phase 1 deployment)
 
 ---
 
-*Living document — last updated 2026-05-09 (TODOs 2/3/5/6 closed; 1 was already done; 4 explicitly out of scope). Update when path conventions change, when a real API/DB linkage is added, or when work in `INSTANT_DELIVERY_WORK.md` lands.*
+*Living document — last updated 2026-05-09. Phase 1 closed; Phase 2 specs live in the sibling
+docs in this directory. Update when Phase 2 work lands or when path conventions / storage
+profiles change.*
