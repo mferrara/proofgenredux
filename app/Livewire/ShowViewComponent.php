@@ -12,10 +12,15 @@ use App\Jobs\ShowClass\UploadDerivedFiles;
 use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Models\ShowClass as ShowClassModel;
+use App\Models\StorageProfile;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\ClassRenameService;
 use App\Services\FerraraphotoTargetVerifier;
+use App\Services\Migration\CopyShowToCloud;
+use App\Services\Migration\MigrationInventoryService;
+use App\Services\Migration\ShowMigrationCutover;
+use App\Services\Migration\VerifyMigrationCopies;
 use App\Services\PathResolver;
 use App\Services\Storage\StorageProfileHealthCheck;
 use App\Services\StorageUsageService;
@@ -109,6 +114,78 @@ class ShowViewComponent extends Component
             ->verifyShow($this->show);
     }
 
+    public function runMigrationInventory(): void
+    {
+        $inventory = app(MigrationInventoryService::class);
+        $inventory->clearShow($this->show->ferraraphoto_slug);
+        $stats = $inventory->inventory($this->show->ferraraphoto_slug);
+
+        Flux::toast(
+            text: 'Found '.$stats['discovered'].' files, '.$stats['missing_sources'].' missing sources, '.$stats['strays'].' strays.',
+            heading: 'Inventory complete',
+            variant: $stats['errors'] > 0 ? 'warning' : 'success',
+            position: 'top right',
+        );
+    }
+
+    public function copyMigrationToCloud(): void
+    {
+        $profile = $this->activeCloudProfile();
+        if (! $profile) {
+            Flux::toast(text: 'No active writable cloud storage profile found.', heading: 'Copy blocked', variant: 'danger', position: 'top right');
+
+            return;
+        }
+
+        $stats = app(CopyShowToCloud::class)->copy($this->show, $profile);
+        Flux::toast(
+            text: $stats['copied'].' copied, '.$stats['skipped'].' skipped, '.$stats['failed'].' failed, '.$stats['missing_source'].' missing.',
+            heading: 'Copy finished',
+            variant: ($stats['failed'] + $stats['missing_source']) > 0 ? 'warning' : 'success',
+            position: 'top right',
+        );
+    }
+
+    public function verifyMigrationCopies(bool $thorough = false): void
+    {
+        $stats = app(VerifyMigrationCopies::class)->verify($this->show, $thorough);
+        Flux::toast(
+            text: $stats['verified'].' verified, '.$stats['failed'].' failed.',
+            heading: $thorough ? 'Thorough verify finished' : 'Verify finished',
+            variant: $stats['failed'] > 0 ? 'warning' : 'success',
+            position: 'top right',
+        );
+    }
+
+    public function cutoverMigration(): void
+    {
+        try {
+            $result = app(ShowMigrationCutover::class)->cutover($this->show);
+        } catch (\Throwable $exception) {
+            Flux::toast(text: $exception->getMessage(), heading: 'Cutover blocked', variant: 'danger', position: 'top right');
+
+            return;
+        }
+
+        Flux::toast(
+            text: $result['photos_updated'].' photos pinned to '.$result['profile_id'].'.',
+            heading: 'Migration cutover queued',
+            variant: 'success',
+            position: 'top right',
+        );
+    }
+
+    public function pollMigrationVerification(): void
+    {
+        $result = app(ShowMigrationCutover::class)->pollFerraraphotoVerification($this->show);
+        Flux::toast(
+            text: $result['remote_photo_count'].' remote photos, '.$result['local_photo_count'].' local photos.',
+            heading: $result['ok'] ? 'Ferraraphoto verified' : 'Ferraraphoto mismatch',
+            variant: $result['ok'] ? 'success' : 'warning',
+            position: 'top right',
+        );
+    }
+
     public string $ferraraphotoSlugDraft = '';
 
     public bool $editingFerraraphotoSlug = false;
@@ -143,6 +220,7 @@ class ShowViewComponent extends Component
         $this->working_full_path = $pathResolver->getAbsolutePath($this->working_path, $this->fullsize_base_path);
         $this->show->loadMissing('storageProfile');
         $storageProfile = $this->show->storageProfile;
+        $activeStorageProfile = $this->activeCloudProfile();
         $storageProfileHealth = $storageProfile
             ? Cache::remember(
                 'storage-profile-health.'.$storageProfile->id,
@@ -236,8 +314,22 @@ class ShowViewComponent extends Component
                 : null,
             'ferraraphoto_status' => $this->ferraraphotoStatus,
             'storage_profile' => $storageProfile,
+            'active_storage_profile' => $activeStorageProfile,
             'storage_profile_health' => $storageProfileHealth,
+            'migration_summary' => app(MigrationInventoryService::class)->showSummary($this->show),
+            'migration_panel_visible' => $activeStorageProfile !== null
+                && $storageProfile !== null
+                && $activeStorageProfile->id !== $storageProfile->id,
         ])->title($this->show->id.' - Proofgen');
+    }
+
+    private function activeCloudProfile(): ?StorageProfile
+    {
+        return StorageProfile::query()
+            ->where('is_active', true)
+            ->where('is_writable', true)
+            ->where('id', '!=', StorageProfile::LEGACY_LOCAL_ID)
+            ->first();
     }
 
     public function setFlashMessage(string $message): void

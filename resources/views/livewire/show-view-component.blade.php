@@ -73,6 +73,16 @@
             @include('livewire.partials.ferraraphoto-status-panel', ['ferraraphoto_status' => $ferraraphoto_status, 'show_for_slug' => $show])
         </div>
 
+        @if($migration_panel_visible)
+            <div class="mb-8">
+                @include('livewire.partials.migration-panel', [
+                    'summary' => $migration_summary,
+                    'activeProfile' => $active_storage_profile,
+                    'show' => $show,
+                ])
+            </div>
+        @endif
+
         {{-- Class folders --}}
         <flux:heading size="lg" level="2" class="mb-3">Classes</flux:heading>
         <flux:card class="!p-0 overflow-hidden">

@@ -11,6 +11,27 @@
         </flux:modal.trigger>
     </div>
 
+    @if(($migration_progress['total'] ?? 0) > 0)
+        <div class="mb-6 rounded-lg border border-zinc-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.04]">
+            <div class="mb-2 flex items-center justify-between gap-3">
+                <div class="text-sm font-medium text-zinc-900 dark:text-white">Cloud migration</div>
+                <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                    {{ number_format($migration_progress['migrated']) }} / {{ number_format($migration_progress['total']) }} shows migrated
+                </div>
+            </div>
+            <div class="h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                <div class="h-full rounded-full bg-emerald-500" style="width: {{ $migration_progress['percent'] }}%"></div>
+            </div>
+            @if(! empty($migration_progress['by_profile']))
+                <div class="mt-3 flex flex-wrap gap-2">
+                    @foreach($migration_progress['by_profile'] as $label => $count)
+                        <flux:badge color="zinc" size="sm">{{ $label }}: {{ $count }}</flux:badge>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+    @endif
+
     {{-- Create Show Modal --}}
     <flux:modal
         name="create-show"

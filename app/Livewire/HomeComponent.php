@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Show;
+use App\Models\StorageProfile;
 use App\Proofgen\Utility;
 use App\Services\StorageUsageService;
 use Flux\Flux;
@@ -76,7 +77,28 @@ class HomeComponent extends Component
             ->with('shows', $shows)
             ->with('top_level_directories', $top_level_directories)
             ->with('misc_storage', $miscStorage)
+            ->with('migration_progress', $this->migrationProgress())
             ->title('Proofgen Home');
+    }
+
+    private function migrationProgress(): array
+    {
+        $shows = Show::query()->with('storageProfile')->get();
+        $total = $shows->count();
+        $migrated = $shows
+            ->filter(fn (Show $show) => $show->storage_profile_id !== null && $show->storage_profile_id !== StorageProfile::LEGACY_LOCAL_ID)
+            ->count();
+
+        return [
+            'total' => $total,
+            'migrated' => $migrated,
+            'percent' => $total > 0 ? min(100, (int) floor(($migrated / $total) * 100)) : 0,
+            'by_profile' => $shows
+                ->groupBy(fn (Show $show) => $show->storageProfile?->label ?? 'Unpinned')
+                ->map(fn ($group) => $group->count())
+                ->sortKeys()
+                ->all(),
+        ];
     }
 
     public function createShow(?string $show_id = null): Show
