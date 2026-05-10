@@ -66,6 +66,11 @@ return [
         'enabled' => getenv('GENERATE_HIGHRES_IMAGES_ENABLED') !== 'FALSE',
     ],
 
+    'ferraraphoto' => [
+        'base_url' => getenv('FERRARAPHOTO_API_BASE') ?: 'https://ferraraphoto.com',
+        'api_token' => getenv('FERRARAPHOTO_API_TOKEN'),
+    ],
+
     'sftp' => [
         // Transport driver: 'sftp' for rsync-over-SSH (production / staging),
         // 'local' for plain rsync between local directories (local dev against

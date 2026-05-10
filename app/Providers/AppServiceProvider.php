@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Services\Ferraraphoto\FerraraphotoApiClient;
 use App\Services\HorizonService;
 use App\Services\SwiftCompatibilityService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -17,6 +19,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(HorizonService::class, function ($app) {
             return new HorizonService;
         });
+
+        $this->app->singleton(FerraraphotoApiClient::class, fn () => new FerraraphotoApiClient(
+            baseUrl: (string) config('proofgen.ferraraphoto.base_url', 'https://ferraraphoto.com'),
+            apiToken: (string) config('proofgen.ferraraphoto.api_token', ''),
+            logger: Log::getLogger(),
+        ));
     }
 
     /**
