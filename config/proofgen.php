@@ -1,5 +1,47 @@
 <?php
 
+/*
+|--------------------------------------------------------------------------
+| Upload timing budget
+|--------------------------------------------------------------------------
+|
+| One transport timeout is the single source of truth; every upload budget
+| below derives from it so this ordering cannot silently invert:
+|
+|   one rsync transfer
+|     < one upload job budget (one transfer + overhead)
+|       < nested derived-upload budget (proofs + web + highres + overhead)
+|         < uploads queue retry_after (longest job + margin)
+|
+| config/queue.php and config/horizon.php require this file and read the same
+| derived values, because config() is not reliably populated while the
+| configuration files themselves are being loaded. Changing
+| SFTP_TRANSFER_TIMEOUT (or clearing config caches after changing it) keeps
+| the job, worker and retry budgets aligned.
+|
+*/
+$transferTimeout = (int) env('SFTP_TRANSFER_TIMEOUT', 1800);
+if ($transferTimeout <= 0) {
+    $transferTimeout = 1800;
+}
+
+$jobOverhead = (int) env('UPLOAD_JOB_OVERHEAD', 300);
+if ($jobOverhead <= 0) {
+    $jobOverhead = 300;
+}
+
+// One upload job performs at most one rsync transfer.
+$singleUploadJobTimeout = $transferTimeout + $jobOverhead;
+
+// UploadDerivedFiles runs proofs + web + highres synchronously inside one
+// worker on the legacy-local path, so its budget must cover three transfers.
+$derivedUploadJobTimeout = (3 * $singleUploadJobTimeout) + $jobOverhead;
+
+// Redis releases an unacked job back onto the queue after retry_after. It must
+// stay above the longest job budget plus the worker-side margin, otherwise a
+// still-running upload would be handed to a second worker.
+$uploadsRetryAfter = $derivedUploadJobTimeout + (2 * $jobOverhead);
+
 return [
     'fullsize_home_dir' => getenv('FULLSIZE_HOME_DIR'),
     'archive_home_dir' => getenv('ARCHIVE_HOME_DIR'),
@@ -85,5 +127,22 @@ return [
         'path' => getenv('SFTP_PROOFSPATH'),
         'web_images_path' => getenv('SFTP_WEB_IMAGES_PATH'),
         'highres_images_path' => getenv('SFTP_HIGHRES_IMAGES_PATH'),
+        // Per-transfer rsync budget. Read by RsyncRunner; every upload queue
+        // budget above derives from it.
+        'timeout' => $transferTimeout,
+    ],
+
+    // Dedicated queue for long upload jobs (config/queue.php connection,
+    // config/horizon.php supervisor, app/Jobs/Show*/*).
+    'uploads' => [
+        'connection' => 'uploads',
+        'queue' => 'uploads',
+        'single_job_timeout' => $singleUploadJobTimeout,
+        'derived_job_timeout' => $derivedUploadJobTimeout,
+        'retry_after' => $uploadsRetryAfter,
+        // Seconds before each retry; the final value repeats for any extra
+        // attempt. Upload failures are usually remote/transient, so back off
+        // instead of hammering the SFTP target.
+        'backoff' => [60, 300, 900, 1800],
     ],
 ];

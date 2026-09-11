@@ -21,7 +21,29 @@ class UploadDerivedFiles implements ShouldQueue
 
     public int $tries = 5;
 
-    public function __construct(public string $classId) {}
+    /**
+     * Derived in config/proofgen.php: the legacy-local path runs proofs +
+     * web + highres synchronously inside this one job, so the budget covers
+     * three rsync transfers plus overhead.
+     */
+    public ?int $timeout = null;
+
+    public function __construct(public string $classId)
+    {
+        $this->timeout = (int) config('proofgen.uploads.derived_job_timeout');
+        $this->onConnection((string) config('proofgen.uploads.connection'));
+        $this->onQueue((string) config('proofgen.uploads.queue'));
+    }
+
+    /**
+     * Seconds to wait before each retry; the last value repeats for any extra attempt.
+     *
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return array_values((array) config('proofgen.uploads.backoff'));
+    }
 
     public function handle(StorageProfileResolver $profiles, PathResolver $paths): void
     {

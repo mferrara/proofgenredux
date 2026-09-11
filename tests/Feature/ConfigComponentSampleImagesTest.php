@@ -2,13 +2,15 @@
 
 use App\Livewire\ConfigComponent;
 use App\Services\SampleImagesService;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
-    // ConfigComponent::mount() generates thumbnail previews from any image found in
-    // storage/sample_images, which can blow past the default 128M PHPUnit memory limit
-    // when full-size sample photos are present on disk. Bump it for this test only.
-    ini_set('memory_limit', '512M');
+    // These tests exercise download notifications, not previews of operator photos.
+    File::partialMock()->shouldReceive('exists')
+        ->with(storage_path('sample_images'))->andReturnFalse();
+    Storage::fake('fullsize');
 });
 
 afterEach(function () {

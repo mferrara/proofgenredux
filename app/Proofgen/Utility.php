@@ -113,31 +113,44 @@ class Utility
             }
         }
 
+        // Every JPEG in an originals folder is expected to be a renamed proof:
+        // "{SHOW}_{digits}.jpg" (the allocator below zero-pads to five
+        // digits). Anything else is ambiguous - importing around it would
+        // silently allocate a colliding number - so fail loudly and leave the
+        // original untouched instead of skipping it.
+        $prefix = strtoupper($show).'_';
+        $prefix_pattern = '/^'.preg_quote($prefix, '/').'(\d+)$/';
+
         $image_numbers = [];
         if (count($images) > 0) {
             // Now we've got an array of images, we need to find the highest proof number of them all
             foreach ($images as $img) {
-                $num = $img->path();
-                // remove extension and path and show prefix
-                $ext = pathinfo($num, PATHINFO_EXTENSION);
-                $num = str_replace('.'.$ext, '', $num);
-                $num = explode('/', $num);
-                $num = array_pop($num);
-                $num = str_replace(strtoupper($show).'_', '', $num);
-                $image_numbers[] = $num;
+                $path = $img->path();
+                // Discovery historically matches jpg/jpeg anywhere in a path.
+                // Only actual JPEG extensions belong to this numbering scan.
+                if (! in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg', 'jpeg'], true)) {
+                    continue;
+                }
+                $basename = pathinfo($path, PATHINFO_FILENAME);
+
+                if (! preg_match($prefix_pattern, $basename, $matches)) {
+                    throw new \RuntimeException(sprintf(
+                        'Cannot allocate proof numbers for show "%s": the original "%s" is not a valid proof file '
+                        .'(expected a name like "%s00042.jpg"). Renumber or remove that file from the originals '
+                        .'folder and re-run the import; no image has been renamed or moved.',
+                        $show,
+                        $path,
+                        $prefix
+                    ));
+                }
+
+                // Compare numerically (not lexicographically) so 10000 sorts
+                // above 9999 regardless of zero-padding or digit width.
+                $image_numbers[] = (int) $matches[1];
             }
-            rsort($image_numbers);
         }
 
-        if (count($image_numbers) > 0) {
-            $highest_number = $image_numbers[0];
-        } else {
-            $highest_number = 0;
-        }
-
-        if ($highest_number !== 0 && ! ctype_digit($highest_number)) {
-            dd('Non-numeric proof number found, please remove the '.$highest_number.' file from the originals path.');
-        }
+        $highest_number = count($image_numbers) > 0 ? max($image_numbers) : 0;
 
         $contents = null;
         unset($contents);

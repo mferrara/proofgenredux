@@ -1,5 +1,11 @@
 <?php
 
+// Long upload jobs run on a dedicated Redis connection whose retry_after is
+// derived from the rsync transport timeout (see config/proofgen.php). Requiring
+// the proofgen config here — rather than calling config() — keeps the
+// derivation structural and independent of config file load order.
+$proofgen = require __DIR__.'/proofgen.php';
+
 return [
 
     /*
@@ -68,6 +74,19 @@ return [
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        // Dedicated connection for long upload jobs. retry_after exceeds the
+        // longest upload job budget (UploadDerivedFiles runs proofs + web +
+        // highres synchronously) while the default `redis` connection keeps its
+        // 90s recovery window for short jobs.
+        'uploads' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => $proofgen['uploads']['queue'],
+            'retry_after' => (int) $proofgen['uploads']['retry_after'],
             'block_for' => null,
             'after_commit' => false,
         ],

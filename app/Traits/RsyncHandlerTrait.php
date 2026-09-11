@@ -5,486 +5,309 @@ namespace App\Traits;
 use App\Models\Photo;
 use App\Models\ShowClass;
 use App\Services\PathResolver;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Trait for handling rsync operations and updating database records
+ * Shared evidence rules for upload syncs.
+ *
+ * Remote-side truth is whatever the last successful rsync reported through its
+ * own `-ii` file list: on exit 0 every regular file in the manifest is in sync
+ * at the destination (transferred files and unchanged files rsync found
+ * already up to date). So:
+ *
+ *  - a real (non-dry) sync reconciles `*_uploaded_at` for photos whose local
+ *    derivative files are all covered by the manifest. A missing stamp is
+ *    backfilled; a present stamp is advanced only when this run actually
+ *    transferred the photo's content again, so a byte-identical no-op retry
+ *    keeps the timestamp and attribute-only changes never masquerade as a new
+ *    upload;
+ *  - a dry-run only ever *clears* a stale `*_uploaded_at` for photos rsync
+ *    says would still be transferred. It never stamps: a would-be sync is not
+ *    evidence of remote success;
+ *  - nothing is stamped for absent/partial local derivatives (proofs require
+ *    every configured suffix).
+ *
+ * Used by both Show (which fans out per class) and ShowClass.
  */
 trait RsyncHandlerTrait
 {
     /**
-     * Process rsync output for proofs and update photo records
+     * Apply evidence for one class.
      *
-     * @param  array  $output  Rsync command output
-     * @param  string|null  $show_id  Show ID
-     * @param  bool  $is_dry_run  Whether this was a dry run
-     * @return array Processed paths
+     * @param  array<int, string>  $syncedFiles  basenames rsync reported (transferred + unchanged)
+     * @param  array<int, string>  $pendingFiles  basenames rsync would transfer (dry-run only)
+     * @param  array<int, string>  $transferredFiles  basenames this run actually sent/received
      */
-    public function processProofRsyncOutput(array $output, ?string $show_id = null, bool $is_dry_run = false): array
-    {
-        // We only want to process output lines that relate to files that were uploaded, specifically those that
-        // match our expected proof filename structures
-        $allowed_filename_endings = [];
-        $proofs_suffixes = config('proofgen.thumbnails');
-        foreach ($proofs_suffixes as $size => $values) {
-            $allowed_filename_endings[] = $values['suffix'].'.jpg';
-        }
-        $sync_type = 'proofs';
-        $path_resolver_method = 'getProofsPath';
+    protected function applyClassSyncEvidence(
+        ShowClass $class,
+        string $syncType,
+        array $syncedFiles,
+        array $pendingFiles,
+        array $transferredFiles,
+        bool $dryRun,
+    ): void {
+        $uploadedColumn = $this->syncTypeUploadColumn($syncType);
+        $synced = array_flip($syncedFiles);
+        $pending = array_flip($pendingFiles);
+        $transferred = array_flip($transferredFiles);
 
-        return $this->processRsyncOutput($sync_type, $allowed_filename_endings, $path_resolver_method, $output, $show_id, $is_dry_run);
-    }
+        foreach ($class->photos()->get() as $photo) {
+            /** @var Photo $photo */
+            $expected = $this->expectedBasenamesForPhoto($photo, $syncType);
 
-    /**
-     * Process rsync output for web images and update photo records
-     *
-     * @param  array  $output  Rsync command output
-     * @param  string|null  $show_id  Show ID
-     * @param  bool  $is_dry_run  Whether this was a dry run
-     * @return array Processed paths
-     */
-    public function processWebImageRsyncOutput(array $output, ?string $show_id = null, bool $is_dry_run = false): array
-    {
-        // We only want to process output lines that relate to files that were uploaded, specifically those that
-        // match our expected web image filename structures
-        $allowed_filename_endings = ['_web.jpg'];
-        $sync_type = 'web_images';
-        $path_resolver_method = 'getWebImagesPath';
-
-        return $this->processRsyncOutput($sync_type, $allowed_filename_endings, $path_resolver_method, $output, $show_id, $is_dry_run);
-    }
-
-    /**
-     * Process rsync output for highres images and update photo records
-     *
-     * @param  array  $output  Rsync command output
-     * @param  string|null  $show_id  Show ID
-     * @param  bool  $is_dry_run  Whether this was a dry run
-     * @return array Processed paths
-     */
-    public function processHighresImageRsyncOutput(array $output, ?string $show_id = null, bool $is_dry_run = false): array
-    {
-        // We only want to process output lines that relate to files that were uploaded, specifically those that
-        // match our expected highres image filename structures
-        $allowed_filename_endings = ['_highres.jpg'];
-        $sync_type = 'highres_images';
-        $path_resolver_method = 'getHighresImagesPath';
-
-        return $this->processRsyncOutput($sync_type, $allowed_filename_endings, $path_resolver_method, $output, $show_id, $is_dry_run);
-    }
-
-    /**
-     * Process rsync output and update database records
-     */
-    protected function processRsyncOutput(string $sync_type, array $allowed_filename_endings, string $path_resolver_method, array $output, string $show_id, bool $is_dry_run): array
-    {
-        Log::debug('Processing rsync output for sync type: '.$sync_type.' with show ID: '.$show_id.' and dry run: '.($is_dry_run ? 'true' : 'false'));
-
-        $path_resolver = app(PathResolver::class);
-        $uploaded_paths = [];
-        $uploaded_files = [];
-        $show_id = $this->getShowId($show_id);
-
-        // Parse the rsync output to get class and file information
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            // We can immediately ignore these lines
-            if (str_starts_with(strtolower($line), '.')
-                || str_ends_with(strtolower($line), '/')
-                || str_starts_with(strtolower($line), 'deleting')
-            ) {
+            if ($expected === []) {
                 continue;
             }
 
-            if (! empty($line) && $this->ends_with_any($line, $allowed_filename_endings)) {
-                // Extract class name and file name from the path
-                $parts = explode('/', $line);
+            if ($dryRun) {
+                $wouldTransfer = false;
 
-                // Handle different patterns based on context
-                $class_name = null;
-                $file_name = null;
-
-                if (count($parts) >= 2) {
-                    if (get_class($this) === ShowClass::class) {
-                        // If we're in ShowClass and path starts with show folder, skip that part
-                        if (str_starts_with(strtolower($line), strtolower($show_id))) {
-                            $file_name = end($parts);
-                            $class_name = $this->name;
-                        }
-                    } else {
-                        // Standard Show context
-                        $class_name = $parts[0];
-                        $file_name = end($parts);
-                    }
-
-                    if ($class_name && $file_name) {
-                        // Use PathResolver to build the file path based on the $sync_type we're performing here
-                        $file_path = $path_resolver->$path_resolver_method($show_id, $class_name);
-                        $full_path = $path_resolver->normalizePath($file_path.'/'.$file_name);
-                        $uploaded_paths[] = $full_path;
-
-                        // Keep track of file info for database updates
-                        $uploaded_files[$class_name][$file_name] = [
-                            'path' => $full_path,
-                            'processed' => ! $is_dry_run,  // If not dry run, it was processed
-                        ];
+                foreach ($expected as $basename) {
+                    if (isset($pending[$basename])) {
+                        $wouldTransfer = true;
+                        break;
                     }
                 }
-            }
-        }
 
-        // Log the $uploaded_files array for debugging
-        if (count($uploaded_files)) {
-            Log::debug('Uploaded files', ['uploaded_files' => $uploaded_files]);
-        } else {
-            Log::debug('No uploaded files found in rsync output');
-        }
-
-        // Now update the database based on the rsync results
-        if (! empty($uploaded_files)) {
-            $this->updateDatabaseRecordsFromRsyncOutput($sync_type, $uploaded_files, $show_id, $is_dry_run);
-        }
-
-        return $uploaded_paths;
-    }
-
-    /**
-     * Convenience method to update database records based on rsync output
-     *
-     * @param  string  $type  Type of rsync output ('proofs', 'web_images', or 'highres_images')
-     * @param  array  $uploaded_files  Class/file organization of uploaded files
-     * @param  string  $show_id  Show ID
-     * @param  bool  $is_dry_run  Whether this was a dry run
-     */
-    protected function updateDatabaseRecordsFromRsyncOutput(string $type, array $uploaded_files, string $show_id, bool $is_dry_run): void
-    {
-        switch ($type) {
-            case 'proofs':
-                $this->updateDatabaseProofRecords($uploaded_files, $show_id, $is_dry_run);
-                break;
-            case 'web_images':
-                $this->updateDatabaseWebImageRecords($uploaded_files, $show_id, $is_dry_run);
-                break;
-            case 'highres_images':
-                $this->updateDatabaseHighresImageRecords($uploaded_files, $show_id, $is_dry_run);
-                break;
-            default:
-                Log::warning("Unknown rsync type: {$type}");
-                break;
-        }
-    }
-
-    /**
-     * Update database records for proof uploads
-     *
-     * @param  array  $uploaded_files  Class/file organization of proof uploads
-     * @param  string  $show_id  Show ID
-     * @param  bool  $is_dry_run  Whether this was a dry run
-     */
-    protected function updateDatabaseProofRecords(array $uploaded_files, string $show_id, bool $is_dry_run): void
-    {
-        // Get all thumbnail suffixes from config
-        $thumbnail_sizes = config('proofgen.thumbnails');
-        $thumbnail_sizes = array_map(function ($item) {
-            return $item['suffix'];
-        }, $thumbnail_sizes);
-
-        // Process each class
-        foreach ($uploaded_files as $class_name => $files) {
-            // Get the ShowClass model
-            $show_class = ShowClass::where('id', $show_id.'_'.$class_name)->first();
-            if (! $show_class) {
-                Log::warning("Show class not found for ID: {$show_id}_{$class_name}");
-
-                continue;
-            }
-
-            // Group files by proof number
-            $proof_numbers = [];
-            foreach ($files as $file_name => $info) {
-                $proof_number = pathinfo($file_name, PATHINFO_FILENAME);
-
-                // Remove thumbnail suffixes to get the base proof number
-                foreach ($thumbnail_sizes as $suffix) {
-                    $proof_number = str_replace($suffix, '', $proof_number);
-                }
-
-                $proof_numbers[$proof_number][] = [
-                    'file_name' => $file_name,
-                    'processed' => $info['processed'],
-                ];
-            }
-
-            // Now update Photo records
-            foreach ($proof_numbers as $proof_number => $files_info) {
-                // If we're on a dry run, and we get a proof number with any number of files included here that means
-                // that it's missing at least one thumbnail, when it's marked as having its thumbnails uploaded,
-                // so we should reset that flag because they're not all uploaded
-                if ($is_dry_run) {
-                    $photo = $show_class->photos()->where('proof_number', $proof_number)->whereNotNull('proofs_uploaded_at')->first();
-                    if ($photo) {
-                        Log::debug("Pending upload found for proof: {$proof_number}");
-                        $photo->proofs_uploaded_at = null;
-                        $photo->save();
-                    }
-                }
-                // If this is not a dry run and the number of thumbnails uploaded matches the number of
-                // thumbnails we expect, then we can mark this proof as uploaded
-                elseif (count($files_info) === count($thumbnail_sizes)) {
-                    $photo = $show_class->photos()->where('proof_number', $proof_number)->first();
-                    if ($photo) {
-                        Log::debug("Marking uploaded for proof: {$proof_number}");
-                        $photo->proofs_uploaded_at = Carbon::now();
-                        $photo->save();
-                    }
-                }
-            }
-
-            // Now we'll look for any Photo records that are marked as having their proofs generated, but aren't
-            // showing that their proofs have been uploaded yet - meaning they weren't included in this recent rsync
-            // output either - which can only indicate that either they were previously uploaded, or they don't
-            // actually exist in our local proofs directory
-            $not_in_list = $show_class->photos()
-                ->whereNotNull('proofs_generated_at')
-                ->whereNull('proofs_uploaded_at')
-                ->get();
-
-            foreach ($not_in_list as $photo) {
-                // Skip if this photo was in our upload list
-                if (isset($proof_numbers[$photo->proof_number])) {
-                    continue;
-                }
-
-                // Confirm that there are actually local proofs for this photo
-                $proofs_exist = $photo->checkPathForProofs();
-                if (! $proofs_exist) {
-                    // If the proofs don't exist, we need to reset the proofs_generated_at timestamp
-                    $photo->proofs_generated_at = null;
+                if ($wouldTransfer && $photo->{$uploadedColumn} !== null) {
+                    Log::debug('Pending upload found for photo: '.$photo->id);
+                    $photo->{$uploadedColumn} = null;
                     $photo->save();
-
-                    Log::debug('Local proofs not found for proof: '.$photo->proof_number.' during updateDatabaseProofRecords()');
-
-                    continue;
                 }
 
-                // If rsync didn't upload them, and we show them being present on the local filesystem we can assume
-                // that they're uploaded
-                $photo->proofs_uploaded_at = Carbon::now();
+                continue;
+            }
+
+            $complete = true;
+            $contentTransferred = false;
+
+            foreach ($expected as $basename) {
+                if (! isset($synced[$basename])) {
+                    $complete = false;
+                    break;
+                }
+
+                if (isset($transferred[$basename])) {
+                    $contentTransferred = true;
+                }
+            }
+
+            if (! $complete) {
+                continue;
+            }
+
+            // A photo that was already uploaded keeps its stamp on a byte-for-byte
+            // no-op retry, and only advances when this run really moved its bytes
+            // again (a fresh upload or a changed derivative).
+            if ($photo->{$uploadedColumn} === null || $contentTransferred) {
+                Log::debug('Marking uploaded for photo: '.$photo->id);
+                $photo->{$uploadedColumn} = now();
                 $photo->save();
             }
         }
     }
 
     /**
-     * Update database records for web image uploads
+     * Apply evidence for a show-level sync, fanning the manifest out per class.
      *
-     * @param  array  $web_image_timestamps  Class/file organization of web image uploads
-     * @param  string  $show_id  Show ID
-     * @param  bool  $is_dry_run  Whether this was a dry run
+     * @param  array<int, string>  $syncedFiles  `{class}/{filename}` relative paths
+     * @param  array<int, string>  $pendingFiles  `{class}/{filename}` relative paths (dry-run only)
+     * @param  array<int, string>  $transferredFiles  `{class}/{filename}` relative paths
      */
-    protected function updateDatabaseWebImageRecords(array $web_image_timestamps, string $show_id, bool $is_dry_run): void
-    {
-        // Process each class
-        foreach ($web_image_timestamps as $class_name => $files) {
-            // Get the ShowClass model
-            $show_class = ShowClass::where('id', $show_id.'_'.$class_name)->first();
-            if (! $show_class) {
-                Log::warning("Show class not found for ID: {$show_id}_{$class_name}");
+    protected function applyShowLevelSyncEvidence(
+        string $syncType,
+        array $syncedFiles,
+        array $pendingFiles,
+        array $transferredFiles,
+        bool $dryRun,
+    ): void {
+        $syncedByClass = $this->groupRelativeFilesByClass($syncedFiles);
+        $pendingByClass = $this->groupRelativeFilesByClass($pendingFiles);
+        $transferredByClass = $this->groupRelativeFilesByClass($transferredFiles);
+
+        $classNames = $dryRun ? array_keys($pendingByClass) : array_keys($syncedByClass);
+
+        foreach ($classNames as $className) {
+            $class = ShowClass::where('id', $this->id.'_'.$className)->first();
+
+            if (! $class) {
+                Log::warning("Show class not found for ID: {$this->id}_{$className}");
 
                 continue;
             }
 
-            // Group files by proof number
-            $proof_numbers = [];
-            foreach ($files as $file_name => $info) {
-                $proof_number = pathinfo($file_name, PATHINFO_FILENAME);
-                $proof_number = str_replace('_web', '', $proof_number);
-
-                $proof_numbers[$proof_number][] = [
-                    'file_name' => $file_name,
-                    'processed' => $info['processed'],
-                ];
-            }
-
-            // Now update Photo records
-            foreach ($proof_numbers as $proof_number => $files_info) {
-                // If we're on a dry run and we find a web image in the output, that means
-                // it's not yet uploaded, so we should reset the web_image_uploaded_at flag
-                if ($is_dry_run) {
-                    $photo = $show_class->photos()->where('proof_number', $proof_number)->whereNotNull('web_image_uploaded_at')->first();
-                    if ($photo) {
-                        Log::debug("Pending web image upload found for proof: {$proof_number}");
-                        $photo->web_image_uploaded_at = null;
-                        $photo->save();
-                    }
-                }
-                // If this is not a dry run, we mark the web image as uploaded
-                else {
-                    $photo = $show_class->photos()->where('proof_number', $proof_number)->first();
-                    if ($photo) {
-                        Log::debug("Marking web image uploaded for proof: {$proof_number}");
-                        $photo->web_image_uploaded_at = Carbon::now();
-                        $photo->save();
-                    }
-                }
-            }
-
-            // Now we'll look for any Photo records that are marked as having their web images generated, but aren't
-            // showing that their web images have been uploaded yet - meaning they weren't included in this recent rsync
-            // output either - which can only indicate that either they were previously uploaded, or they don't
-            // actually exist in our local web images directory
-            $not_in_list = $show_class->photos()
-                ->whereNotNull('web_image_generated_at')
-                ->whereNull('web_image_uploaded_at')
-                ->get();
-
-            foreach ($not_in_list as $photo) {
-                // Skip if this photo was in our upload list
-                if (isset($proof_numbers[$photo->proof_number])) {
-                    continue;
-                }
-
-                // Confirm that there is actually a local web image for this photo
-                $web_image_exists = $photo->checkPathForWebImage();
-                if (! $web_image_exists) {
-                    // If the web image doesn't exist, we need to reset the web_image_generated_at timestamp
-                    $photo->web_image_generated_at = null;
-                    $photo->save();
-
-                    Log::debug('Local web image not found for proof: '.$photo->proof_number.' during updateDatabaseWebImageRecords()');
-
-                    continue;
-                }
-
-                // If rsync didn't upload it, and we show it being present on the local filesystem, we can assume
-                // that it's already uploaded
-                $photo->web_image_uploaded_at = Carbon::now();
-                $photo->save();
-            }
+            $this->applyClassSyncEvidence(
+                $class,
+                $syncType,
+                $syncedByClass[$className] ?? [],
+                $pendingByClass[$className] ?? [],
+                $transferredByClass[$className] ?? [],
+                $dryRun,
+            );
         }
     }
 
     /**
-     * Update database records for highres image uploads
+     * Normalized (fullsize-relative) paths for a show-level sync result.
      *
-     * @param  array  $highres_image_timestamps  Class/file organization of highres image uploads
-     * @param  string  $show_id  Show ID
-     * @param  bool  $is_dry_run  Whether this was a dry run
+     * @param  array<int, string>  $files  `{class}/{filename}` relative paths
+     * @return array<int, string>
      */
-    protected function updateDatabaseHighresImageRecords(array $highres_image_timestamps, string $show_id, bool $is_dry_run): void
+    protected function showLevelSyncPaths(string $syncType, array $files): array
     {
-        // Process each class
-        foreach ($highres_image_timestamps as $class_name => $files) {
-            // Get the ShowClass model
-            $show_class = ShowClass::where('id', $show_id.'_'.$class_name)->first();
-            if (! $show_class) {
-                Log::warning("Show class not found for ID: {$show_id}_{$class_name}");
+        $resolver = app(PathResolver::class);
+        $paths = [];
 
+        foreach ($this->groupRelativeFilesByClass($files) as $className => $basenames) {
+            $base = match ($syncType) {
+                'proofs' => $resolver->getProofsPath($this->id, $className),
+                'web_images' => $resolver->getWebImagesPath($this->id, $className),
+                'highres_images' => $resolver->getHighresImagesPath($this->id, $className),
+                default => null,
+            };
+
+            if ($base === null) {
                 continue;
             }
 
-            // Group files by proof number
-            $proof_numbers = [];
-            foreach ($files as $file_name => $info) {
-                $proof_number = pathinfo($file_name, PATHINFO_FILENAME);
-                $proof_number = str_replace('_highres', '', $proof_number);
-
-                $proof_numbers[$proof_number][] = [
-                    'file_name' => $file_name,
-                    'processed' => $info['processed'],
-                ];
-            }
-
-            // Now update Photo records
-            foreach ($proof_numbers as $proof_number => $files_info) {
-                // If we're on a dry run and we find a highres image in the output, that means
-                // it's not yet uploaded, so we should reset the highres_image_uploaded_at flag
-                if ($is_dry_run) {
-                    $photo = $show_class->photos()->where('proof_number', $proof_number)->whereNotNull('highres_image_uploaded_at')->first();
-                    if ($photo) {
-                        Log::debug("Pending highres image upload found for proof: {$proof_number}");
-                        $photo->highres_image_uploaded_at = null;
-                        $photo->save();
-                    }
-                }
-                // If this is not a dry run, we mark the highres image as uploaded
-                else {
-                    $photo = $show_class->photos()->where('proof_number', $proof_number)->first();
-                    if ($photo) {
-                        Log::debug("Marking highres image uploaded for proof: {$proof_number}");
-                        $photo->highres_image_uploaded_at = Carbon::now();
-                        $photo->save();
-                    }
-                }
-            }
-
-            // Now we'll look for any Photo records that are marked as having their highres images generated, but aren't
-            // showing that their highres images have been uploaded yet - meaning they weren't included in this recent rsync
-            // output either - which can only indicate that either they were previously uploaded, or they don't
-            // actually exist in our local highres images directory
-            $not_in_list = $show_class->photos()
-                ->whereNotNull('highres_image_generated_at')
-                ->whereNull('highres_image_uploaded_at')
-                ->get();
-
-            foreach ($not_in_list as $photo) {
-                // Skip if this photo was in our upload list
-                if (isset($proof_numbers[$photo->proof_number])) {
-                    continue;
-                }
-
-                // Confirm that there is actually a local highres image for this photo
-                $highres_image_exists = $photo->checkPathForHighresImage();
-                if (! $highres_image_exists) {
-                    // If the highres image doesn't exist, we need to reset the highres_image_generated_at timestamp
-                    $photo->highres_image_generated_at = null;
-                    $photo->save();
-
-                    Log::debug('Local highres image not found for proof: '.$photo->proof_number.' during updateDatabaseHighresImageRecords()');
-
-                    continue;
-                }
-
-                // If rsync didn't upload it, and we show it being present on the local filesystem, we can assume
-                // that it's already uploaded
-                $photo->highres_image_uploaded_at = Carbon::now();
-                $photo->save();
+            foreach ($basenames as $basename) {
+                $paths[] = $resolver->normalizePath($base.'/'.$basename);
             }
         }
+
+        return $paths;
     }
 
-    public function getShowId(?string $show_id): string
+    /**
+     * Normalized (fullsize-relative) paths for a single class's sync result.
+     *
+     * @param  array<int, string>  $files  basenames within this class
+     * @return array<int, string>
+     */
+    protected function classSyncPaths(string $syncType, array $files): array
     {
-        // Determine the show_id based on context
-        if ($show_id === null) {
-            if (isset($this->id) && is_string($this->id)) {
-                if (str_contains($this->id, '_')) {
-                    // We're in a ShowClass
-                    $parts = explode('_', $this->id);
-                    $show_id = $parts[0];
-                } else {
-                    // We're in a Show
-                    $show_id = $this->id;
-                }
-            } elseif (isset($this->show_id)) {
-                $show_id = $this->show_id;
-            }
+        $resolver = app(PathResolver::class);
+        $base = match ($syncType) {
+            'proofs' => $this->proofs_path,
+            'web_images' => $this->web_images_path,
+            'highres_images' => $this->highres_images_path,
+            default => null,
+        };
+
+        if ($base === null) {
+            return [];
         }
 
-        return $show_id;
+        return array_values(array_map(
+            fn (string $file) => $resolver->normalizePath($base.'/'.$file),
+            $files,
+        ));
     }
 
-    public function ends_with_any($string, array $endings): bool
+    /**
+     * Proof uploads keyed by proof number (the historical ShowClass shape).
+     *
+     * @param  array<int, string>  $files  basenames within this class
+     * @return array<string, array<int, string>>
+     */
+    protected function classProofPaths(array $files): array
     {
-        $string = strtolower($string);
-        foreach ($endings as $ending) {
-            if (str_ends_with($string, strtolower($ending))) {
-                return true;
-            }
+        $resolver = app(PathResolver::class);
+        $grouped = [];
+
+        foreach ($files as $file) {
+            $proofNumber = $this->proofNumberFromPath($file);
+            $grouped[$proofNumber][] = $resolver->normalizePath($this->proofs_path.'/'.$file);
         }
 
-        return false;
+        return $grouped;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function expectedBasenamesForPhoto(Photo $photo, string $syncType): array
+    {
+        $suffixes = $this->syncTypeSuffixes($syncType);
+
+        if ($suffixes === []) {
+            return [];
+        }
+
+        $basenames = [];
+
+        foreach ($suffixes as $suffix) {
+            // Image's derivative generators always encode JPEGs with .jpg;
+            // file_type describes the original and can instead be "jpeg".
+            $basenames[] = $photo->proof_number.$suffix.'.jpg';
+        }
+
+        return $basenames;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function syncTypeSuffixes(string $syncType): array
+    {
+        $suffixes = match ($syncType) {
+            'proofs' => array_map(
+                fn (array $values) => (string) ($values['suffix'] ?? ''),
+                array_values((array) config('proofgen.thumbnails', [])),
+            ),
+            'web_images' => [(string) config('proofgen.web_images.suffix', '')],
+            'highres_images' => [(string) config('proofgen.highres_images.suffix', '')],
+            default => [],
+        };
+
+        return array_values(array_filter($suffixes, fn (string $suffix) => $suffix !== ''));
+    }
+
+    /**
+     * Config key holding the destination base path for a sync type.
+     */
+    protected function syncTypeConfigKey(string $syncType): string
+    {
+        return match ($syncType) {
+            'proofs' => 'proofgen.sftp.path',
+            'web_images' => 'proofgen.sftp.web_images_path',
+            'highres_images' => 'proofgen.sftp.highres_images_path',
+            default => throw new \InvalidArgumentException("Unknown sync type: {$syncType}"),
+        };
+    }
+
+    protected function syncTypeUploadColumn(string $syncType): string
+    {
+        return match ($syncType) {
+            'proofs' => 'proofs_uploaded_at',
+            'web_images' => 'web_image_uploaded_at',
+            'highres_images' => 'highres_image_uploaded_at',
+            default => throw new \InvalidArgumentException("Unknown sync type: {$syncType}"),
+        };
+    }
+
+    /**
+     * @param  array<int, string>  $files  `{class}/{filename}` relative paths
+     * @return array<string, array<int, string>>
+     */
+    protected function groupRelativeFilesByClass(array $files): array
+    {
+        $grouped = [];
+
+        foreach ($files as $relative) {
+            if (! str_contains($relative, '/')) {
+                continue;
+            }
+
+            [$className, $basename] = explode('/', $relative, 2);
+
+            if ($className === '' || $basename === '' || str_contains($basename, '/')) {
+                continue;
+            }
+
+            $grouped[$className][] = $basename;
+        }
+
+        return $grouped;
     }
 }

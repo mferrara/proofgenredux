@@ -6,6 +6,9 @@ use App\Jobs\Photo\ImportPhoto;
 use App\Proofgen\Utility;
 use App\Services\PathResolver;
 use App\Services\Transport\RsyncCommandBuilder;
+use App\Services\Transport\UploadConfigurationException;
+use App\Services\Transport\UploadSyncResult;
+use App\Services\Transport\UploadSyncService;
 use App\Traits\HasPhotosTrait;
 use App\Traits\RsyncHandlerTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -191,219 +194,139 @@ class Show extends Model
     }
 
     /**
-     * Check for pending proof uploads across all classes in this show
-     * Also updates Photo records that are already uploaded
+     * Check for pending proof uploads across all classes in this show.
+     *
+     * This is a dry run: it reports files rsync would transfer and clears
+     * stale upload timestamps for them. It never stamps an upload timestamp.
      */
     public function pendingProofUploads(): array
     {
-        $path_resolver = app(PathResolver::class);
+        $result = $this->runShowSync('proofs', true);
 
-        // Ensure the remote directory exists
-        $remote_proofs_path = '/'.$path_resolver->getShowRemoteProofsPath($this->ferraraphoto_slug);
-        if (! Storage::disk('remote_proofs')->exists($remote_proofs_path)) {
-            Storage::disk('remote_proofs')->makeDirectory($remote_proofs_path);
-        }
+        $this->applyShowLevelSyncEvidence('proofs', [], $result->pendingFiles, $result->transferredFiles, true);
 
-        // Run a dry run of the rsync to determine what files need to be uploaded
-        $command = $this->rsyncProofsCommand(true);
-        exec($command, $output, $returnCode);
-
-        // Use the trait to process the output and update database records
-        $uploaded_paths = $this->processProofRsyncOutput($output, $this->id, true);
-
-        // Check for any records that might have had proofs previously uploaded but the flag not set
-        $this->postUploadProofExistenceAndUploadFlagCheck();
-
-        return $uploaded_paths;
+        return $this->showLevelSyncPaths('proofs', $result->pendingFiles);
     }
 
     /**
-     * Upload pending proofs across all classes in this show
-     * Also updates Photo records with upload timestamp
+     * Upload pending proofs across all classes in this show.
+     *
+     * On success the rsync-reported manifest (transferred plus unchanged
+     * files) is stamped onto complete Photo records. A non-zero rsync exit
+     * throws before any timestamp is touched.
      */
     public function proofUploads(): array
     {
-        $path_resolver = app(PathResolver::class);
+        $result = $this->runShowSync('proofs', false);
 
-        // Ensure the remote directory exists
-        $remote_proofs_path = '/'.$path_resolver->getShowRemoteProofsPath($this->ferraraphoto_slug);
-        if (! Storage::disk('remote_proofs')->exists($remote_proofs_path)) {
-            Storage::disk('remote_proofs')->makeDirectory($remote_proofs_path);
-        }
+        $this->applyShowLevelSyncEvidence('proofs', $result->syncedFiles, [], $result->transferredFiles, false);
 
-        // Run the rsync command
-        $command = $this->rsyncProofsCommand();
-        exec($command, $output, $returnCode);
-
-        // Use the trait to process the output and update database records
-        $uploaded_paths = $this->processProofRsyncOutput($output, $this->id, false);
-
-        // Check for any records that might have had proofs previously uploaded but the flag not set
-        $this->postUploadProofExistenceAndUploadFlagCheck();
-
-        return $uploaded_paths;
+        return $this->showLevelSyncPaths('proofs', $result->syncedFiles);
     }
 
     /**
-     * Check for pending web image uploads across all classes in this show
-     * Also updates Photo records that are already uploaded
+     * Check for pending web image uploads across all classes in this show.
      */
     public function pendingWebImageUploads(): array
     {
-        $path_resolver = app(PathResolver::class);
-        $dry_run = true;
+        $result = $this->runShowSync('web_images', true);
 
-        // Ensure the remote directory exists
-        $remote_web_images_path = '/'.$path_resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug);
-        if (! Storage::disk('remote_web_images')->exists($remote_web_images_path)) {
-            Storage::disk('remote_web_images')->makeDirectory($remote_web_images_path);
-        }
+        $this->applyShowLevelSyncEvidence('web_images', [], $result->pendingFiles, $result->transferredFiles, true);
 
-        // Run a dry run of the rsync to determine what files need to be uploaded
-        $command = $this->rsyncWebImagesCommand($dry_run);
-        exec($command, $output, $returnCode);
-
-        // Use the trait to process the output and update database records
-        $uploaded_files = $this->processWebImageRsyncOutput($output, $this->id, $dry_run);
-
-        // Check for any records that might have had web images previously uploaded but the flag not set
-        $this->postUploadWebImageExistenceAndUploadFlagCheck();
-
-        return $uploaded_files;
+        return $this->showLevelSyncPaths('web_images', $result->pendingFiles);
     }
 
     /**
-     * Upload pending web images across all classes in this show
-     * Also updates Photo records with upload timestamp
+     * Upload pending web images across all classes in this show.
      */
     public function webImageUploads(): array
     {
-        $path_resolver = app(PathResolver::class);
-        $dry_run = false;
+        $result = $this->runShowSync('web_images', false);
 
-        // Ensure the remote directory exists
-        $remote_web_images_path = '/'.$path_resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug);
-        if (! Storage::disk('remote_web_images')->exists($remote_web_images_path)) {
-            Storage::disk('remote_web_images')->makeDirectory($remote_web_images_path);
-        }
+        $this->applyShowLevelSyncEvidence('web_images', $result->syncedFiles, [], $result->transferredFiles, false);
 
-        // Run the rsync command
-        $command = $this->rsyncWebImagesCommand();
-        exec($command, $output, $returnCode);
-
-        // Use the trait to process the output and update database records
-        $uploaded_photos = $this->processWebImageRsyncOutput($output, $this->id, $dry_run);
-
-        // Check for any records that might have had web images previously uploaded but the flag not set
-        $this->postUploadWebImageExistenceAndUploadFlagCheck();
-
-        return $uploaded_photos;
+        return $this->showLevelSyncPaths('web_images', $result->syncedFiles);
     }
 
     /**
-     * After the rsync command has run, check for any photos that have proofs generated but are not flagged as
-     * uploaded, if there are any matching records after the rsync that means either the proofs don't actually exist
-     * or were already uploaded and not properly indicated in the database. So we'll aim to update/fix that here.
-     */
-    protected function postUploadProofExistenceAndUploadFlagCheck(): void
-    {
-        $photos = $this->photosProofedNotUploaded()->get();
-        /** @var Photo $photo */
-        foreach ($photos as $photo) {
-            $has_proofs = $photo->checkPathForProofs();
-
-            // If we have the actual proof files and the proofs_uploaded_at is null, set it to the current time
-            if ($has_proofs && $photo->proofs_uploaded_at === null) {
-                $photo->proofs_uploaded_at = now();
-                $photo->save();
-            }
-        }
-    }
-
-    protected function postUploadWebImageExistenceAndUploadFlagCheck(): void
-    {
-        $photos = $this->photosWebImagedNotUploaded()->get();
-        /** @var Photo $photo */
-        foreach ($photos as $photo) {
-            $has_web_image = $photo->checkPathForWebImage();
-
-            // If we have the actual web image and the web_image_uploaded_at is null, set it to the current time
-            if ($has_web_image && $photo->web_image_uploaded_at === null) {
-                $photo->web_image_uploaded_at = now();
-                $photo->save();
-            }
-        }
-    }
-
-    /**
-     * Check for pending highres image uploads across all classes in this show
-     * Also updates Photo records that are already uploaded
+     * Check for pending highres image uploads across all classes in this show.
      */
     public function pendingHighresImageUploads(): array
     {
-        $path_resolver = app(PathResolver::class);
-        $dry_run = true;
+        $result = $this->runShowSync('highres_images', true);
 
-        // Ensure the remote directory exists
-        $remote_highres_images_path = '/'.$path_resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug);
-        if (! Storage::disk('remote_highres_images')->exists($remote_highres_images_path)) {
-            Storage::disk('remote_highres_images')->makeDirectory($remote_highres_images_path);
-        }
+        $this->applyShowLevelSyncEvidence('highres_images', [], $result->pendingFiles, $result->transferredFiles, true);
 
-        // Run a dry run of the rsync to determine what files need to be uploaded
-        $command = $this->rsyncHighresImagesCommand($dry_run);
-        exec($command, $output, $returnCode);
-
-        // Use the trait to process the output and update database records
-        $uploaded_files = $this->processHighresImageRsyncOutput($output, $this->id, $dry_run);
-
-        // Check for any records that might have had highres images previously uploaded but the flag not set
-        $this->postUploadHighresImageExistenceAndUploadFlagCheck();
-
-        return $uploaded_files;
+        return $this->showLevelSyncPaths('highres_images', $result->pendingFiles);
     }
 
     /**
-     * Upload pending highres images across all classes in this show
-     * Also updates Photo records with upload timestamp
+     * Upload pending highres images across all classes in this show.
      */
     public function highresImageUploads(): array
     {
-        $path_resolver = app(PathResolver::class);
-        $dry_run = false;
+        $result = $this->runShowSync('highres_images', false);
 
-        // Ensure the remote directory exists
-        $remote_highres_images_path = '/'.$path_resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug);
-        if (! Storage::disk('remote_highres_images')->exists($remote_highres_images_path)) {
-            Storage::disk('remote_highres_images')->makeDirectory($remote_highres_images_path);
-        }
+        $this->applyShowLevelSyncEvidence('highres_images', $result->syncedFiles, [], $result->transferredFiles, false);
 
-        // Run the rsync command
-        $command = $this->rsyncHighresImagesCommand();
-        exec($command, $output, $returnCode);
-
-        // Use the trait to process the output and update database records
-        $uploaded_photos = $this->processHighresImageRsyncOutput($output, $this->id, $dry_run);
-
-        // Check for any records that might have had highres images previously uploaded but the flag not set
-        $this->postUploadHighresImageExistenceAndUploadFlagCheck();
-
-        return $uploaded_photos;
+        return $this->showLevelSyncPaths('highres_images', $result->syncedFiles);
     }
 
-    protected function postUploadHighresImageExistenceAndUploadFlagCheck(): void
+    /**
+     * Run one show-level rsync via the shared transport service, ensuring the
+     * remote destination directory exists first.
+     */
+    private function runShowSync(string $syncType, bool $dryRun): UploadSyncResult
     {
-        $photos = $this->photosHighresImagedNotUploaded()->get();
-        /** @var Photo $photo */
-        foreach ($photos as $photo) {
-            $has_highres_image = $photo->checkPathForHighresImage();
+        $resolver = app(PathResolver::class);
 
-            // If we have the actual highres image and the highres_image_uploaded_at is null, set it to the current time
-            if ($has_highres_image && $photo->highres_image_uploaded_at === null) {
-                $photo->highres_image_uploaded_at = now();
-                $photo->save();
+        [$localBase, $remoteBase, $remoteSubdir, $disk, $remoteDir] = match ($syncType) {
+            'proofs' => [
+                $resolver->getShowProofsPath($this->id),
+                config('proofgen.sftp.path'),
+                $resolver->getShowRemoteProofsPath($this->ferraraphoto_slug),
+                'remote_proofs',
+                '/'.$resolver->getShowRemoteProofsPath($this->ferraraphoto_slug),
+            ],
+            'web_images' => [
+                $resolver->getShowWebImagesPath($this->id),
+                config('proofgen.sftp.web_images_path'),
+                $resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug),
+                'remote_web_images',
+                '/'.$resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug),
+            ],
+            'highres_images' => [
+                $resolver->getShowHighresImagesPath($this->id),
+                config('proofgen.sftp.highres_images_path'),
+                $resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug),
+                'remote_highres_images',
+                '/'.$resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug),
+            ],
+            default => throw new \InvalidArgumentException("Unknown sync type: {$syncType}"),
+        };
+
+        $configKey = $this->syncTypeConfigKey($syncType);
+        $remoteBase = trim((string) $remoteBase);
+
+        if ($remoteBase === '') {
+            // Real uploads must fail loudly before any Storage/rsync access.
+            // Read-only pending checks may still report "nothing pending".
+            Log::error('SFTP '.$syncType.' path not configured - cannot upload show '.$this->id);
+
+            if (! $dryRun) {
+                throw UploadConfigurationException::missingDestination($syncType, $configKey, 'show '.$this->id);
             }
+
+            return new UploadSyncResult($syncType, $dryRun, [], [], []);
         }
+
+        if (! Storage::disk($disk)->exists($remoteDir)) {
+            Storage::disk($disk)->makeDirectory($remoteDir);
+        }
+
+        $local = $resolver->getAbsolutePath($localBase, config('proofgen.fullsize_home_dir')).'/';
+
+        return app(UploadSyncService::class)->sync($syncType, $local, $remoteBase, (string) $remoteSubdir, $dryRun);
     }
 
     public function getImagesPendingImport(): array
@@ -462,6 +385,20 @@ class Show extends Model
             }
         }
         $proof_number = $redis_client->lpop($redis_key);
+
+        // phpredis returns false (and a failed/misconfigured client can return
+        // null) when there is nothing left to pop. Returning that from a
+        // `string` method would TypeError deep inside the import; fail with a
+        // message that names the show and list instead.
+        if (! is_string($proof_number) || trim($proof_number) === '') {
+            throw new \RuntimeException(sprintf(
+                'Unable to allocate a proof number for show "%s": lpop on Redis list "%s" returned %s. '
+                .'The available proof-number pool is empty or Redis is unavailable. No image has been imported.',
+                $show_folder,
+                $redis_key,
+                $proof_number === false ? 'false' : get_debug_type($proof_number)
+            ));
+        }
 
         return $proof_number;
     }

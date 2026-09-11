@@ -10,12 +10,11 @@ use App\Jobs\ShowClass\UploadProofs;
 use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Photo;
 use App\Models\Show;
-use App\Models\ShowClass;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use Tests\Feature\Concerns\InteractsWithLocalRsyncUploads;
 use Tests\TestCase;
 
 /**
@@ -30,162 +29,21 @@ use Tests\TestCase;
  */
 class UploadChainTest extends TestCase
 {
+    use InteractsWithLocalRsyncUploads;
     use RefreshDatabase;
-
-    private string $tempPath;
-
-    private Show $show;
-
-    private ShowClass $class;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        if (! is_executable('/opt/homebrew/bin/rsync') && ! is_executable('/usr/bin/rsync')) {
-            $this->markTestSkipped('rsync binary not found; required for local-driver upload tests.');
-        }
-
-        config(['testing.skip_file_operations' => true]);
-
-        $this->tempPath = storage_path('app/upload_chain_test_'.uniqid());
-        File::makeDirectory($this->tempPath.'/fullsize', 0755, true);
-        File::makeDirectory($this->tempPath.'/remote-proofs', 0755, true);
-        File::makeDirectory($this->tempPath.'/remote-web', 0755, true);
-        File::makeDirectory($this->tempPath.'/remote-highres', 0755, true);
-
-        // Point both the proofgen.* paths and the underlying Storage disks at
-        // the same tempPath subdirectories. We bypass ConfigurationServiceProvider's
-        // applyTransportDriver() by writing the disk configs directly.
-        config(['proofgen.fullsize_home_dir' => $this->tempPath.'/fullsize']);
-        config(['proofgen.sftp.driver' => 'local']);
-        config(['proofgen.sftp.path' => $this->tempPath.'/remote-proofs']);
-        config(['proofgen.sftp.web_images_path' => $this->tempPath.'/remote-web']);
-        config(['proofgen.sftp.highres_images_path' => $this->tempPath.'/remote-highres']);
-
-        // Ensure thumbnail/web/highres suffix config is sane for the test
-        // even if the testing env hasn't loaded the .env values.
-        $thumbnails = config('proofgen.thumbnails');
-        if (empty($thumbnails['small']['suffix'])) {
-            config(['proofgen.thumbnails.small.suffix' => '_thm']);
-        }
-        if (empty($thumbnails['large']['suffix'])) {
-            config(['proofgen.thumbnails.large.suffix' => '_std']);
-        }
-        if (empty(config('proofgen.web_images.suffix'))) {
-            config(['proofgen.web_images.suffix' => '_web']);
-        }
-        if (empty(config('proofgen.highres_images.suffix'))) {
-            config(['proofgen.highres_images.suffix' => '_highres']);
-        }
-
-        config(['filesystems.disks.fullsize' => [
-            'driver' => 'local',
-            'root' => $this->tempPath.'/fullsize',
-            'throw' => true,
-        ]]);
-        config(['filesystems.disks.remote_proofs' => [
-            'driver' => 'local',
-            'root' => $this->tempPath.'/remote-proofs',
-            'throw' => false,
-        ]]);
-        config(['filesystems.disks.remote_web_images' => [
-            'driver' => 'local',
-            'root' => $this->tempPath.'/remote-web',
-            'throw' => false,
-        ]]);
-        config(['filesystems.disks.remote_highres_images' => [
-            'driver' => 'local',
-            'root' => $this->tempPath.'/remote-highres',
-            'throw' => false,
-        ]]);
-
-        Storage::forgetDisk('fullsize');
-        Storage::forgetDisk('remote_proofs');
-        Storage::forgetDisk('remote_web_images');
-        Storage::forgetDisk('remote_highres_images');
-
-        Show::withoutEvents(function () {
-            $this->show = Show::create([
-                'id' => 'SHOW1',
-                'name' => 'SHOW1',
-            ]);
-        });
-
-        ShowClass::withoutEvents(function () {
-            $this->class = ShowClass::create([
-                'id' => 'SHOW1_101',
-                'show_id' => 'SHOW1',
-                'name' => '101',
-            ]);
-        });
+        $this->setUpLocalRsyncUploads();
     }
 
     protected function tearDown(): void
     {
-        if (isset($this->tempPath) && File::exists($this->tempPath)) {
-            File::deleteDirectory($this->tempPath);
-        }
+        $this->tearDownLocalRsyncUploads();
 
         parent::tearDown();
-    }
-
-    /**
-     * Seed a Photo with proofs (small + large thumbnails) on the local fullsize disk
-     * and the matching DB row marked as having proofs generated but not yet uploaded.
-     */
-    private function seedPhotoWithProofs(string $proofNumber): Photo
-    {
-        $photo = Photo::create([
-            'id' => 'SHOW1_101_'.$proofNumber,
-            'show_class_id' => 'SHOW1_101',
-            'proof_number' => $proofNumber,
-            'file_type' => 'jpg',
-            'sha1' => sha1($proofNumber.'_proof'),
-            'proofs_generated_at' => Carbon::now()->subMinute(),
-        ]);
-
-        $smallSuffix = config('proofgen.thumbnails.small.suffix');
-        $largeSuffix = config('proofgen.thumbnails.large.suffix');
-
-        Storage::disk('fullsize')->put('proofs/SHOW1/101/'.$proofNumber.$smallSuffix.'.jpg', 'thm bytes for '.$proofNumber);
-        Storage::disk('fullsize')->put('proofs/SHOW1/101/'.$proofNumber.$largeSuffix.'.jpg', 'std bytes for '.$proofNumber);
-
-        return $photo->fresh();
-    }
-
-    private function seedPhotoWithWebImage(string $proofNumber): Photo
-    {
-        $photo = Photo::create([
-            'id' => 'SHOW1_101_'.$proofNumber,
-            'show_class_id' => 'SHOW1_101',
-            'proof_number' => $proofNumber,
-            'file_type' => 'jpg',
-            'sha1' => sha1($proofNumber.'_web'),
-            'web_image_generated_at' => Carbon::now()->subMinute(),
-        ]);
-
-        $suffix = config('proofgen.web_images.suffix');
-        Storage::disk('fullsize')->put('web_images/SHOW1/101/'.$proofNumber.$suffix.'.jpg', 'web bytes for '.$proofNumber);
-
-        return $photo->fresh();
-    }
-
-    private function seedPhotoWithHighresImage(string $proofNumber): Photo
-    {
-        $photo = Photo::create([
-            'id' => 'SHOW1_101_'.$proofNumber,
-            'show_class_id' => 'SHOW1_101',
-            'proof_number' => $proofNumber,
-            'file_type' => 'jpg',
-            'sha1' => sha1($proofNumber.'_highres'),
-            'highres_image_generated_at' => Carbon::now()->subMinute(),
-        ]);
-
-        $suffix = config('proofgen.highres_images.suffix');
-        Storage::disk('fullsize')->put('highres_images/SHOW1/101/'.$proofNumber.$suffix.'.jpg', 'highres bytes for '.$proofNumber);
-
-        return $photo->fresh();
     }
 
     public function test_per_class_proofs_upload_pushes_files_via_local_rsync_and_marks_photos_uploaded(): void
@@ -364,6 +222,11 @@ class UploadChainTest extends TestCase
             $this->assertNotNull(
                 $photo->proofs_uploaded_at,
                 "proofs_uploaded_at regressed to null for {$pn} after re-upload"
+            );
+            $this->assertSame(
+                $firstUploadAt[$pn]->getTimestamp(),
+                $photo->proofs_uploaded_at->getTimestamp(),
+                "proofs_uploaded_at must not advance on a no-op retry for {$pn}"
             );
         }
     }

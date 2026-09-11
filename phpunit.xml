@@ -18,16 +18,46 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
-        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
-        <env name="BCRYPT_ROUNDS" value="4"/>
-        <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
-        <env name="MAIL_MAILER" value="array"/>
-        <env name="PULSE_ENABLED" value="false"/>
-        <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="SESSION_DRIVER" value="array"/>
-        <env name="TELESCOPE_ENABLED" value="false"/>
+        <!--
+            force="true" is required so inherited shell values and the operator's
+            .env cannot override the test infrastructure. tests/TestCase.php also
+            mirrors these into $_SERVER because Laravel's dotenv repository reads
+            $_SERVER before $_ENV, and PHPUnit only writes $_ENV + putenv().
+        -->
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_KEY" value="base64:2fl+Ktvkfl+Fuz4Qp/A75G2RTiWVA/ZoKZvp6fiiM10=" force="true"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
+        <!--
+            Never read the operator's bootstrap/cache/*.php artifacts. In particular
+            the cached routes file bakes the Livewire endpoint prefix, which is
+            derived from APP_KEY, so a cached file from a different key makes every
+            Livewire update request 404.
+        -->
+        <env name="APP_CONFIG_CACHE" value="storage/framework/testing/config.php" force="true"/>
+        <env name="APP_ROUTES_CACHE" value="storage/framework/testing/routes-v7.php" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="CACHE_STORE" value="array" force="true"/>
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="DB_URL" value="" force="true"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="PULSE_ENABLED" value="false" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <!-- Never download sample images from the S3 bucket during tests. -->
+        <env name="AUTO_DOWNLOAD_SAMPLE_IMAGES" value="false" force="true"/>
+        <!--
+            Blank out every SFTP credential/target so a stray upload job can
+            never reach the operator's remote server. Tests that exercise
+            uploads set proofgen.sftp.* config explicitly.
+        -->
+        <env name="SFTP_HOSTNAME" value="" force="true"/>
+        <env name="SFTP_PORT" value="" force="true"/>
+        <env name="SFTP_USERNAME" value="" force="true"/>
+        <env name="SFTP_PATHTOPRIVATEKEY" value="" force="true"/>
+        <env name="SFTP_PROOFSPATH" value="" force="true"/>
+        <env name="SFTP_WEB_IMAGES_PATH" value="" force="true"/>
+        <env name="SFTP_HIGHRES_IMAGES_PATH" value="" force="true"/>
     </php>
 </phpunit>

@@ -10,7 +10,11 @@ use App\Proofgen\Utility;
 use App\Services\PathResolver;
 use App\Services\PhotoArchiveService;
 use App\Services\Transport\RsyncCommandBuilder;
+use App\Services\Transport\UploadConfigurationException;
+use App\Services\Transport\UploadSyncResult;
+use App\Services\Transport\UploadSyncService;
 use App\Traits\HasPhotosTrait;
+use App\Traits\RsyncHandlerTrait;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,6 +29,7 @@ class ShowClass extends Model
 {
     use HasFactory;
     use HasPhotosTrait;
+    use RsyncHandlerTrait;
 
     protected $table = 'show_classes';
 
@@ -738,363 +743,150 @@ class ShowClass extends Model
     }
 
     /**
-     * Run the rsync upload for this class's web images and update web_image_uploaded_at
-     * on each photo whose file actually transferred. Returns the list of relative paths
-     * that were transferred.
+     * Run the rsync upload for this class's web images.
      *
-     * Note on *_uploaded_at semantics: rsync only emits a filename when it actually
-     * transfers (or would transfer, in dry-run). On a re-run where the remote already
-     * has byte-identical copies, output is empty and timestamps don't update. So
-     * web_image_uploaded_at reflects "last time this exact file was sent across the
-     * wire," not "first ever uploaded." This is intentional — re-runs after archive
-     * conflicts or remote drift do legitimately re-transfer and we want the timestamp
-     * to track that.
+     * On a successful transfer the rsync-reported manifest (transferred plus
+     * unchanged files) is reported and the matching complete Photo records are
+     * stamped. A non-zero rsync exit throws before any timestamp is touched,
+     * so retries reconcile stamps instead of leaving a partial state behind.
      */
     public function webImageUploads(): array
     {
-        // Check if SFTP web images path is configured
-        $webImagesPath = config('proofgen.sftp.web_images_path');
-        if (empty($webImagesPath)) {
-            Log::error('SFTP web images path not configured - cannot upload web images for '.$this->id);
+        $result = $this->runClassSync('web_images', false);
 
-            return [];
-        }
+        $this->applyClassSyncEvidence($this, 'web_images', $result->syncedFiles, [], $result->transferredFiles, false);
 
-        $remote_web_images_path = '/'.$this->remote_web_images_path;
-        // Log::debug('Remote web images path: '.$remote_web_images_path);
-        if (! Storage::disk('remote_web_images')->exists($remote_web_images_path)) {
-            Storage::disk('remote_web_images')->makeDirectory($remote_web_images_path);
-        }
-
-        $path_resolver = app(PathResolver::class);
-        $command = $this->rsyncWebImagesCommand();
-        exec($command, $output, $returnCode);
-
-        $uploaded_web_images = [];
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (! empty($fileName) && str_ends_with($fileName, '.jpg')) {
-                    $uploaded_web_images[] = $path_resolver->normalizePath($this->web_images_path.'/'.$fileName);
-                }
-            }
-        }
-
-        // Anything that is in the $uploaded_web_images array should have its web_image_uploaded_at set
-        // to now()
-        foreach ($uploaded_web_images as $uploaded_web_image) {
-            $proof_number = pathinfo($uploaded_web_image, PATHINFO_FILENAME);
-            $file_extension = pathinfo($uploaded_web_image, PATHINFO_EXTENSION);
-            $proof_number = str_replace('_web', '', $proof_number);
-            $proof_number = str_replace($file_extension, '', $proof_number);
-            $photo = $this->photos()->where('proof_number', $proof_number)->first();
-            if ($photo) {
-                $photo->web_image_uploaded_at = now();
-                $photo->save();
-            }
-        }
-
-        return $uploaded_web_images;
+        return $this->classSyncPaths('web_images', $result->syncedFiles);
     }
 
     public function highresImageUploads(): array
     {
-        // Check if SFTP highres images path is configured
-        $highresPath = config('proofgen.sftp.highres_images_path');
-        if (empty($highresPath)) {
-            Log::error('SFTP highres images path not configured - cannot upload highres images for '.$this->id);
+        $result = $this->runClassSync('highres_images', false);
 
-            return [];
-        }
+        $this->applyClassSyncEvidence($this, 'highres_images', $result->syncedFiles, [], $result->transferredFiles, false);
 
-        $remote_highres_images_path = '/'.$this->remote_highres_images_path;
-        // Log::debug('Remote highres images path: '.$remote_highres_images_path);
-        if (! Storage::disk('remote_highres_images')->exists($remote_highres_images_path)) {
-            Storage::disk('remote_highres_images')->makeDirectory($remote_highres_images_path);
-        }
-
-        $path_resolver = app(PathResolver::class);
-        $command = $this->rsyncHighresImagesCommand();
-        Log::debug('Executing rsync for highres images: '.$command);
-        exec($command, $output, $returnCode);
-        Log::debug('Rsync return code: '.$returnCode);
-
-        if ($returnCode !== 0) {
-            Log::error('Rsync failed with return code: '.$returnCode.' for '.$this->id);
-        }
-
-        $uploaded_highres_images = [];
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (! empty($fileName) && str_ends_with($fileName, '.jpg')) {
-                    $uploaded_highres_images[] = $path_resolver->normalizePath($this->highres_images_path.'/'.$fileName);
-                }
-            }
-        }
-
-        // Anything that is in the $uploaded_highres_images array should have its highres_image_uploaded_at set
-        // to now()
-        foreach ($uploaded_highres_images as $uploaded_highres_image) {
-            $proof_number = pathinfo($uploaded_highres_image, PATHINFO_FILENAME);
-            $file_extension = pathinfo($uploaded_highres_image, PATHINFO_EXTENSION);
-            $proof_number = str_replace('_highres', '', $proof_number);
-            $proof_number = str_replace($file_extension, '', $proof_number);
-            $photo = $this->photos()->where('proof_number', $proof_number)->first();
-            if ($photo) {
-                $photo->highres_image_uploaded_at = now();
-                $photo->save();
-            }
-        }
-
-        return $uploaded_highres_images;
+        return $this->classSyncPaths('highres_images', $result->syncedFiles);
     }
 
     /**
-     * Perform a dry run of the rsync command to determine what files need to be uploaded
+     * Dry run: report the web images rsync would transfer and clear stale
+     * upload stamps for them. A dry-run never stamps (a would-be transfer is
+     * not evidence of remote success).
      */
     public function pendingWebImageUploads(): array
     {
-        $remote_web_images_path = '/'.$this->remote_web_images_path;
-        // Log::debug('Remote web images path: '.$remote_web_images_path);
-        if (! Storage::disk('remote_web_images')->exists($remote_web_images_path)) {
-            Storage::disk('remote_web_images')->makeDirectory($remote_web_images_path);
-        }
+        $result = $this->runClassSync('web_images', true);
 
-        $path_resolver = app(PathResolver::class);
-        // Run a dry run of the rsync to determine what files need to be uploaded
-        $command = $this->rsyncWebImagesCommand(true);
-        exec($command, $output, $returnCode);
+        $this->applyClassSyncEvidence($this, 'web_images', [], $result->pendingFiles, $result->transferredFiles, true);
 
-        $pending_web_images = [];
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (! empty($fileName) && str_ends_with($fileName, '.jpg')) {
-                    $pending_web_images[] = $path_resolver->normalizePath($this->web_images_path.'/'.$fileName);
-                }
-            }
-        }
-
-        // Get Photo records that have web_image_generated_at set but not web_image_uploaded_at
-        $photos = $this->photos()->whereNotNull('web_image_generated_at')->whereNull('web_image_uploaded_at')->get();
-        // Anything that is in this collection but not in the $pending_web_images array is already uploaded and we'll
-        // update the web_image_uploaded_at field
-        foreach ($photos as $photo) {
-            $web_image_path = $this->web_images_path.'/'.$photo->proof_number.'_web.'.$photo->file_type;
-            if (! in_array($web_image_path, $pending_web_images)) {
-                $photo->web_image_uploaded_at = now();
-                $photo->save();
-            }
-        }
-
-        return $pending_web_images;
+        return $this->classSyncPaths('web_images', $result->pendingFiles);
     }
 
     /**
-     * Perform a dry run of the rsync command to determine what files need to be uploaded
+     * Dry run: report the highres images rsync would transfer and clear stale
+     * upload stamps for them.
      */
     public function pendingHighresImageUploads(): array
     {
-        $remote_highres_images_path = '/'.$this->remote_highres_images_path;
-        if (! Storage::disk('remote_highres_images')->exists($remote_highres_images_path)) {
-            Storage::disk('remote_highres_images')->makeDirectory($remote_highres_images_path);
-        }
+        $result = $this->runClassSync('highres_images', true);
 
-        $path_resolver = app(PathResolver::class);
-        // Run a dry run of the rsync to determine what files need to be uploaded
-        $command = $this->rsyncHighresImagesCommand(true);
-        exec($command, $output, $returnCode);
+        $this->applyClassSyncEvidence($this, 'highres_images', [], $result->pendingFiles, $result->transferredFiles, true);
 
-        $pending_highres_images = [];
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (! empty($fileName) && str_ends_with($fileName, '.jpg')) {
-                    $pending_highres_images[] = $path_resolver->normalizePath($this->highres_images_path.'/'.$fileName);
-                }
-            }
-        }
-
-        // Get Photo records that have highres_image_generated_at set but not highres_image_uploaded_at
-        $photos = $this->photos()->whereNotNull('highres_image_generated_at')->whereNull('highres_image_uploaded_at')->get();
-        // Anything that is in this collection but not in the $pending_highres_images array is already uploaded and we'll
-        // update the highres_image_uploaded_at field
-        foreach ($photos as $photo) {
-            $highres_image_path = $this->highres_images_path.'/'.$photo->proof_number.'_highres.'.$photo->file_type;
-            if (! in_array($highres_image_path, $pending_highres_images)) {
-                $photo->highres_image_uploaded_at = now();
-                $photo->save();
-            }
-        }
-
-        return $pending_highres_images;
+        return $this->classSyncPaths('highres_images', $result->pendingFiles);
     }
 
+    /**
+     * Run the rsync upload for this class's proofs.
+     *
+     * A photo is only stamped when every configured proof suffix exists
+     * locally (the manifest is only consulted after rsync exits 0), so a
+     * half-generated proof pair never produces an uploaded timestamp. The
+     * return shape stays keyed by proof number for the UI/tests.
+     *
+     * @return array<string, array<int, string>>
+     */
     public function proofUploads()
     {
-        // Check if SFTP proofs path is configured
-        $proofsPath = config('proofgen.sftp.path');
-        if (empty($proofsPath)) {
-            Log::error('SFTP proofs path not configured - cannot upload proofs for '.$this->id);
+        $result = $this->runClassSync('proofs', false);
 
-            return [];
-        }
+        $this->applyClassSyncEvidence($this, 'proofs', $result->syncedFiles, [], $result->transferredFiles, false);
 
-        $remote_proofs_path = '/'.$this->remote_proofs_path;
-        if (! Storage::disk('remote_proofs')->exists($remote_proofs_path)) {
-            Storage::disk('remote_proofs')->makeDirectory($remote_proofs_path);
-        }
-
-        $path_resolver = app(PathResolver::class);
-        $command = $this->rsyncProofsCommand();
-        exec($command, $output, $returnCode);
-
-        $uploaded_proofs = [];
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if (empty($line) || str_contains($line, 'deleting')) {
-                continue;
-            }
-
-            if (str_starts_with(strtolower($line), strtolower($this->show->id))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (! empty($fileName) && str_ends_with($fileName, '.jpg')) {
-                    $uploaded_proofs[] = $path_resolver->normalizePath($this->proofs_path.'/'.$fileName);
-                }
-            }
-        }
-
-        // Log::debug('Uploaded proofs: '.count($uploaded_proofs), [$uploaded_proofs]);
-
-        // First let's loop through and grab the proof numbers of the uploaded proofs
-        $proof_numbers_uploaded = [];
-        $proof_suffixes = config('proofgen.thumbnails');
-        $proof_suffixes = array_map(function ($item) {
-            return $item['suffix'];
-        }, $proof_suffixes);
-        foreach ($uploaded_proofs as $uploaded_proof) {
-            $proof_number = pathinfo($uploaded_proof, PATHINFO_FILENAME);
-            $file_extension = pathinfo($uploaded_proof, PATHINFO_EXTENSION);
-            $proof_number = str_replace($file_extension, '', $proof_number);
-
-            foreach ($proof_suffixes as $proof_suffix) {
-                $proof_number = str_replace($proof_suffix, '', $proof_number);
-            }
-
-            $proof_numbers_uploaded[$proof_number][] = $uploaded_proof;
-        }
-
-        // Now we'll loop through the $proof_numbers_uploaded array and check if we have a Photo record for it
-        // as well as ensure that the count of proofs uploaded for that particular proof number is equal to
-        // the count of suffixes
-        foreach ($proof_numbers_uploaded as $proof_number => $uploaded_proofs) {
-            $photo = $this->photos()->where('proof_number', $proof_number)->first();
-            if ($photo) {
-                // Check if we have the same number of proofs uploaded as there are suffixes
-                if (count($uploaded_proofs) === count($proof_suffixes)) {
-                    // Set the proofs_uploaded_at to now()
-                    $photo->proofs_uploaded_at = now();
-                    $photo->save();
-                } else {
-                    // if the count is off we'll need to set the uploaded_at to null
-                    if ($photo->proofs_uploaded_at) {
-                        Log::debug('Setting proofs_uploaded_at to null for photo: '.$photo->id.' due to missing proofs on filesystem');
-                        $photo->proofs_uploaded_at = null;
-                        $photo->save();
-                    }
-                }
-            } else {
-                Log::debug('Uploaded proof number '.$proof_number.' not found in photos for this class in database: '.$this->id);
-            }
-        }
-
-        return $proof_numbers_uploaded;
+        return $this->classProofPaths($result->syncedFiles);
     }
 
+    /**
+     * Dry run: report the proofs rsync would transfer and clear stale upload
+     * stamps for the affected photos. Missing local variants are never turned
+     * into an uploaded timestamp.
+     */
     public function pendingProofUploads(): array
     {
-        $remote_proofs_path = '/'.$this->remote_proofs_path;
-        if (! Storage::disk('remote_proofs')->exists($remote_proofs_path)) {
-            Storage::disk('remote_proofs')->makeDirectory($remote_proofs_path);
+        $result = $this->runClassSync('proofs', true);
+
+        $this->applyClassSyncEvidence($this, 'proofs', [], $result->pendingFiles, $result->transferredFiles, true);
+
+        return $this->classSyncPaths('proofs', $result->pendingFiles);
+    }
+
+    /**
+     * Run one class-level rsync through the shared transport service, making
+     * sure the remote destination directory exists first.
+     *
+     * A missing destination path throws for real uploads (before Storage or
+     * rsync is touched) so a chain cannot silently advance to metadata. A
+     * read-only pending check may still return an empty result instead, since
+     * an unconfigured optional kind (e.g. highres) is legitimately "nothing
+     * pending" for the UI.
+     */
+    private function runClassSync(string $syncType, bool $dryRun): UploadSyncResult
+    {
+        [$localBase, $remoteBase, $remoteSubdir, $disk, $remoteDir] = match ($syncType) {
+            'proofs' => [
+                $this->proofs_path,
+                config('proofgen.sftp.path'),
+                $this->remote_proofs_path,
+                'remote_proofs',
+                '/'.$this->remote_proofs_path,
+            ],
+            'web_images' => [
+                $this->web_images_path,
+                config('proofgen.sftp.web_images_path'),
+                $this->remote_web_images_path,
+                'remote_web_images',
+                '/'.$this->remote_web_images_path,
+            ],
+            'highres_images' => [
+                $this->highres_images_path,
+                config('proofgen.sftp.highres_images_path'),
+                $this->remote_highres_images_path,
+                'remote_highres_images',
+                '/'.$this->remote_highres_images_path,
+            ],
+            default => throw new \InvalidArgumentException("Unknown sync type: {$syncType}"),
+        };
+
+        $remoteBase = trim((string) $remoteBase);
+
+        if ($remoteBase === '') {
+            Log::error('SFTP '.$syncType.' path not configured - cannot upload '.$this->id);
+
+            if (! $dryRun) {
+                throw UploadConfigurationException::missingDestination(
+                    $syncType,
+                    $this->syncTypeConfigKey($syncType),
+                    'class '.$this->id,
+                );
+            }
+
+            return new UploadSyncResult($syncType, $dryRun, [], [], []);
         }
 
-        $path_resolver = app(PathResolver::class);
-        // Run a dry run of the rsync to determine what files need to be uploaded
-        $command = $this->rsyncProofsCommand(true);
-        // Log::debug('Pending proofs upload rsync command: '.$command);
-        exec($command, $output, $returnCode);
-
-        $pending_proofs = [];
-
-        foreach ($output as $line) {
-            $line = trim($line);
-
-            if (! empty($line) && str_starts_with(strtolower($line), strtolower($this->show->id))) {
-                $parts = explode('/', $line);
-                $fileName = end($parts);
-
-                if (! empty($fileName) && str_ends_with($fileName, '.jpg')) {
-                    $pending_proofs[] = $path_resolver->normalizePath($this->proofs_path.'/'.$fileName);
-                }
-            }
+        if (! Storage::disk($disk)->exists($remoteDir)) {
+            Storage::disk($disk)->makeDirectory($remoteDir);
         }
 
-        // Get Photo records
-        $photos = $this->photos()->whereNotNull('proofs_generated_at')->get();
-        // Anything that is in this collection but not in the $pending_proofs array is already uploaded and we'll
-        // update the proofs_uploaded_at field
-        // Log::debug('Pending proof uploads', ['pending_proofs' => $pending_proofs]);
-        foreach ($photos as $photo) {
-            $thumbnail_sizes = config('proofgen.thumbnails');
-            $thumbnail_sizes = array_map(function ($item) {
-                return $item['suffix'];
-            }, $thumbnail_sizes);
-            $found_count = 0;
-            foreach ($thumbnail_sizes as $thumbnail_size) {
-                $proofs_path = $this->proofs_path.'/'.$photo->proof_number.$thumbnail_size.'.'.$photo->file_type;
-                if (! in_array($proofs_path, $pending_proofs)) {
-                    $found_count++;
-                }
-            }
-            if ($found_count === count($thumbnail_sizes)) {
-                if (! $photo->proofs_uploaded_at) {
-                    $photo->proofs_uploaded_at = now();
-                }
-                if (! $photo->proofs_generated_at) {
-                    $photo->proofs_generated_at = now();
-                }
-                if ($photo->isDirty()) {
-                    $photo->save();
-                }
-            } else {
-                if ($photo->proofs_uploaded_at) {
-                    Log::debug('Setting proofs_uploaded_at to null for photo: '.$photo->id);
-                    $photo->proofs_uploaded_at = null;
-                    $photo->save();
-                }
-            }
-        }
+        $local = app(PathResolver::class)->getAbsolutePath($localBase, config('proofgen.fullsize_home_dir').'/').'/';
 
-        return $pending_proofs;
+        return app(UploadSyncService::class)->sync($syncType, $local, $remoteBase, (string) $remoteSubdir, $dryRun);
     }
 }

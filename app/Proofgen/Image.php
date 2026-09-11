@@ -278,23 +278,48 @@ class Image
         $web_thumb_filename = $image_filename.$web_suf.'.jpg';
         $web_thumb_path = $web_dest_system_path.'/'.$web_thumb_filename;
 
-        // Save smaller copy of the image that we'll work with
-        $image->scale(config('proofgen.web_images.width'), config('proofgen.web_images.height'))
-            ->save($web_thumb_path, quality: (int) config('proofgen.web_images.quality'));
-        unset($image);
-
-        // Add the watermark/border/whatever it is
-        // Add watermark
-        $image = $manager->decodePath($web_thumb_path);
-        $watermark = imagecreatefrompng(storage_path().'/watermarks/web-image-watermark-2.png');
-
-        $average_color = self::determineAverageColor($web_thumb_path);
-        $darkness = self::determineWatermarkDarknessFromAverageColor($average_color[0], $average_color[1], $average_color[2]);
-        if ($darkness === 'light') {
-            imagefilter($watermark, IMG_FILTER_NEGATE);
+        // Resolve and validate the watermark BEFORE writing any output. A
+        // missing/corrupt watermark used to surface only after the scaled
+        // image had been written (and then as a GD TypeError from
+        // insert(false, ...)), leaving an un-watermarked file on disk that
+        // looked like a finished web image.
+        $watermark_path = storage_path().'/watermarks/web-image-watermark-2.png';
+        if (! is_file($watermark_path) || ! is_readable($watermark_path)) {
+            throw new \RuntimeException(
+                "Web image watermark is missing or unreadable at {$watermark_path}; refusing to write {$web_thumb_path} without a watermark."
+            );
         }
 
-        $image->insert($watermark, x: 0, y: 60, alignment: 'bottom')->save();
+        $watermark = @imagecreatefrompng($watermark_path);
+        if (! $watermark instanceof \GdImage) {
+            throw new \RuntimeException(
+                "Web image watermark could not be decoded from {$watermark_path}; refusing to write {$web_thumb_path} without a watermark."
+            );
+        }
+
+        try {
+            // Save smaller copy of the image that we'll work with
+            $image->scale(config('proofgen.web_images.width'), config('proofgen.web_images.height'))
+                ->save($web_thumb_path, quality: (int) config('proofgen.web_images.quality'));
+            unset($image);
+
+            // Add the watermark/border/whatever it is
+            // Add watermark
+            $image = $manager->decodePath($web_thumb_path);
+
+            $average_color = self::determineAverageColor($web_thumb_path);
+            $darkness = self::determineWatermarkDarknessFromAverageColor($average_color[0], $average_color[1], $average_color[2]);
+            if ($darkness === 'light') {
+                imagefilter($watermark, IMG_FILTER_NEGATE);
+            }
+
+            $image->insert($watermark, x: 0, y: 60, alignment: 'bottom')->save();
+        } finally {
+            // The GD watermark copy is a temporary resource; release it even
+            // when decoding/inserting/saving throws.
+            imagedestroy($watermark);
+            unset($watermark);
+        }
 
         unset($image);
 

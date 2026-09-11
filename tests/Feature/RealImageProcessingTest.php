@@ -2,17 +2,21 @@
 
 namespace Tests\Feature;
 
-use App\Exceptions\SampleImagesNotFoundException;
+use App\Jobs\Ferraraphoto\EnsureFerraraphotoShow;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
+use App\Jobs\ShowClass\PushPhotoMetadata;
+use App\Jobs\ShowClass\UploadDerivedFiles;
+use App\Jobs\ShowClass\UploadHighresImages;
+use App\Jobs\ShowClass\UploadProofs;
+use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Show;
 use App\Models\ShowClass;
-use App\Proofgen\Image;
 use App\Services\PathResolver;
 use App\Services\PhotoService;
-use App\Services\SampleImagesService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
@@ -20,66 +24,228 @@ use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
+/**
+ * Real image processing coverage (import + archive + thumbnails + web images).
+ *
+ * Isolation contract:
+ *  - every Storage disk used here lives under a unique per-test temp directory;
+ *  - outbound upload / remote-metadata jobs are selectively faked via Bus so the
+ *    real import + derivative generation work runs while nothing touches SFTP;
+ *  - fixtures are generated locally instead of reading storage/sample_images or
+ *    downloading from the S3 sample bucket.
+ */
 class RealImageProcessingTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected $tempPath;
+    /**
+     * Outbound jobs that must never execute from these tests.
+     */
+    protected const OUTBOUND_JOBS = [
+        UploadProofs::class,
+        UploadWebImages::class,
+        UploadHighresImages::class,
+        UploadDerivedFiles::class,
+        PushPhotoMetadata::class,
+        EnsureFerraraphotoShow::class,
+    ];
+
+    protected string $tempPath;
 
     protected string $show = 'TestShow2024';
 
     protected string $class = 'TestClass';
 
-    protected string $photo_name = 'test_image_001.jpg';
-
     protected PhotoService $photoService;
 
     protected PathResolver $pathResolver;
 
-    protected SampleImagesService $sampleImagesService;
-
-    /**
-     * Get or create a sample image for testing
-     * Prefers to use existing real sample images, falls back to creating test images
-     *
-     * @param  string  $testFilename  The filename to use if creating a test image
-     * @return array ['path' => string, 'content' => string]
-     */
-    protected function getOrCreateSampleImage(string $testFilename = 'test_image.jpg'): array
+    protected function setUp(): void
     {
-        // Try to find an existing real sample image
-        $realSampleDirs = [
-            '22Buck/007',
-            '23R41/121',
-            '2023R41/121',
-        ];
+        parent::setUp();
 
-        foreach ($realSampleDirs as $dir) {
-            if (Storage::disk('sample_images')->exists($dir)) {
-                $files = Storage::disk('sample_images')->files($dir);
-                foreach ($files as $file) {
-                    // Skip the problematic IMG_02593.jpg and use other real images
-                    if (basename($file) !== 'IMG_02593.jpg' && preg_match('/\.(jpg|jpeg|png)$/i', $file)) {
-                        return [
-                            'path' => $file,
-                            'content' => Storage::disk('sample_images')->get($file),
-                        ];
-                    }
-                }
-            }
+        $this->pathResolver = new PathResolver;
+
+        // Unique per-test root for every disk this test writes to. Nothing is
+        // shared with the operator's real image directories or with other tests.
+        $this->tempPath = storage_path('app/temp_test_'.uniqid());
+        File::makeDirectory($this->tempPath, 0755, true);
+
+        config([
+            'filesystems.disks.fullsize' => [
+                'driver' => 'local',
+                'root' => $this->tempPath.'/fullsize',
+                'throw' => true,
+            ],
+            'filesystems.disks.archive' => [
+                'driver' => 'local',
+                'root' => $this->tempPath.'/archive',
+                'throw' => true,
+            ],
+            'filesystems.disks.sample_images' => [
+                'driver' => 'local',
+                'root' => $this->tempPath.'/sample_images',
+                'throw' => false,
+            ],
+            'filesystems.disks.sample_images_bucket' => [
+                'driver' => 'local',
+                'root' => $this->tempPath.'/sample_images_bucket',
+                'throw' => false,
+            ],
+        ]);
+
+        foreach (['fullsize', 'archive', 'sample_images', 'sample_images_bucket'] as $disk) {
+            Storage::forgetDisk($disk);
         }
 
-        // If no real sample found, create a test image
-        $testImage = $this->createValidTestImage();
-        $testPath = "{$this->show}/{$this->class}/{$testFilename}";
+        // Set up configuration for testing with actual files. Do this before
+        // creating models so their events never scan the operator's directories.
+        Config::set('proofgen.fullsize_home_dir', $this->tempPath.'/fullsize');
+        Config::set('proofgen.archive_home_dir', $this->tempPath.'/archive');
+        Config::set('proofgen.rename_files', true);
+        Config::set('proofgen.archive_enabled', true); // Enable archiving for tests
+        Config::set('proofgen.watermark_proofs', false); // Disable watermarking for tests
+        Config::set('proofgen.watermark_font', storage_path('watermark_fonts/Georgia.ttf'));
+        Config::set('proofgen.watermark_background_opacity', 70);
+        Config::set('proofgen.watermark_foreground_opacity', 0);
 
-        // Store in bucket for download
-        Storage::disk('sample_images_bucket')->put($testPath, $testImage);
+        // Configure thumbnail settings
+        Config::set('proofgen.thumbnails', [
+            'small' => [
+                'suffix' => '_s',
+                'width' => 400,
+                'height' => 600,
+                'quality' => 90,
+                'font_size' => 8,
+                'bg_size' => 16,
+            ],
+            'large' => [
+                'suffix' => '_l',
+                'width' => 1024,
+                'height' => 1536,
+                'quality' => 90,
+                'font_size' => 20,
+                'bg_size' => 40,
+            ],
+        ]);
 
-        return [
-            'path' => $testPath,
-            'content' => $testImage,
-        ];
+        // Configure web image settings
+        Config::set('proofgen.web_images', [
+            'suffix' => '_web',
+            'width' => 800,
+            'height' => 1200,
+            'quality' => 90,
+            'font_size' => 20,
+            'bg_size' => 40,
+        ]);
+
+        // Configure highres image settings
+        Config::set('proofgen.highres_images', [
+            'suffix' => '_highres',
+            'width' => 3000,
+            'height' => 3000,
+            'quality' => 95,
+            'font_size' => 20,
+            'bg_size' => 40,
+        ]);
+
+        // Set a flag to skip file operations in model events during tests
+        config(['testing.skip_file_operations' => true]);
+
+        // Selective Bus fake: outbound upload/metadata jobs are recorded but never
+        // executed (no rsync/SSH/SFTP, no ferraraphoto API). Import and derivative
+        // generation jobs still run for real.
+        Bus::fake(self::OUTBOUND_JOBS);
+
+        // Create the Show and ShowClass records in the database before creating any
+        // class directory, otherwise Show::created would auto-register the directory
+        // as a ShowClass and collide with the explicit row below.
+        Show::create([
+            'id' => $this->show,
+            'name' => $this->show,
+        ]);
+
+        ShowClass::create([
+            'id' => $this->show.'_'.$this->class,
+            'show_id' => $this->show,
+            'name' => $this->class,
+        ]);
+
+        // Create the necessary directories using PathResolver
+        Storage::disk('fullsize')->makeDirectory('');
+        Storage::disk('archive')->makeDirectory('');
+        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getFullsizePath($this->show, $this->class));
+        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getOriginalsPath($this->show, $this->class));
+        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getProofsPath($this->show, $this->class));
+        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getWebImagesPath($this->show, $this->class));
+        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getHighresImagesPath($this->show, $this->class));
+
+        // Mock Redis for proof numbers using the facade (no alias mock — alias mocks
+        // pollute global class state and break sibling tests).
+        $redisClient = \Mockery::mock();
+        $redisClient->shouldReceive('exists')->andReturn(false);
+        $redisClient->shouldReceive('rpush')->andReturn(true);
+        $redisClient->shouldReceive('lpop')->andReturnUsing(function () {
+            static $proofNum = 1;
+
+            return 'TEST'.str_pad($proofNum++, 3, '0', STR_PAD_LEFT);
+        });
+        $redisClient->shouldReceive('llen')->andReturn(0);
+
+        Redis::shouldReceive('client')->andReturn($redisClient);
+
+        // Create service instances
+        $this->photoService = new PhotoService($this->pathResolver);
+
+        // Seed deterministic synthetic originals in the temp sample directory so
+        // tests never depend on storage/sample_images or the S3 sample bucket.
+        $this->seedSyntheticSampleImages(3);
+    }
+
+    protected function tearDown(): void
+    {
+        // Clean up our temp directory
+        if (isset($this->tempPath) && File::exists($this->tempPath)) {
+            File::deleteDirectory($this->tempPath);
+        }
+
+        parent::tearDown();
+    }
+
+    /**
+     * Write $count synthetic JPGs into the temp sample_images disk.
+     *
+     * @return string[] The relative paths written.
+     */
+    protected function seedSyntheticSampleImages(int $count = 1): array
+    {
+        $paths = [];
+
+        for ($i = 1; $i <= $count; $i++) {
+            $path = "{$this->show}/{$this->class}/IMG_".str_pad((string) $i, 5, '0', STR_PAD_LEFT).'.jpg';
+            Storage::disk('sample_images')->put($path, $this->createValidTestImage());
+            $paths[] = $path;
+        }
+
+        return $paths;
+    }
+
+    /**
+     * List the synthetic sample JPGs seeded for this test.
+     *
+     * @return string[]
+     */
+    protected function availableSampleImagePaths(): array
+    {
+        $files = Storage::disk('sample_images')->files("{$this->show}/{$this->class}");
+
+        $images = array_values(array_filter($files, function (string $file) {
+            return str_ends_with(strtolower($file), '.jpg');
+        }));
+
+        sort($images);
+
+        return $images;
     }
 
     /**
@@ -131,240 +297,12 @@ class RealImageProcessingTest extends TestCase
         return $imageData;
     }
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Ensure we're in testing environment
-        if (app()->environment() !== 'testing') {
-            $this->markTestSkipped('Test can only run in testing environment');
-        }
-
-        $this->pathResolver = new PathResolver;
-
-        // Create the Show and ShowClass records in the database
-        $show = Show::create([
-            'id' => $this->show,
-            'name' => $this->show,
-        ]);
-
-        ShowClass::create([
-            'id' => $this->show.'_'.$this->class,
-            'show_id' => $show->id,
-            'name' => $this->class,
-        ]);
-
-        // Create a temp directory for our test images
-        $this->tempPath = storage_path('app/temp_test_'.uniqid());
-        File::makeDirectory($this->tempPath, 0755, true);
-
-        // Override the default disk configs with our test ones
-        $fullsizeDisk = [
-            'driver' => 'local',
-            'root' => $this->tempPath.'/fullsize',
-            'throw' => true,
-        ];
-
-        $archiveDisk = [
-            'driver' => 'local',
-            'root' => $this->tempPath.'/archive',
-            'throw' => true,
-        ];
-
-        $sampleImagesDisk = [
-            'driver' => 'local',
-            'root' => storage_path('sample_images'),
-            'throw' => false,
-        ];
-
-        // Mock the sample_images_bucket disk for testing
-        $sampleImagesBucketDisk = [
-            'driver' => 'local',
-            'root' => storage_path('fake_bucket'),
-            'throw' => false,
-        ];
-
-        // Configure the disks - directly override the existing ones
-        config(['filesystems.disks.fullsize' => $fullsizeDisk]);
-        config(['filesystems.disks.archive' => $archiveDisk]);
-        config(['filesystems.disks.sample_images' => $sampleImagesDisk]);
-        config(['filesystems.disks.sample_images_bucket' => $sampleImagesBucketDisk]);
-
-        // Force Storage to forget cached disk instances
-        app()->forgetInstance('filesystem.disk');
-        Storage::forgetDisk('fullsize');
-        Storage::forgetDisk('archive');
-
-        // Create the necessary directories using PathResolver
-        Storage::disk('fullsize')->makeDirectory('');
-        Storage::disk('archive')->makeDirectory('');
-        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getFullsizePath($this->show, $this->class));
-        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getOriginalsPath($this->show, $this->class));
-        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getProofsPath($this->show, $this->class));
-        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getWebImagesPath($this->show, $this->class));
-        Storage::disk('fullsize')->makeDirectory($this->pathResolver->getHighresImagesPath($this->show, $this->class));
-
-        // Set up configuration for testing with actual files
-        Config::set('proofgen.fullsize_home_dir', $this->tempPath.'/fullsize');
-        Config::set('proofgen.archive_home_dir', $this->tempPath.'/archive');
-        Config::set('proofgen.rename_files', true);
-        Config::set('proofgen.archive_enabled', true); // Enable archiving for tests
-        Config::set('proofgen.watermark_proofs', false); // Disable watermarking for tests
-        Config::set('proofgen.watermark_font', storage_path('watermark_fonts/Georgia.ttf'));
-        Config::set('proofgen.watermark_background_opacity', 70);
-        Config::set('proofgen.watermark_foreground_opacity', 0);
-
-        // Configure thumbnail settings
-        Config::set('proofgen.thumbnails', [
-            'small' => [
-                'suffix' => '_s',
-                'width' => 400,
-                'height' => 600,
-                'quality' => 90,
-                'font_size' => 8,
-                'bg_size' => 16,
-            ],
-            'large' => [
-                'suffix' => '_l',
-                'width' => 1024,
-                'height' => 1536,
-                'quality' => 90,
-                'font_size' => 20,
-                'bg_size' => 40,
-            ],
-        ]);
-
-        // Configure web image settings
-        Config::set('proofgen.web_images', [
-            'suffix' => '_web',
-            'width' => 800,
-            'height' => 1200,
-            'quality' => 90,
-            'font_size' => 20,
-            'bg_size' => 40,
-        ]);
-
-        // Configure highres image settings
-        Config::set('proofgen.highres_images', [
-            'suffix' => '_highres',
-            'width' => 3000,
-            'height' => 3000,
-            'quality' => 95,
-            'font_size' => 20,
-            'bg_size' => 40,
-        ]);
-
-        // Set environment variables that some parts of the code expect
-        putenv('WATERMARK_FONT='.storage_path('watermark_fonts/Georgia.ttf'));
-        putenv('LARGE_THUMBNAIL_QUALITY=90');
-
-        // Mock Redis for proof numbers using the facade (no alias mock — alias mocks
-        // pollute global class state and break sibling tests).
-        $redisClient = \Mockery::mock();
-        $redisClient->shouldReceive('exists')->andReturn(false);
-        $redisClient->shouldReceive('rpush')->andReturn(true);
-        $redisClient->shouldReceive('lpop')->andReturnUsing(function () {
-            static $proofNum = 1;
-
-            return 'TEST'.str_pad($proofNum++, 3, '0', STR_PAD_LEFT);
-        });
-        $redisClient->shouldReceive('llen')->andReturn(0);
-
-        Redis::shouldReceive('client')->andReturn($redisClient);
-
-        // Create service instances
-        $this->pathResolver = new PathResolver;
-        $this->photoService = new PhotoService($this->pathResolver);
-        $this->sampleImagesService = new SampleImagesService($this->pathResolver);
-
-        // Set a flag to skip file operations in model events during tests
-        config(['testing.skip_file_operations' => true]);
-    }
-
-    /**
-     * Clean up the fake_bucket directory while preserving the .gitkeep file
-     */
-    protected function cleanFakeBucket(): void
-    {
-        $fakeBucketPath = storage_path('fake_bucket');
-        if (File::exists($fakeBucketPath)) {
-            // Get all files/directories except .gitkeep
-            $files = array_filter(
-                File::allFiles($fakeBucketPath),
-                function ($file) {
-                    return $file->getFilename() !== '.gitkeep';
-                }
-            );
-
-            // Delete each file
-            foreach ($files as $file) {
-                File::delete($file->getPathname());
-            }
-
-            // Delete all directories within fake_bucket
-            foreach (File::directories($fakeBucketPath) as $directory) {
-                File::deleteDirectory($directory);
-            }
-        }
-    }
-
-    protected function tearDown(): void
-    {
-        // Clean up our temp directory
-        if (File::exists($this->tempPath)) {
-            File::deleteDirectory($this->tempPath);
-        }
-
-        // Clean up the fake_bucket directory
-        $this->cleanFakeBucket();
-
-        parent::tearDown();
-    }
-
     /**
      * Test processing a single real image from sample directory using PhotoService
      */
     public function test_process_single_sample_image()
     {
-        // Clean up between tests
-        $this->cleanFakeBucket();
-
-        // First, try to use an existing real sample image
-        $existingSamplePath = null;
-        if (Storage::disk('sample_images')->exists('22Buck/007/22BUCK_00093.jpg')) {
-            $existingSamplePath = '22Buck/007/22BUCK_00093.jpg';
-        } elseif (Storage::disk('sample_images')->exists('2023R41/121')) {
-            // Use a different file than IMG_02593.jpg to avoid conflicts
-            $files = Storage::disk('sample_images')->files('2023R41/121');
-            foreach ($files as $file) {
-                if (basename($file) !== 'IMG_02593.jpg' && preg_match('/\.(jpg|jpeg|png)$/i', $file)) {
-                    $existingSamplePath = $file;
-                    break;
-                }
-            }
-        }
-
-        if ($existingSamplePath) {
-            // Use the existing sample image
-            $sampleImagePath = $existingSamplePath;
-        } else {
-            // Fall back to creating a test image
-            try {
-                // Ensure we have sample images, will auto-download if needed
-                $this->sampleImagesService->ensureSampleImagesAvailable();
-
-                // Create a valid test image for the bucket
-                $testImage = $this->createValidTestImage();
-
-                // Use test-specific path to avoid overwriting real samples
-                Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/{$this->photo_name}", $testImage);
-                $this->sampleImagesService->downloadSampleImages();
-            } catch (SampleImagesNotFoundException $e) {
-                $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: '.$e->getMessage());
-            }
-
-            $sampleImagePath = "{$this->show}/{$this->class}/{$this->photo_name}";
-        }
+        $sampleImagePath = $this->availableSampleImagePaths()[0];
         $sampleImage = Storage::disk('sample_images')->get($sampleImagePath);
         $testImageFilename = basename($sampleImagePath);
         $this->assertNotEmpty($sampleImage, 'No sample image found to test with');
@@ -451,54 +389,15 @@ class RealImageProcessingTest extends TestCase
      */
     public function test_process_multiple_sample_images()
     {
-        // Clean up between tests
-        $this->cleanFakeBucket();
-
-        $sampleImages = [];
-
-        // First, try to use existing real sample images
-        if (Storage::disk('sample_images')->exists('22Buck/007')) {
-            $files = Storage::disk('sample_images')->files('22Buck/007');
-            foreach ($files as $file) {
-                if (preg_match('/\.(jpg|jpeg|png)$/i', $file) && count($sampleImages) < 3) {
-                    $sampleImages[] = Storage::disk('sample_images')->get($file);
-                }
-            }
-        }
-
-        // If we don't have enough real samples, create test images
-        if (count($sampleImages) < 3) {
-            try {
-                // Ensure we have sample images, will auto-download if needed
-                $this->sampleImagesService->ensureSampleImagesAvailable();
-
-                // Create a valid test image for the bucket
-                $testImage = $this->createValidTestImage();
-
-                // Use test-specific paths
-                Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/test_image1.jpg", $testImage);
-                Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/test_image2.jpg", $testImage);
-                Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/test_image3.jpg", $testImage);
-                $this->sampleImagesService->downloadSampleImages();
-            } catch (SampleImagesNotFoundException $e) {
-                $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: '.$e->getMessage());
-            }
-        }
+        $sampleImages = $this->availableSampleImagePaths();
+        $this->assertGreaterThanOrEqual(3, count($sampleImages), 'Not enough synthetic sample images to test with');
+        $sampleImages = array_slice($sampleImages, 0, 3);
+        $this->assertNotEmpty($sampleImages, 'No sample images found to test with');
 
         $fullsize_path = $this->pathResolver->getFullsizePath($this->show, $this->class);
         $originals_path = $this->pathResolver->getOriginalsPath($this->show, $this->class);
         $proofs_path = $this->pathResolver->getProofsPath($this->show, $this->class);
         $webImages_path = $this->pathResolver->getWebImagesPath($this->show, $this->class);
-
-        // Get sample images to use, filtering for jpgs, limit to 3
-        $sampleImages = Storage::disk('sample_images')->files("{$this->show}/{$this->class}");
-        $sampleImages = array_filter($sampleImages, function ($image) {
-            // If the filename ends with .jpg, keep it
-            return str_ends_with($image, '.jpg');
-        });
-        // Limit to 5
-        $sampleImages = array_slice($sampleImages, 0, 3);
-        $this->assertNotEmpty($sampleImages, 'No sample images found to test with');
 
         // Copy sample images to our test fullsize disk
         foreach ($sampleImages as $index => $sampleImage) {
@@ -553,38 +452,12 @@ class RealImageProcessingTest extends TestCase
      */
     public function test_job_integration_with_photo_service()
     {
-        // Clean up between tests
-        $this->cleanFakeBucket();
-        try {
-            // Ensure we have sample images, will auto-download if needed
-            $this->sampleImagesService->ensureSampleImagesAvailable();
-
-            // Create a valid test image for the bucket
-            $testImage = $this->createValidTestImage();
-
-            // For testing, we'll pre-populate the sample_images disk with a test image
-            // Use test-specific path to avoid overwriting real samples
-            Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/job_test.jpg", $testImage);
-            $this->sampleImagesService->downloadSampleImages();
-        } catch (SampleImagesNotFoundException $e) {
-            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: '.$e->getMessage());
-        }
-
         Queue::fake();
 
-        // Find a sample image to use
-        $sampleImages = Storage::disk('sample_images')->files("{$this->show}/{$this->class}");
-        $this->assertNotEmpty($sampleImages, 'No sample images found to test with');
-
-        // Filter entries in $sampleImages for those that end with .jpg
-        $sampleImages = array_filter($sampleImages, function ($image) {
-            return str_ends_with($image, '.jpg');
-        });
-
-        // Copy a sample image to our test fullsize disk
-        $sampleImage = array_shift($sampleImages);
+        $sampleImage = $this->availableSampleImagePaths()[0];
         $imageContent = Storage::disk('sample_images')->get($sampleImage);
-        $sampleFilename = basename($sampleImage).'.jpg';
+        $this->assertNotEmpty($imageContent, 'No sample image found to test with');
+        $sampleFilename = basename($sampleImage);
         $imagePath = $this->pathResolver->getFullsizePath($this->show, $this->class)."/{$sampleFilename}";
         Storage::disk('fullsize')->put($imagePath, $imageContent);
 
@@ -668,38 +541,13 @@ class RealImageProcessingTest extends TestCase
      */
     public function test_actual_image_processing_with_watermarking()
     {
-        // Clean up between tests
-        $this->cleanFakeBucket();
-        try {
-            // Ensure we have sample images, will auto-download if needed
-            $this->sampleImagesService->ensureSampleImagesAvailable();
-
-            // Create a valid test image for the bucket
-            $testImage = $this->createValidTestImage();
-
-            // For testing, we'll pre-populate the sample_images disk with a test image
-            // Use test-specific path to avoid overwriting real samples
-            Storage::disk('sample_images_bucket')->put("{$this->show}/{$this->class}/watermark_test.jpg", $testImage);
-            $this->sampleImagesService->downloadSampleImages();
-        } catch (SampleImagesNotFoundException $e) {
-            $this->markTestSkipped('Sample images not available and cannot be auto-downloaded: '.$e->getMessage());
-        }
-
         // Enable watermarking for this test
         Config::set('proofgen.watermark_proofs', true);
 
         // Find a sample image to use
-        $sampleImages = Storage::disk('sample_images')->files("{$this->show}/{$this->class}");
-        $this->assertNotEmpty($sampleImages, 'No sample images found to test with');
-
-        // Filter $sampleImages for those that end with .jpg
-        $sampleImages = array_filter($sampleImages, function ($image) {
-            return str_ends_with($image, '.jpg');
-        });
-
-        // Copy a sample image to our test fullsize disk
-        $sampleImage = array_shift($sampleImages);
+        $sampleImage = $this->availableSampleImagePaths()[0];
         $imageContent = Storage::disk('sample_images')->get($sampleImage);
+        $this->assertNotEmpty($imageContent, 'No sample image found to test with');
         $imagePath = $this->pathResolver->getFullsizePath($this->show, $this->class).'/test_watermark.jpg';
         Storage::disk('fullsize')->put($imagePath, $imageContent);
 

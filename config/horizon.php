@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Str;
 
+// Upload job/worker budgets are derived in config/proofgen.php from the rsync
+// transport timeout. Required here (instead of config()) so the Horizon
+// supervisor timeout can never drift below the jobs it runs.
+$proofgen = require __DIR__.'/proofgen.php';
+
 return [
 
     /*
@@ -237,6 +242,22 @@ return [
             'memory' => 512,
             'tries' => 1,
             'timeout' => 60,
+            'nice' => 0,
+        ],
+        // Single long-running worker for upload jobs. The connection carries
+        // the long retry_after derived in config/proofgen.php, so a slow rsync
+        // is never handed to a second worker mid-transfer.
+        'supervisor-uploads' => [
+            'connection' => $proofgen['uploads']['connection'],
+            'queue' => [$proofgen['uploads']['queue']],
+            'balance' => 'simple',
+            'minProcesses' => 1,
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 5,
+            'timeout' => $proofgen['uploads']['derived_job_timeout'],
             'nice' => 0,
         ],
     ],

@@ -499,6 +499,10 @@ Alphabetical reference. File paths are absolute from repo root.
 | `App\Services\SafeFileMover` | `app/Services/SafeFileMover.php` | The single legitimate "delete" path. `bury()` + `quarantineImport()` + `buryAbsolute()` |
 | `App\Services\FinderRevealService` | `app/Services/FinderRevealService.php` | macOS-only — shells out to `open -R` for "Reveal in Finder" buttons. Validates path is under a known disk root |
 | `App\Services\StorageUsageService` | `app/Services/StorageUsageService.php` | Walks image trees to report bytes + file counts at class/show scope plus `_graveyard/sample_images/backups`. Cached 10 min |
+| `App\Services\Transport\RsyncCommandBuilder` | `app/Services/Transport/RsyncCommandBuilder.php` | Builds rsync argv/shell string (local or SFTP driver); SSH key/port quoting for rsync's `-e` parser; `-ii --out-format=%i %n` so transferred **and unchanged** files are reported; SSH `ConnectTimeout=15` + `BatchMode=yes` (host-key verification untouched) |
+| `App\Services\Transport\RsyncRunner` | `app/Services/Transport/RsyncRunner.php` | The only place real rsync runs. Laravel Process, explicit timeout, bounded stderr, throws `RsyncFailedException` on any non-zero exit. Timeout and start-failure (126/127 or launch exception) messages never embed the argv |
+| `App\Services\Transport\UploadConfigurationException` | `app/Services/Transport/UploadConfigurationException.php` | Thrown by real uploads when the destination config key is blank, before Storage or rsync is touched. Pending checks return empty instead |
+| `App\Services\Transport\UploadSyncService` | `app/Services/Transport/UploadSyncService.php` | One upload/dry-run sync: runs the command and returns the rsync-reported synced manifest plus pending/transferred sets (no DB writes, no separate directory walk) |
 | `App\Models\PhotoMetadata` | `app/Models/PhotoMetadata.php` | EXIF-rich metadata model. `fingerprintFromFile()` and `extractForensicFields()` are the static helpers used by the resolver |
 
 ---
@@ -517,6 +521,9 @@ The full Phase 1–6 test sweep (sanity check):
   tests/Feature/GraveyardComponentTest.php \
   tests/Feature/PhotoMoveServiceTest.php \
   tests/Feature/UploadChainTest.php \
+  tests/Feature/UploadReliabilityTest.php \
+  tests/Feature/Transport/RsyncSftpQuotingTest.php \
+  tests/Unit/Services/Transport/RsyncCommandBuilderTest.php \
   tests/Feature/ShowClassResetTest.php \
   tests/Feature/PhotoMetadataFingerprintTest.php \
   tests/Feature/FinderRevealComponentsTest.php \
@@ -531,7 +538,7 @@ The full Phase 1–6 test sweep (sanity check):
   tests/Unit/Proofgen/ImageTest.php
 ```
 
-When this passes, the import/audit/move/quarantine/graveyard pipeline is healthy. The full suite (`./vendor/bin/pest`) should be green too after the 2026-05 cleanup pass — 193 passed, 7 skipped, 0 failed on Laravel 13 + Livewire 4 + Pest 4.
+This checks the import/audit/move/quarantine/graveyard regression surface using local fixtures; the actual show-machine smoke remains separate. See `docs/SHOW_PREP_REVIEW.md` and `docs/SHOW_PREP_CHECKLIST.md` for the core fixes and operator checks. The full suite (`./vendor/bin/pest`) is green as of 2026-09-11: 337 passed, 7 skipped, 0 failed (1421 assertions) on Laravel 13 + Livewire 4 + Pest 4.
 
 ---
 
@@ -553,7 +560,7 @@ When this passes, the import/audit/move/quarantine/graveyard pipeline is healthy
 Surfaced during the resolver/audit/upload work. The first three are resolved; the last two are documented constraints that aren't currently blocking but are worth knowing about.
 
 - **Sync resolution actions in `PhotoIssuesComponent::reimportQuarantinedSource`** (documented constraint). The action writes archive + original + DB row + dispatches three derivative jobs synchronously inside the Livewire request. For typical 20-30MB JPGs that's well under a second. For 100MB+ medium-format files on slow archive disks it could approach the request timeout. If that ever bites, move it to a queued `ResolveImportConflict` job and have the UI poll for completion. The method's docblock notes the same.
-- **`*_uploaded_at` semantics** (documented). rsync only emits a filename when it actually transfers, so on a re-run with byte-identical remotes the parser sees an empty list and the timestamp doesn't update. So `*_uploaded_at` reflects "last time this exact file was sent across the wire" — intentional, since legitimate re-transfers (after archive conflicts or remote drift) should bump the marker. The `ShowClass::webImageUploads()` docblock spells this out.
+- **`*_uploaded_at` semantics** (documented, revised 2026-09-11). A successful real rsync (exit 0) reports its own file list via `-ii`: every regular file it transferred plus every file it found already up to date. Upload methods treat that rsync-reported list — never a separate directory walk — as the successful-sync manifest: a missing `*_uploaded_at` is backfilled, a partial failure followed by a successful retry catches up, and a byte-identical retry keeps the existing stamp (the stamp advances only when the run actually re-transferred that photo's content, so attribute-only changes such as permissions never masquerade as a new upload). Dry-runs never stamp — they only report the files rsync would transfer and clear stale stamps for them. Proofs require every configured suffix to be in the manifest (a complete pair), and the same rule applies per web/highres variant. Any non-zero rsync exit throws (`RsyncFailedException`), so chained metadata jobs are not reached; a blank destination path for a real upload throws `UploadConfigurationException` before Storage or rsync is contacted, while pending checks for an unconfigured optional kind return an empty list.
 
 ### Resolved 2026-05-10
 
@@ -563,4 +570,4 @@ Surfaced during the resolver/audit/upload work. The first three are resolved; th
 
 ---
 
-*Last updated: 2026-05-10. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
+*Last updated: 2026-09-11. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*

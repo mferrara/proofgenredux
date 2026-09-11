@@ -23,12 +23,30 @@ class UploadHighresImages implements ShouldQueue
     public int $tries = 5;
 
     /**
+     * Derived in config/proofgen.php (one rsync transfer + overhead).
+     */
+    public ?int $timeout = null;
+
+    /**
      * Create a new job instance.
      */
     public function __construct(string $show, string $class)
     {
         $this->show = $show;
         $this->class = $class;
+        $this->timeout = (int) config('proofgen.uploads.single_job_timeout');
+        $this->onConnection((string) config('proofgen.uploads.connection'));
+        $this->onQueue((string) config('proofgen.uploads.queue'));
+    }
+
+    /**
+     * Seconds to wait before each retry; the last value repeats for any extra attempt.
+     *
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return array_values((array) config('proofgen.uploads.backoff'));
     }
 
     /**
