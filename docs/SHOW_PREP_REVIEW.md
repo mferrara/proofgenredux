@@ -25,9 +25,10 @@ changes and does not establish readiness on Dad's Mac.
   uppercase prefix, padding, and extra-number convention.
 - Web generation has bounded retries and validates its watermark before writing
   output. Temporary watermark resources are released on error.
-- Tests use synthetic image fixtures and SQLite in memory, reject cached or unsafe
-  database configuration before providers boot, intercept the named upload queue
-  before providers register, and reject unfaked Laravel HTTP requests.
+- The revised image-workflow tests use synthetic fixtures and SQLite in memory;
+  the test bootstrap rejects unsafe database/cached configuration before providers
+  boot, intercepts the named upload queue before providers register, and rejects
+  unfaked Laravel HTTP requests.
 
 ## Independent validation
 
@@ -64,17 +65,30 @@ Worker session IDs:
 
 ## Release boundary
 
-The core fixes are committed separately on `feature/reid-pipeline`, based on
-`e58c88b258c575f32fa7e3c447010318358569c1`, so that commit can be cherry-picked
-without the branch's recognition history. The pre-commit core patch is
-`/private/tmp/proofgen-core-showprep-20260911.patch`; it excludes inherited
-instruction/draft changes and recognition work. Its application was checked
-against a temporary copy of **local** main
-`b5557596693371a04bb8565ae0fc1def6af8c89c`. This checks patch compatibility;
-it is not a full test run on a new release checkout or verification of remote main.
+The reviewed core commit `b553cc8` was cherry-picked to local `main` as
+`019567e`. Flower instruction references were cherry-picked as `65ec5a4`.
+Recognition implementation and WIP planning remain on `feature/reid-pipeline`.
+The active recognition checkout was kept in place while main was prepared in a
+temporary code-only worktree.
 
-The commit contains only the reviewed core fixes, tests, and related documentation.
-No merge, push, release tag, deployment, or service restart was performed.
+Main was tested at `65ec5a4` with Herd PHP 8.4.23, Homebrew rsync 3.4.3,
+copied local dependencies, and newly written throwaway image-root/suffix settings:
+**323 passed, 21 skipped, 1337 assertions**, 18.13 seconds. Fourteen extra skips
+are the existing resolver-matrix, metadata-fingerprint, and enhancement tests
+that need local sample photos. Those samples and the operator's .env/database
+were not copied. The earlier 337-pass result above is from the original checkout
+where those samples were available.
+
+The first unconfigured temporary run failed because image settings were absent
+and PATH selected Apple's openrsync. The latter emits a different itemize format;
+use the modern Homebrew rsync already required by README.md. Re-running with
+those runtime prerequisites produced the passing main result above. This does
+not establish support for Apple's openrsync or a fully configuration-free suite.
+
+The pre-commit patch `/private/tmp/proofgen-core-showprep-20260911.patch` remains
+an earlier review artifact; Git commits are now the source of truth. Main's
+pre-pick base was `b5557596693371a04bb8565ae0fc1def6af8c89c`.
+No remote fetch, push, release tag, deployment, or service restart was performed.
 Use [SHOW_PREP_CHECKLIST.md](SHOW_PREP_CHECKLIST.md) for installation verification,
 archive inspection, and the small real import/upload/retry/customer-flow smoke.
 Actual transfer targets and timing, Dad's worker state, and camera-size performance

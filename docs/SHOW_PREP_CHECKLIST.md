@@ -6,13 +6,20 @@ Horse recognition remains deferred.
 
 ## Prepare the release
 
-The working checkout is `feature/reid-pipeline`. Its recognition commits should
-stay separate from the core fixes when preparing the next `main` release. The
-in-app updater pulls `main` and selects a release tag when one is available.
+The core fixes are now cherry-picked onto local `main`. Recognition and WIP
+planning remain on `feature/reid-pipeline`; use `main` for the next core release.
+The in-app updater pulls `main` and selects a release tag when one is available.
 Finish current imports/uploads before installing the update; then verify the
 new worker is running. No release, update, or restart was performed by this work.
 
 ## Verify the workers after installation
+
+Use Herd PHP 8.4 and modern Homebrew rsync (README.md already requires
+`brew install rsync`). Check `command -v rsync` and `rsync --version` in the
+worker's environment: the verified binary is Homebrew rsync 3.4.3. Apple's
+`/usr/bin/rsync` (openrsync) emits a different itemize format and is not covered
+by the upload-status parser. Installing Homebrew rsync is not enough if the
+worker PATH still selects the system binary.
 
 The updater clears/rebuilds configuration and restarts Horizon. If installing
 manually, refresh any cached configuration and restart Horizon through the
@@ -84,8 +91,10 @@ writes repairs. Use those deliberately after reviewing the findings.
 
 `phpunit.xml` and the test bootstrap pin SQLite in memory, disposable infrastructure,
 synthetic image fixtures, and a sync replacement for the named upload connection.
-They reject unsafe database/cached configuration before providers boot and block
-unfaked Laravel HTTP requests. Transport regressions use local/fake rsync and SSH.
+A fresh test checkout also needs disposable image roots and the usual suffixes
+(`_thm`, `_std`, `_web`, `_highres`). Older sample-dependent tests skip when local
+sample photos are absent. The guards reject unsafe database/cached configuration
+before providers boot and block unfaked Laravel HTTP requests. Transport regressions use local/fake rsync and SSH.
 
 Still unverified: actual targets, SSH/rsync versions on Dad's Mac and the receiver,
 show-network throughput, largest camera files, and the customer workflow after
