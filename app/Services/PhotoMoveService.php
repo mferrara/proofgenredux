@@ -64,6 +64,7 @@ class PhotoMoveService
                     $newPhoto->show_class_id = $targetClassId;
                     $newPhoto->sha1 = $photo->sha1;
                     $newPhoto->file_type = $photo->file_type;
+                    $newPhoto->original_filename = $photo->original_filename;
                     $newPhoto->proofs_generated_at = $photo->proofs_generated_at;
                     $newPhoto->proofs_uploaded_at = $photo->proofs_uploaded_at;
                     $newPhoto->web_image_generated_at = $photo->web_image_generated_at;
@@ -108,7 +109,12 @@ class PhotoMoveService
     {
         $disk = Storage::disk('fullsize');
 
-        [$sourceShow, $sourceClass] = $this->showClassParts($photo->show_class_id);
+        $sourceClassModel = $photo->showClass;
+        if (! $sourceClassModel) {
+            throw new RuntimeException('Source class not found for photo '.$photo->id);
+        }
+        $sourceShow = $sourceClassModel->show_id;
+        $sourceClass = $sourceClassModel->name;
         $targetShow = $targetClass->show_id;
         $targetClassName = $targetClass->name;
         $proofNumber = $photo->proof_number;
@@ -121,7 +127,19 @@ class PhotoMoveService
             throw new RuntimeException("Original file missing for photo {$photo->id}: {$oldOriginal}");
         }
 
-        $disk->move($oldOriginal, $newOriginal);
+        // Never overwrite an existing destination original. The bytes already
+        // there may be the only copy of another image, so refuse the whole move
+        // before touching any source, archive, or DB state.
+        if ($disk->exists($newOriginal)) {
+            throw new RuntimeException(
+                "Cannot move photo {$photo->id}: destination original already exists at {$newOriginal}. "
+                .'Refusing to overwrite the existing file; resolve the conflict manually.'
+            );
+        }
+
+        if (! $disk->move($oldOriginal, $newOriginal)) {
+            throw new RuntimeException("Original move failed for photo {$photo->id}: {$oldOriginal} -> {$newOriginal}");
+        }
 
         if (! $disk->exists($newOriginal)) {
             throw new RuntimeException("Original move failed for photo {$photo->id}: {$oldOriginal} -> {$newOriginal}");
@@ -194,16 +212,6 @@ class PhotoMoveService
         if ($missing['highres']) {
             GenerateHighresImage::dispatch($newPhoto->id, $highresPath)->onQueue('thumbnails');
         }
-    }
-
-    private function showClassParts(string $showClassId): array
-    {
-        $parts = explode('_', $showClassId, 2);
-        if (count($parts) !== 2) {
-            throw new RuntimeException("Invalid show_class_id: {$showClassId}");
-        }
-
-        return $parts;
     }
 
     private function normalize(string $path): string

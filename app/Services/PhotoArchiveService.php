@@ -439,13 +439,12 @@ class PhotoArchiveService
 
     private function photoShowClassParts(Photo $photo): array
     {
-        $parts = explode('_', $photo->show_class_id, 2);
-
-        if (count($parts) !== 2) {
+        $class = $photo->showClass;
+        if (! $class) {
             throw new RuntimeException('Invalid show_class_id for archive path: '.$photo->show_class_id);
         }
 
-        return $parts;
+        return [$class->show_id, $class->name];
     }
 
     private function directoryFor(string $path): string

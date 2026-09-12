@@ -570,4 +570,11 @@ Surfaced during the resolver/audit/upload work. The first three are resolved; th
 
 ---
 
-*Last updated: 2026-09-11. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
+### Resolved 2026-09-12
+
+- Cross-class moves refuse destination original collisions and preserve `original_filename`.
+- Reset moves directly to a unique ingest filename and deletes rows only for successfully released originals. Missing originals and failed releases retain their rows; local generated timestamps are cleared and remote upload timestamps preserved. Archive failures trigger a best-effort path restoration. Partial resets are reported as failed queue jobs.
+- Show import scans immediate class directories for final `.jpg`/`.jpeg` extensions, excluding nested originals, quarantine and sidecars. Class/move/archive paths use actual show and class fields rather than splitting composite IDs.
+- Validation and remaining limits: [file-safety review](reviews/2026-09-12-file-safety.md). UI and image-output follow-ups: [show-prep checklist](SHOW_PREP_TODO.md).
+
+*Last updated: 2026-09-12. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*

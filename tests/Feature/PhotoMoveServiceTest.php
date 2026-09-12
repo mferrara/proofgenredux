@@ -6,14 +6,17 @@ use App\Jobs\Photo\GenerateHighresImage;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Models\Photo;
+use App\Models\PhotoMetadata;
 use App\Models\Show;
 use App\Models\ShowClass;
 use App\Services\PathResolver;
 use App\Services\PhotoMoveService;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class PhotoMoveServiceTest extends TestCase
@@ -466,5 +469,107 @@ class PhotoMoveServiceTest extends TestCase
         $this->assertFileExists($this->tempPath.'/proofs/TestShow2024/ClassB/44444_thm.jpg');
         $this->assertFileExists($this->tempPath.'/web_images/TestShow2024/ClassB/44444_web.jpg');
         $this->assertFileExists($this->tempPath.'/highres_images/TestShow2024/ClassB/44444_highres.jpg');
+    }
+
+    public function test_move_rejects_preexisting_destination_original_before_touching_anything()
+    {
+        $photo = $this->createPhotoWithAllFiles('13579');
+        $sourceOriginal = $this->tempPath.'/TestShow2024/ClassA/originals/13579.jpg';
+        $sourceBytes = File::get($sourceOriginal);
+
+        // Orphan destination bytes with no Photo row, so the target-class proof
+        // number guard does not trip first.
+        $destinationOriginal = $this->tempPath.'/TestShow2024/ClassB/originals/13579.jpg';
+        File::put($destinationOriginal, 'orphan destination bytes');
+
+        $results = $this->photoMoveService->movePhotos([$photo->id], $this->targetClass->id);
+
+        $this->assertCount(0, $results['success']);
+        $this->assertCount(1, $results['errors']);
+        $this->assertStringContainsString('destination original already exists', $results['errors'][$photo->id]);
+        $this->assertStringContainsString('TestShow2024/ClassB/originals/13579.jpg', $results['errors'][$photo->id]);
+
+        // Source bytes and row remain; the orphan destination is untouched.
+        $this->assertFileExists($sourceOriginal);
+        $this->assertSame($sourceBytes, File::get($sourceOriginal));
+        $this->assertSame('orphan destination bytes', File::get($destinationOriginal));
+        $this->assertNotNull(Photo::find($photo->id));
+        $this->assertNull(Photo::find('TestShow2024_ClassB_13579'));
+    }
+
+    public function test_false_move_return_is_reported_as_failure()
+    {
+        $photo = $this->createPhotoWithAllFiles('55555');
+        $sourceOriginal = $this->tempPath.'/TestShow2024/ClassA/originals/55555.jpg';
+        $sourceBytes = File::get($sourceOriginal);
+
+        $this->mockFullsizeDisk(function ($from, $to, $real) {
+            if (str_contains($from, '/originals/')) {
+                // Simulate a storage driver that reports a failed move without throwing.
+                return false;
+            }
+
+            return $real->move($from, $to);
+        });
+
+        $results = $this->photoMoveService->movePhotos([$photo->id], $this->targetClass->id);
+
+        $this->assertCount(0, $results['success']);
+        $this->assertCount(1, $results['errors']);
+        $this->assertStringContainsString('Original move failed', $results['errors'][$photo->id]);
+
+        $this->assertFileExists($sourceOriginal);
+        $this->assertSame($sourceBytes, File::get($sourceOriginal));
+        $this->assertNotNull(Photo::find($photo->id));
+        $this->assertNull(Photo::find('TestShow2024_ClassB_55555'));
+    }
+
+    public function test_successful_move_preserves_original_filename_and_metadata()
+    {
+        $photo = $this->createPhotoWithAllFiles('24680');
+        $photo->original_filename = 'IMG_24680.CR2';
+        $photo->save();
+
+        PhotoMetadata::create([
+            'photo_id' => $photo->id,
+            'file_size' => 12345,
+        ]);
+
+        $results = $this->photoMoveService->movePhotos([$photo->id], $this->targetClass->id);
+
+        $this->assertCount(1, $results['success'], json_encode($results['errors']));
+        $this->assertCount(0, $results['errors']);
+
+        $newPhoto = Photo::find('TestShow2024_ClassB_24680');
+        $this->assertNotNull($newPhoto);
+        $this->assertSame('IMG_24680.CR2', $newPhoto->original_filename);
+        $this->assertNotNull($newPhoto->proofs_generated_at);
+
+        $this->assertDatabaseHas('photo_metadata', [
+            'photo_id' => 'TestShow2024_ClassB_24680',
+            'file_size' => 12345,
+        ]);
+        $this->assertDatabaseMissing('photo_metadata', ['photo_id' => $photo->id]);
+    }
+
+    /**
+     * Swap the fullsize disk for a driver whose move() is intercepted, while
+     * every other method (and every non-fullsize disk) delegates to the real one.
+     * The interceptor receives ($from, $to, realDisk) and must return a bool.
+     */
+    private function mockFullsizeDisk(callable $interceptor): void
+    {
+        $real = Storage::disk('fullsize');
+        $mock = Mockery::mock(FilesystemAdapter::class);
+        $mock->shouldReceive('exists')->andReturnUsing(fn ($path) => $real->exists($path));
+        $mock->shouldReceive('get')->andReturnUsing(fn ($path) => $real->get($path));
+        $mock->shouldReceive('delete')->andReturnUsing(fn ($path) => $real->delete($path));
+        $mock->shouldReceive('listContents')->andReturnUsing(fn ($path = '', $recursive = false) => $real->listContents($path, $recursive));
+        $mock->shouldReceive('move')->andReturnUsing(fn ($from, $to) => $interceptor($from, $to, $real));
+
+        $filesystemManager = app('filesystem');
+        Storage::shouldReceive('disk')->andReturnUsing(
+            fn ($name = null) => $name === 'fullsize' ? $mock : $filesystemManager->disk($name)
+        );
     }
 }

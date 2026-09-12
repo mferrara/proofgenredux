@@ -9,6 +9,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 class ResetClassPhotos implements ShouldQueue
@@ -41,14 +42,20 @@ class ResetClassPhotos implements ShouldQueue
 
             return;
         }
-        $show_class = $show->classes()->where('id', $show->name.'_'.$this->class)->first();
+        $show_class = $show->classes()->where('name', $this->class)->first();
         if (! $show_class) {
             Log::error(self::class.': ShowClass not found: '.$this->show_id.'_'.$this->class);
 
             return;
         }
 
-        $show_class->resetPhotos();
+        $stats = $show_class->resetPhotos();
+        if ($stats['failures'] > 0) {
+            throw new RuntimeException(
+                'Class reset completed with '.$stats['failures'].' failure(s) for '.
+                $this->show_id.'/'.$this->class.'. Check the log and retained photos before retrying.'
+            );
+        }
     }
 
     public function failed(?Throwable $exception): void

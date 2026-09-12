@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
+use League\Flysystem\FileAttributes;
 
 class Show extends Model
 {
@@ -331,21 +332,36 @@ class Show extends Model
 
     public function getImagesPendingImport(): array
     {
-        $contents = Utility::getContentsOfPath($this->relative_path, true);
-
-        // Log::debug(print_r($contents, true));
-
         $images = [];
-        if (isset($contents['images'])) {
-            $images = $contents['images'];
+        $seen = [];
+
+        // Walk the show's immediate subdirectories (class folders) from disk rather
+        // than the classes relation: an unregistered folder still has ingest files
+        // that need to be surfaced. Each class folder is scanned non-recursively,
+        // which inherently excludes originals/, _import_conflicts/, _graveyard/,
+        // and any other nested housekeeping directory. Utility only returns actual
+        // jpg/jpeg files (final extension, case-insensitive), so sidecars and
+        // non-JPEG files are not discovered.
+        foreach (Utility::getDirectoriesOfPath($this->relative_path) as $classRelativePath) {
+            $classFolder = basename($classRelativePath);
+            if ($classFolder === '' || str_starts_with($classFolder, '.') || in_array($classFolder, ['originals', '_import_conflicts', '_graveyard', '_conflicts'], true)) {
+                continue;
+            }
+
+            $contents = Utility::getContentsOfPath($classRelativePath, false);
+            foreach ($contents['images'] ?? [] as $image) {
+                /** @var FileAttributes $image */
+                $path = $image->path();
+                if (isset($seen[$path])) {
+                    continue;
+                }
+                $seen[$path] = true;
+                $images[] = $image;
+            }
         }
 
-        // If there's images, filter out any that have '/originals/' in the path
-        if (count($images)) {
-            $images = array_filter($images, function ($image) {
-                return ! str_contains($image->path(), '/originals/');
-            });
-        }
+        // Keep the historical show-wide ordering (oldest modified first).
+        usort($images, fn (FileAttributes $a, FileAttributes $b) => $a->lastModified() <=> $b->lastModified());
 
         return $images;
     }

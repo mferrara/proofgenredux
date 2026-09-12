@@ -83,11 +83,7 @@ class ShowClass extends Model
 
     public function getRelativePathAttribute(): string
     {
-        // Split id into show and class parts, limiting to 2 parts
-        // This handles class names with underscores (e.g., "opening_ceremony")
-        $parts = explode('_', $this->id, 2);
-
-        return $parts[0].'/'.$parts[1];
+        return $this->show_id.'/'.$this->name;
     }
 
     public function getOriginalsPathAttribute()
@@ -320,24 +316,29 @@ class ShowClass extends Model
     /**
      * Reset a class back to "ingest pending":
      *   1. Delete derived files (web/highres/proofs) — regenerable, plain delete is fine.
-     *   2. Move each originals/{proof}.{ext} back to the base class folder under a random
-     *      sha1-based filename so the proof number is released. Move the matching archive
-     *      copy alongside, including for orphan originals that have no Photo row (so the
-     *      archive disk doesn't diverge from local).
-     *   3. Delete the Photo rows.
+     *   2. Move each originals/{proof}.{ext} directly back to the base class folder under
+     *      a unique randomized filename so the proof number is released. Move the matching
+     *      archive copy alongside, including for orphan originals that have no Photo row.
+     *   3. Delete the Photo rows, but only for originals whose own release succeeded.
      *
      * Per-photo work is wrapped in try/catch so a single bad file doesn't abort the whole
-     * reset; failures are logged and counted. File operations cannot be in a DB transaction.
+     * reset. A failed release keeps its Photo row and original in place; because the
+     * derivative files were already cleared, that retained row has its derivative state
+     * reset to null so it never claims deleted derivatives are ready. File operations
+     * cannot be in a DB transaction.
      */
     public function resetPhotos(): array
     {
         $stats = ['derivatives_deleted' => 0, 'originals_renamed' => 0, 'orphan_originals_renamed' => 0, 'photo_rows_deleted' => 0, 'failures' => 0];
 
-        $stats['derivatives_deleted'] += $this->deleteDirectoryFiles($this->web_images_path, 'web image');
-        $stats['derivatives_deleted'] += $this->deleteDirectoryFiles($this->highres_images_path, 'highres image');
-        $stats['derivatives_deleted'] += $this->deleteDirectoryFiles($this->proofs_path, 'proof');
+        $stats['derivatives_deleted'] += $this->deleteDirectoryFiles($this->web_images_path, 'web image', $stats['failures']);
+        $stats['derivatives_deleted'] += $this->deleteDirectoryFiles($this->highres_images_path, 'highres image', $stats['failures']);
+        $stats['derivatives_deleted'] += $this->deleteDirectoryFiles($this->proofs_path, 'proof', $stats['failures']);
 
         $originals_path = $this->originals_path;
+        $released_proof_numbers = [];
+        $failed_proof_numbers = [];
+
         if (Storage::disk('fullsize')->exists($originals_path)) {
             $archiveService = app(PhotoArchiveService::class);
             $contents = Utility::getContentsOfPath($originals_path);
@@ -347,31 +348,50 @@ class ShowClass extends Model
             foreach ($images as $image) {
                 /** @var FileAttributes $image */
                 $file_path = $image->path();
+                $proof_number = pathinfo($file_path, PATHINFO_FILENAME);
                 try {
                     $renamed = $this->releaseOriginal($file_path, $archiveService);
                     if ($renamed['had_photo_record']) {
                         $stats['originals_renamed']++;
+                        $released_proof_numbers[$proof_number] = true;
                     } else {
                         $stats['orphan_originals_renamed']++;
                     }
                 } catch (\Throwable $e) {
                     $stats['failures']++;
+                    $failed_proof_numbers[$proof_number] = true;
                     Log::error('resetPhotos: failed to release original; '.$file_path.' — '.$e->getMessage());
                 }
             }
         }
 
-        $photo_rows = $this->photos()->get();
-        $stats['photo_rows_deleted'] = $photo_rows->count();
-        foreach ($photo_rows as $photo) {
+        // Only drop a row once its own original (and archive) release succeeded.
+        // A failed release, a row with no original on disk, or a failed delete all
+        // stay behind, with derivative state neutralized to match the cleared files.
+        foreach ($this->photos()->get() as $photo) {
             /** @var Photo $photo */
-            try {
-                $photo->delete();
-            } catch (\Throwable $e) {
-                $stats['failures']++;
-                $stats['photo_rows_deleted']--;
-                Log::error('resetPhotos: failed to delete photo row '.$photo->id.' — '.$e->getMessage());
+            if (isset($released_proof_numbers[$photo->proof_number]) && ! isset($failed_proof_numbers[$photo->proof_number])) {
+                try {
+                    if (! $photo->delete()) {
+                        throw new \RuntimeException('Photo row deletion was refused: '.$photo->id);
+                    }
+                    $stats['photo_rows_deleted']++;
+                } catch (\Throwable $e) {
+                    $stats['failures']++;
+                    $this->clearDerivativeState($photo);
+                    Log::error('resetPhotos: failed to delete photo row '.$photo->id.' — '.$e->getMessage());
+                }
+
+                continue;
             }
+
+            if (! isset($failed_proof_numbers[$photo->proof_number])) {
+                // The row has no matching original file at all: a missing source.
+                // Keep it and count the failure instead of silently dropping it.
+                $stats['failures']++;
+            }
+            $this->clearDerivativeState($photo);
+            Log::warning('resetPhotos: keeping photo row '.$photo->id.' (original not released)');
         }
 
         Log::debug('resetPhotos: complete', $stats);
@@ -379,7 +399,7 @@ class ShowClass extends Model
         return $stats;
     }
 
-    private function deleteDirectoryFiles(string $path, string $kind): int
+    private function deleteDirectoryFiles(string $path, string $kind, int &$failures): int
     {
         if (! Storage::disk('fullsize')->exists($path)) {
             return 0;
@@ -392,9 +412,12 @@ class ShowClass extends Model
             /** @var FileAttributes $file */
             $file_path = $file->path();
             try {
-                Storage::disk('fullsize')->delete($file_path);
+                if (! Storage::disk('fullsize')->delete($file_path)) {
+                    throw new \RuntimeException('File deletion failed: '.$file_path);
+                }
                 $deleted++;
             } catch (\Throwable $e) {
+                $failures++;
                 Log::error('resetPhotos: failed to delete '.$kind.' '.$file_path.' — '.$e->getMessage());
             }
         }
@@ -403,8 +426,13 @@ class ShowClass extends Model
     }
 
     /**
-     * Move {originals}/{proof}.{ext} → {base}/{random}.{ext} and the matching archive
-     * copy alongside it. Returns ['had_photo_record' => bool] so the caller can stat.
+     * Move {originals}/{proof}.{ext} directly to a unique randomized ingest filename in
+     * the base class folder, then move the matching archive copy to that same basename.
+     * Returns ['had_photo_record' => bool] so the caller can stat.
+     *
+     * If the archive step fails, the original is moved back to its canonical path (and
+     * the archive back to its old basename if it had already moved) so the retained row
+     * and its archive metadata keep pointing at real files.
      */
     private function releaseOriginal(string $file_path, PhotoArchiveService $archiveService): array
     {
@@ -412,26 +440,71 @@ class ShowClass extends Model
         $extension = pathinfo($file_path, PATHINFO_EXTENSION);
         $photo_record = $this->photos()->where('proof_number', $proof_number)->first();
 
-        $base_dest = str_replace('/originals', '', $file_path);
-        Storage::disk('fullsize')->move($file_path, $base_dest);
-
-        $random_stem = sha1($proof_number.microtime(true));
-        $randomized_path = str_replace(
-            $proof_number.'.'.$extension,
-            $random_stem.'.'.$extension,
-            $base_dest
-        );
-        Storage::disk('fullsize')->move($base_dest, $randomized_path);
-
         $old_basename = $proof_number.'.'.$extension;
-        $new_basename = $random_stem.'.'.$extension;
-        if ($photo_record) {
-            $archiveService->movePhotoArchiveToFilename($photo_record, $new_basename);
-        } else {
-            $archiveService->movePhysicalArchive($this->show_id, $this->name, $old_basename, $new_basename);
+        $new_basename = $this->uniqueRandomBasename($extension);
+        $randomized_path = $this->relative_path.'/'.$new_basename;
+        $fullsize = Storage::disk('fullsize');
+
+        if (! $fullsize->move($file_path, $randomized_path)) {
+            throw new \RuntimeException("Failed to move original {$file_path} to {$randomized_path}");
+        }
+        if (! $fullsize->exists($randomized_path)) {
+            throw new \RuntimeException("Original move verification failed for {$file_path}");
+        }
+
+        try {
+            if ($photo_record) {
+                $archiveService->movePhotoArchiveToFilename($photo_record, $new_basename);
+            } else {
+                $archiveService->movePhysicalArchive($this->show_id, $this->name, $old_basename, $new_basename);
+            }
+        } catch (\Throwable $e) {
+            if ($fullsize->exists($randomized_path)) {
+                try {
+                    if (! $fullsize->move($randomized_path, $file_path)) {
+                        throw new \RuntimeException('Restore failed; original remains at '.$randomized_path);
+                    }
+                } catch (\Throwable $restoreError) {
+                    Log::error('resetPhotos: failed to restore original after archive failure; '.$file_path.' — '.$restoreError->getMessage());
+                }
+            }
+
+            // If the archive had already moved, pull it back to the old basename.
+            try {
+                $archiveService->movePhysicalArchive($this->show_id, $this->name, $new_basename, $old_basename);
+            } catch (\Throwable $archiveRestoreError) {
+                Log::error('resetPhotos: failed to restore archive after failure; '.$old_basename.' — '.$archiveRestoreError->getMessage());
+            }
+
+            throw $e;
         }
 
         return ['had_photo_record' => $photo_record !== null];
+    }
+
+    private function uniqueRandomBasename(string $extension): string
+    {
+        $fullsize = Storage::disk('fullsize');
+        do {
+            $stem = sha1(uniqid('', true));
+            $candidate = $stem.'.'.$extension;
+        } while ($fullsize->exists($this->relative_path.'/'.$candidate));
+
+        return $candidate;
+    }
+
+    /**
+     * The derivative files were just cleared class-wide. A photo we're retaining
+     * (failed release / missing source) must not keep claiming they're ready.
+     * Remote upload timestamps remain valid: reset only removes local derivatives.
+     */
+    private function clearDerivativeState(Photo $photo): void
+    {
+        $photo->forceFill([
+            'proofs_generated_at' => null,
+            'web_image_generated_at' => null,
+            'highres_image_generated_at' => null,
+        ])->saveQuietly();
     }
 
     /**

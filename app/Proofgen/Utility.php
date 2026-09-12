@@ -47,12 +47,13 @@ class Utility
                         break;
                     }
 
-                    $contains = ['jpg', 'jpeg'];
-                    // If the $object->path contains any of the strings in $contains, add it to the images array
-                    foreach ($contains as $ext) {
-                        if (str_contains(strtolower($object->path()), $ext)) {
-                            $images[] = $object;
-                        }
+                    $allowed_extensions = ['jpg', 'jpeg'];
+                    // Match the file's final extension, not a substring anywhere in
+                    // the path: "notes-about-jpg.txt", a PNG under a jpg-named
+                    // folder, and ".jpg.json" sidecars must never be treated as images.
+                    $extension = strtolower(pathinfo($object->path(), PATHINFO_EXTENSION));
+                    if (in_array($extension, $allowed_extensions, true)) {
+                        $images[] = $object;
                     }
                     break;
             }
