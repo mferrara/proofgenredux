@@ -2,7 +2,7 @@
 
 Reviewed source: `main` at `11c6e80`. Four Pi agents used **deepseek/deepseek-flash**, high reasoning, with independent parent source review and synthetic reproduction of five findings. This is a review, not an implementation change.
 
-**Follow-up, 2026-09-12:** the [file-safety round](../2026-09-12-file-safety.md) implements overwrite refusal, failed-reset record handling and ingest filtering. UI and image-output findings remain [queued](../../SHOW_PREP_TODO.md). The findings, source line numbers and probe output below describe the original reviewed commit; the probe is historical reproduction code, not a current acceptance test.
+**Follow-up, 2026-09-12:** the [file-safety round](../2026-09-12-file-safety.md) and [UI round](../2026-09-12-ui-fixes.md) are implemented and locally validated. Image-output findings remain [queued](../../SHOW_PREP_TODO.md). The findings, source line numbers and probe output below describe the original reviewed commit; the probe is historical reproduction code, not a current acceptance test.
 
 ## Fix first
 

@@ -146,8 +146,7 @@
                 @if(in_array($activeTab, ['large', 'small']))
                     <div class="mb-4 flex items-center gap-3">
                         <flux:checkbox
-                            wire:model="previewWatermarkEnabled"
-                            wire:change="togglePreviewWatermark"
+                            wire:model.live="previewWatermarkEnabled"
                             id="preview-watermark"
                             label="Show watermarks on preview images"
                         />

@@ -19,10 +19,10 @@
         copied: false,
         copyPath() {
             if (navigator.clipboard) {
-                navigator.clipboard.writeText('{{ $path }}');
+                navigator.clipboard.writeText(@js($path));
             } else {
                 const el = document.createElement('textarea');
-                el.value = '{{ $path }}';
+                el.value = @js($path);
                 el.style.position = 'absolute';
                 el.style.left = '-9999px';
                 document.body.appendChild(el);
@@ -55,7 +55,7 @@
     </flux:button>
     <flux:button
         type="button"
-        wire:click="openFolder('{{ $path }}')"
+        wire:click="openFolder({{ \Illuminate\Support\Js::from($path) }})"
         size="xs"
         variant="ghost"
         square

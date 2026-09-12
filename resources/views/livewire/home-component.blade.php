@@ -134,7 +134,7 @@
                             @endif
                         @else
                             <flux:badge color="zinc" size="sm">Not imported</flux:badge>
-                            <flux:button wire:click="createShow('{!! $folder_name !!}')" size="xs" variant="primary">
+                            <flux:button wire:click="createShow({{ \Illuminate\Support\Js::from($folder_name) }})" size="xs" variant="primary">
                                 Import
                             </flux:button>
                         @endif

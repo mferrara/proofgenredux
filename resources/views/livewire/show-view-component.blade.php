@@ -50,7 +50,7 @@
                 square
                 icon="folder-open"
                 tooltip="Open show folder in Finder"
-                wire:click="openFolder('{{ $show->full_path }}')"
+                wire:click="openFolder({{ \Illuminate\Support\Js::from($show->full_path) }})"
             />
         </div>
     </div>
@@ -118,8 +118,8 @@
                                     @else
                                         <div x-data="{
                                             editing: false,
-                                            newName: '{{ $class_folder_data['path'] }}',
-                                            originalName: '{{ $class_folder_data['path'] }}'
+                                            newName: @js($class_folder_data['path']),
+                                            originalName: @js($class_folder_data['path'])
                                         }" class="flex items-center gap-2">
                                             <template x-if="!editing">
                                                 <div class="flex items-center gap-2">
@@ -220,7 +220,7 @@
                                 <div class="flex items-center justify-end gap-2">
                                     @if($class_folder_data['is_valid'] && $class_folder_data['images_pending_processing_count'])
                                         <flux:button
-                                            wire:click="processPendingClassImages('{{ $class_folder_data['path'] }}')"
+                                            wire:click="processPendingClassImages({{ \Illuminate\Support\Js::from($class_folder_data['path']) }})"
                                             x-data="{ isQueued: false }"
                                             x-on:click="isQueued = true"
                                             size="xs"
@@ -244,8 +244,8 @@
                                     @if($class_folder_data['is_valid'] && $sc)
                                         <div x-data="{
                                             renaming: false,
-                                            newName: '{{ $class_folder_data['path'] }}',
-                                            originalName: '{{ $class_folder_data['path'] }}'
+                                            newName: @js($class_folder_data['path']),
+                                            originalName: @js($class_folder_data['path'])
                                         }">
                                             <flux:dropdown position="bottom" align="end">
                                                 <flux:button size="xs" variant="ghost" square icon="ellipsis-horizontal" />

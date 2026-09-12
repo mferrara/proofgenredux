@@ -1,6 +1,8 @@
 @php
     $allPhotoIds = $photos->pluck('id')->toArray();
     $photoCount = $photos->count();
+    /** @var App\Services\PhotoThumbnailService $thumbnailService */
+    $thumbnailService = app(App\Services\PhotoThumbnailService::class);
 @endphp
 <div class="w-full mt-4" x-data="{
     get selectAll() {
@@ -84,51 +86,25 @@
                 }catch(\Exception $e) {
                     $file_not_found = true;
                 }
-                $modified = $photo->updated_at;
                 $shot_at = $photo->metadata?->exif_timestamp;
-                $thumbnail_path = '';
                 $thumbnail_base64 = null;
                 if(isset($display_thumbnail) && $display_thumbnail && $photo->proofs_generated_at) {
-                    $display_thumbnail = true;
-                    $thumbnail_path = $image_path;
-                    $thumbnail_path = str_replace('originals/', '', $thumbnail_path);
-                    $thumbnail_path = str_replace('.jpg', '_thm.jpg', $thumbnail_path);
-                    $thumbnail_path = 'proofs/'.$thumbnail_path;
-
-                    // Cache the base64 encoded thumbnail using the path and modified time as the
-                    // cache key so that it's busted anytime the image is updated
-                    $thumbnail_cache_key = 'thumbnails3-'.md5($thumbnail_path.$modified->timestamp);
-                    if( ! $thumbnail_base64 = \Cache::get($thumbnail_cache_key, null)) {
-                        $valid_thumbnail = false;
-                        try{
-                            $thumbnail_data = \Illuminate\Support\Facades\Storage::disk('fullsize')->get($thumbnail_path);
-                            $thumbnail_base64 = \Intervention\Image\Laravel\Facades\Image::read($thumbnail_data)->toJpeg(90);
-                            $thumbnail_base64 = 'data:image/jpeg;base64,'.base64_encode($thumbnail_base64);
-                            $valid_thumbnail = true;
-                        }catch(\Exception $e) {
-                            Log::debug('Error with thumbnail: '.$e->getMessage());
-                            $display_thumbnail = false;
-                        }
-
-                        // If we have a valid thumbnail, cache it for 1 hour
-                        if ($valid_thumbnail) {
-                            Cache::put($thumbnail_cache_key, $thumbnail_base64, now()->addMinutes(60));
-                        }
-                    }
-                } else {
-                    $thumbnail_base64 = null;
+                    // Shared service reads the existing JPEG bytes and returns a cached
+                    // data URI. It returns null (and caches nothing) when the file is
+                    // missing, without mutating $display_thumbnail for later rows.
+                    $thumbnail_base64 = $thumbnailService->dataUri($photo);
                 }
             @endphp
             <tr wire:key="{{ 'image-row-'.$photo->id }}"
                 :class="{
-                    'bg-blue-50 dark:bg-blue-500/10': $wire.selectedPhotos.includes('{{ $photo->id }}'),
-                    'bg-rose-50 dark:bg-rose-500/10': {{ ! $photo->metadata || $file_not_found ? 'true' : 'false' }} && !$wire.selectedPhotos.includes('{{ $photo->id }}')
+                    'bg-blue-50 dark:bg-blue-500/10': $wire.selectedPhotos.includes(@js($photo->id)),
+                    'bg-rose-50 dark:bg-rose-500/10': {{ ! $photo->metadata || $file_not_found ? 'true' : 'false' }} && !$wire.selectedPhotos.includes(@js($photo->id))
                 }">
                 <td class="pl-4">
                     <input type="checkbox"
                            value="{{ $photo->id }}"
-                           :checked="$wire.selectedPhotos.includes('{{ $photo->id }}')"
-                           @change="togglePhoto('{{ $photo->id }}')"
+                           :checked="$wire.selectedPhotos.includes(@js($photo->id))"
+                           @change="togglePhoto(@js($photo->id))"
                            class="rounded">
                 </td>
                 <td>
@@ -151,14 +127,14 @@
                         @endphp
                         <div class="p-1 {{ $wrapperWidth }}">
                             <button type="button"
-                                    @click="$wire.showPhotoModal('{{ $photo->id }}')"
+                                    @click="$wire.showPhotoModal(@js($photo->id))"
                                     class="block hover:opacity-80 transition-opacity cursor-pointer">
                                 <img src="{{ $thumbnail_base64 }}" alt="{{ $filename }}" class="rounded {{ $sizeClass }} object-cover">
                             </button>
                         </div>
                     @else
                         <button type="button"
-                                @click="$wire.showPhotoModal('{{ $photo->id }}')"
+                                @click="$wire.showPhotoModal(@js($photo->id))"
                                 class="block hover:opacity-80 transition-opacity cursor-pointer">
                             <flux:icon name="photo" variant="outline" class="text-zinc-400 dark:text-zinc-600 size-32 mx-auto" />
                         </button>
@@ -167,7 +143,7 @@
                 <td>
                     <div class="ml-2 flex items-center gap-2">
                         <button type="button"
-                                @click="$wire.showPhotoModal('{{ $photo->id }}')"
+                                @click="$wire.showPhotoModal(@js($photo->id))"
                                 class="font-mono font-medium text-zinc-900 dark:text-white hover:underline underline-offset-2 cursor-pointer">
                             {{ $photo->proof_number }}
                         </button>
@@ -191,7 +167,7 @@
                                     No Metadata
                                 </flux:badge>
                                 @if($file_not_found === false)
-                                    <flux:button wire:click="fixMissingMetadataOnPhoto('{{ $photo->id }}')" size="xs" class="ml-3 hover:cursor-pointer">
+                                    <flux:button wire:click="fixMissingMetadataOnPhoto({{ \Illuminate\Support\Js::from($photo->id) }})" size="xs" class="ml-3 hover:cursor-pointer">
                                         Fix Metadata
                                     </flux:button>
                                 @endif
@@ -336,7 +312,7 @@
                                 <div>
                                     <flux:button
                                         variant="danger"
-                                        wire:click="deletePhotoRecord('{{ $photo->id }}')"
+                                        wire:click="deletePhotoRecord({{ \Illuminate\Support\Js::from($photo->id) }})"
                                         size="xs"
                                     >
                                         Delete
@@ -347,7 +323,7 @@
                                 <div>
                                     <flux:button
                                         variant="danger"
-                                        wire:click="deleteLocalProofs('{{ $photo->id }}')"
+                                        wire:click="deleteLocalProofs({{ \Illuminate\Support\Js::from($photo->id) }})"
                                         size="xs"
                                     >
                                         Delete Proofs
@@ -370,7 +346,7 @@
                                 <div class="flex flex-row items-center justify-start gap-x-1">
                                     <flux:badge color="rose" size="sm">No Proofs</flux:badge>
                                     <flux:button
-                                        wire:click="proofPhoto('{{ $photo->id }}')"
+                                        wire:click="proofPhoto({{ \Illuminate\Support\Js::from($photo->id) }})"
                                         size="xs"
                                         class="!px-0 hover:cursor-pointer"
                                     >
@@ -390,7 +366,7 @@
                                 <div class="flex flex-row items-center justify-start gap-x-1">
                                     <flux:badge color="rose" size="sm">No Web</flux:badge>
                                     <flux:button
-                                        wire:click="generateWebImage('{{ $photo->id }}')"
+                                        wire:click="generateWebImage({{ \Illuminate\Support\Js::from($photo->id) }})"
                                         size="xs"
                                         class="!px-0 hover:cursor-pointer"
                                     >
@@ -410,7 +386,7 @@
                                 <div class="flex flex-row items-center justify-start gap-x-1">
                                     <flux:badge color="rose" size="sm">No Highres</flux:badge>
                                     <flux:button
-                                        wire:click="generateHighresImage('{{ $photo->id }}')"
+                                        wire:click="generateHighresImage({{ \Illuminate\Support\Js::from($photo->id) }})"
                                         size="xs"
                                         class="!px-0 hover:cursor-pointer"
                                     >

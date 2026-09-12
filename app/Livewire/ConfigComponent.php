@@ -511,9 +511,8 @@ class ConfigComponent extends Component
         $this->generateThumbnailPreviews();
     }
 
-    public function togglePreviewWatermark(): void
+    public function updatedPreviewWatermarkEnabled(): void
     {
-        $this->previewWatermarkEnabled = ! $this->previewWatermarkEnabled;
         $this->generateThumbnailPreviews();
     }
 

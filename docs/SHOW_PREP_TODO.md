@@ -1,18 +1,19 @@
 # Show-prep follow-ups
 
-Queued on 2026-09-12 after the [core review](reviews/2026-09-11-core-review/README.md). The [file-safety round](reviews/2026-09-12-file-safety.md) is implemented and locally validated. The next two rounds below remain queued.
+Queued on 2026-09-12 after the [core review](reviews/2026-09-11-core-review/README.md). The [file-safety round](reviews/2026-09-12-file-safety.md) and [UI round](reviews/2026-09-12-ui-fixes.md) are implemented and locally validated. Image-output fixes are next.
 
-## Next: everyday UI fixes
+## Completed: everyday UI fixes
 
-- [ ] Fix uncached thumbnail loading in table/grid for the installed Intervention Image API. Share the JPEG loader/path handling instead of maintaining divergent view code.
-- [ ] Keep missing-thumbnail state local to each row, so one missing file does not hide subsequent thumbnails.
-- [ ] Build proof-search and related navigation paths from actual show/class relations, including show IDs containing underscores.
-- [ ] Quote filename/path values correctly in Alpine/Livewire expressions so apostrophes do not break rename/reveal actions.
-- [ ] Verify the watermark-preview checkbox updates once per click before changing its double-bound handler; do not treat the review's event-order hypothesis as proven.
+- [x] Fix uncached thumbnail loading in table/grid and the detail modal. Share the existing-JPEG loader and configured proof paths.
+- [x] Keep missing-thumbnail state local to each row, so one missing file does not hide subsequent thumbnails.
+- [x] Build proof-search labels and redirects from actual show/class relations, including show IDs containing underscores.
+- [x] Quote filename/path values correctly in Alpine/Livewire expressions so apostrophes do not break rename/reveal actions. Verify Flux attributes after rendering.
+- [x] Reproduce the watermark-preview checkbox's double update in the browser and replace it with one model update and regeneration hook.
+- [x] Fix the grid Select all binding being evaluated as a PHP constant; verify selection in the browser.
 
 Acceptance: test uncached and missing thumbnails, underscore show IDs and apostrophe filenames; spot-check table/grid/search flows in the UI. Keep this a correctness pass, not a view/framework rewrite.
 
-## Then: image-output fixes
+## Next: image-output fixes
 
 - [ ] Generate both proof sizes from the same enhanced source without enlarging the small thumbnail.
 - [ ] Honor the web/highres generation enable switches on normal import.
@@ -29,6 +30,7 @@ Acceptance: generated-image checks for enhancement consistency, disabled product
 ## Later / separate
 
 - [ ] Measure polling and image-processing cost on a representative show before further performance refactoring. Consolidate duplicate code only where it removes a demonstrated bug or worthwhile cost.
+- [ ] Remove or update the dormant thumbnail branch in `images-table.blade.php` if that legacy pending-file table is retained; current callers do not enable its thumbnail option.
 - Updater research: [Flower #3682](https://flower.legitphp.com/briefs/3682), refining/undispatched when created.
 - Simple S3 copy-and-switch migration: [Flower #3681](https://flower.legitphp.com/briefs/3681).
 - Recognition remains deferred.

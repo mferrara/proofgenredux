@@ -15,14 +15,13 @@ use App\Services\FerraraphotoTargetVerifier;
 use App\Services\PathResolver;
 use App\Services\PhotoMoveService;
 use App\Services\PhotoService;
+use App\Services\PhotoThumbnailService;
 use App\Services\SafeFileMover;
 use App\Services\StorageUsageService;
 use Exception;
 use Flux\Flux;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Intervention\Image\Laravel\Facades\Image;
 use Livewire\Component;
 
 class ClassViewComponent extends Component
@@ -155,7 +154,7 @@ class ClassViewComponent extends Component
         return view('livewire.class-view-component', [
             'show' => $this->showModel,
             'show_class' => $this->showClass,
-            'photos' => $this->showClass->photos()->with('metadata')->get(),
+            'photos' => $this->showClass->photos()->with(['metadata', 'showClass'])->get(),
             'photos_pending_import' => $this->showClass->getImagesPendingImport(),
             ...$this->showClass->processingCounts(),
             'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
@@ -697,33 +696,28 @@ class ClassViewComponent extends Component
             return;
         }
 
-        $this->selectedPhotoId = $photoId;
+        $thumbnails = app(PhotoThumbnailService::class);
+        $image = $thumbnails->dataUri($photo, 'large');
 
-        // Construct large thumbnail path using config suffix
-        $largeSuffix = config('proofgen.thumbnails.large.suffix', '_std');
-        $largeThumbnailPath = 'proofs/'.str_replace('originals/', '', $photo->relative_path);
-        $largeThumbnailPath = str_replace('.jpg', $largeSuffix.'.jpg', $largeThumbnailPath);
-
-        // Load image data
-        try {
-            $thumbnailData = Storage::disk('fullsize')->get($largeThumbnailPath);
-            $base64 = Image::read($thumbnailData)->toJpeg(90);
-            $this->modalImageData = [
-                'photo' => $photo,
-                'image' => 'data:image/jpeg;base64,'.base64_encode($base64),
-                'path' => $largeThumbnailPath,
-            ];
-            $this->showImageModal = true;
-        } catch (Exception $e) {
-            // Handle error - show toast notification
-            Log::error('Failed to load large thumbnail: '.$e->getMessage());
+        if ($image === null) {
+            $this->closeImageModal();
             Flux::toast(
                 text: 'Failed to load large thumbnail',
                 heading: 'Error',
                 variant: 'danger',
                 position: 'top right'
             );
+
+            return;
         }
+
+        $this->selectedPhotoId = $photoId;
+        $this->modalImageData = [
+            'photo' => $photo,
+            'image' => $image,
+            'path' => $thumbnails->path($photo, 'large'),
+        ];
+        $this->showImageModal = true;
     }
 
     /**

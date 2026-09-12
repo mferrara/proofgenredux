@@ -41,24 +41,19 @@
         >
             <ul class="divide-y divide-zinc-100 dark:divide-white/5">
                 @foreach($results as $result)
-                    @php
-                        $parts = explode('_', $result['show_class_id'], 2);
-                        $show_name = $parts[0] ?? '';
-                        $class_name = $parts[1] ?? '';
-                    @endphp
                     <li>
                         <button
                             type="button"
-                            wire:click="selectProof('{{ $result['id'] }}')"
+                            wire:click="selectProof(@js($result['id']))"
                             class="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-sm
                                    hover:bg-zinc-50 dark:hover:bg-white/[0.06]
                                    text-left transition-colors"
                         >
                             <span class="font-medium font-mono text-zinc-900 dark:text-white">{{ $result['proof_number'] }}</span>
                             <span class="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                <flux:badge color="zinc" size="sm">{{ $show_name }}</flux:badge>
+                                <flux:badge color="zinc" size="sm">{{ $result['show_name'] }}</flux:badge>
                                 <span class="text-zinc-400 dark:text-zinc-500">/</span>
-                                <flux:badge color="zinc" size="sm">{{ $class_name }}</flux:badge>
+                                <flux:badge color="zinc" size="sm">{{ $result['class_name'] }}</flux:badge>
                             </span>
                         </button>
                     </li>

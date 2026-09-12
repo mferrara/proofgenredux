@@ -1,6 +1,8 @@
 @php
     $allPhotoIds = $photos->pluck('id')->toArray();
     $photoCount = $photos->count();
+    /** @var App\Services\PhotoThumbnailService $thumbnailService */
+    $thumbnailService = app(App\Services\PhotoThumbnailService::class);
 @endphp
 <div class="w-full" x-data="{
     get selectAll() {
@@ -48,7 +50,7 @@
             Clear selection
         </flux:button>
         <label class="ml-auto inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
-            <flux:checkbox :checked="selectAll" @change="toggleAll()" />
+            <flux:checkbox x-bind:checked="selectAll" @change="toggleAll()" />
             <span>Select all</span>
         </label>
     </div>
@@ -79,34 +81,12 @@
                 }catch(\Exception $e) {
                     $file_not_found = true;
                 }
-                $modified = $photo->updated_at;
-                $thumbnail_path = '';
                 $thumbnail_base64 = null;
 
                 if($photo->proofs_generated_at) {
-                    $thumbnail_path = $image_path;
-                    $thumbnail_path = str_replace('originals/', '', $thumbnail_path);
-                    $thumbnail_path = str_replace('.jpg', '_thm.jpg', $thumbnail_path);
-                    $thumbnail_path = 'proofs/'.$thumbnail_path;
-
-                    // Cache the base64 encoded thumbnail
-                    $thumbnail_cache_key = 'thumbnails3-'.md5($thumbnail_path.$modified->timestamp);
-                    if( ! $thumbnail_base64 = \Cache::get($thumbnail_cache_key, null)) {
-                        $valid_thumbnail = false;
-                        try{
-                            $thumbnail_data = \Illuminate\Support\Facades\Storage::disk('fullsize')->get($thumbnail_path);
-                            $thumbnail_base64 = \Intervention\Image\Laravel\Facades\Image::read($thumbnail_data)->toJpeg(90);
-                            $thumbnail_base64 = 'data:image/jpeg;base64,'.base64_encode($thumbnail_base64);
-                            $valid_thumbnail = true;
-                        }catch(\Exception $e) {
-                            Log::debug('Error with thumbnail: '.$e->getMessage());
-                        }
-
-                        // If we have a valid thumbnail, cache it for 1 hour
-                        if ($valid_thumbnail) {
-                            Cache::put($thumbnail_cache_key, $thumbnail_base64, now()->addMinutes(60));
-                        }
-                    }
+                    // Shared service reads the existing JPEG bytes and returns a cached
+                    // data URI. Missing files return null without being cached.
+                    $thumbnail_base64 = $thumbnailService->dataUri($photo);
                 }
             @endphp
             <div wire:key="{{ 'grid-item-'.$photo->id }}"
@@ -114,16 +94,16 @@
                         bg-zinc-100 dark:bg-zinc-800
                         border border-zinc-200 dark:border-white/10"
                  :class="{
-                     'ring-2 ring-blue-500': $wire.selectedPhotos.includes('{{ $photo->id }}'),
-                     'ring-2 ring-rose-500': {{ ! $photo->metadata || $file_not_found ? 'true' : 'false' }} && !$wire.selectedPhotos.includes('{{ $photo->id }}'),
-                     'hover:ring-1 hover:ring-zinc-300 dark:hover:ring-zinc-500': !$wire.selectedPhotos.includes('{{ $photo->id }}')
+                     'ring-2 ring-blue-500': $wire.selectedPhotos.includes(@js($photo->id)),
+                     'ring-2 ring-rose-500': {{ ! $photo->metadata || $file_not_found ? 'true' : 'false' }} && !$wire.selectedPhotos.includes(@js($photo->id)),
+                     'hover:ring-1 hover:ring-zinc-300 dark:hover:ring-zinc-500': !$wire.selectedPhotos.includes(@js($photo->id))
                  }">
                 {{-- Selection checkbox overlay --}}
                 <div class="absolute top-2.5 left-2.5 z-30">
                     <input type="checkbox"
                            value="{{ $photo->id }}"
-                           :checked="$wire.selectedPhotos.includes('{{ $photo->id }}')"
-                           @change="togglePhoto('{{ $photo->id }}')"
+                           :checked="$wire.selectedPhotos.includes(@js($photo->id))"
+                           @change="togglePhoto(@js($photo->id))"
                            class="rounded shadow-lg bg-white/90 dark:bg-zinc-900/90 border-zinc-300 dark:border-zinc-600 focus:ring-blue-500"
                            @click.stop>
                 </div>
@@ -168,7 +148,7 @@
 
                 {{-- Thumbnail image (clickable) --}}
                 <button type="button"
-                        @click="$wire.showPhotoModal('{{ $photo->id }}')"
+                        @click="$wire.showPhotoModal(@js($photo->id))"
                         class="block w-full aspect-square bg-zinc-200 dark:bg-zinc-900 cursor-pointer">
                     @if($thumbnail_base64 !== null)
                         <img src="{{ $thumbnail_base64 }}"
