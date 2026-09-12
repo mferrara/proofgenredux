@@ -19,7 +19,8 @@ Acceptance: test uncached and missing thumbnails, underscore show IDs and apostr
 - [ ] Generate both proof sizes from the same enhanced source without enlarging the small thumbnail.
 - [ ] Honor the web/highres generation enable switches on normal import.
 - [ ] Validate the highres watermark before creating the final output; reuse the working web guard and finish composition before the final save.
-- [ ] Apply configured JPEG quality to final production and preview encodes; avoid redundant intermediate JPEG writes.
+- [x] Set the final watermarked proof JPEG encode to quality 95 for small/large production proofs and Settings previews, preserving the existing first pass.
+- [ ] Address remaining configured-quality omissions in previews and paid-image outputs. Single-pass thumbnail encoding and format selection are tracked in Flower #3689.
 - [ ] Standardize derivative filenames as `.jpg` independently of original `.jpeg` extension, respecting configured suffixes in model checks, moves and UI paths.
 - [ ] Finish relation-based original/proof paths in `Photo` for underscore show IDs, including the direct image-processing path that can return a photo before its class record exists. Move/reset/archive class paths are addressed in the file-safety round; the broader image-model contract remains here.
 - [ ] Correct daemon black/white-point percentile units and verify adjustment controls with synthetic images.
@@ -32,6 +33,7 @@ Acceptance: generated-image checks for enhancement consistency, disabled product
 
 - [ ] Measure polling and image-processing cost on a representative show before further performance refactoring. Consolidate duplicate code only where it removes a demonstrated bug or worthwhile cost.
 - [ ] Remove or update the dormant thumbnail branch in `images-table.blade.php` if that legacy pending-file table is retained; current callers do not enable its thumbnail option.
+- Thumbnail encoding research: [Flower #3689](https://flower.legitphp.com/briefs/3689), comparing single-pass JPEG, JPEG XL and PNG for new/regenerated thumbnails.
 - Updater research: [Flower #3682](https://flower.legitphp.com/briefs/3682), refining/undispatched when created.
 - Simple S3 copy-and-switch migration: [Flower #3681](https://flower.legitphp.com/briefs/3681).
 - Recognition remains deferred.

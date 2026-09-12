@@ -1492,14 +1492,14 @@ class ConfigComponent extends Component
         if ($size === 'small') {
             // Small thumbnail watermark
             $watermark = Image::watermarkSmallProof($originalFilename);
-            $image->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')->save();
+            $image->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')->save(quality: Image::WATERMARKED_PROOF_QUALITY);
         } elseif ($size === 'large') {
             // Large thumbnail watermark
             if ($image->width() > $image->height()) {
                 // Landscape orientation
                 $text = 'Proof# '.$originalFilename.' - Illegal to use - Ferrara Photography';
                 $watermark = Image::watermarkLargeProof($text, $image->width());
-                $image->insert($watermark, alignment: 'center')->save();
+                $image->insert($watermark, alignment: 'center')->save(quality: Image::WATERMARKED_PROOF_QUALITY);
             } else {
                 // Portrait orientation - two watermarks
                 $watermark_top = Image::watermarkLargeProof(
@@ -1515,7 +1515,7 @@ class ConfigComponent extends Component
 
                 $image->insert($watermark_top, alignment: 'center')
                     ->insert($watermark_bot, x: 0, y: (int) $bottom_offset, alignment: 'bottom')
-                    ->save();
+                    ->save(quality: Image::WATERMARKED_PROOF_QUALITY);
 
             }
         }

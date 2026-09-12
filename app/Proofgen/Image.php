@@ -15,6 +15,9 @@ use League\Flysystem\UnableToReadFile;
 
 class Image
 {
+    // Keep newly drawn watermark text clear after the configured photo-quality pass.
+    public const int WATERMARKED_PROOF_QUALITY = 95;
+
     public string $image_path = '';
 
     public string $show = '';
@@ -523,7 +526,7 @@ class Image
             // Add watermark
             $image = $manager->decodePath($small_thumb_path);
             $watermark = self::watermarkSmallProof($image_filename);
-            $image->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')->save();
+            $image->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')->save(quality: self::WATERMARKED_PROOF_QUALITY);
 
             unset($image);
         }
@@ -542,7 +545,7 @@ class Image
             if ($image->width() > $image->height()) {
                 $text = 'Proof# '.$image_filename.' - Illegal to use - Ferrara Photography';
                 $watermark = self::watermarkLargeProof($text, $image->width());
-                $image->insert($watermark, alignment: 'center')->save();
+                $image->insert($watermark, alignment: 'center')->save(quality: self::WATERMARKED_PROOF_QUALITY);
 
             } else {
                 $watermark_top = self::watermarkLargeProof('Proof# '.$image_filename.' - Proof# '.$image_filename,
@@ -556,7 +559,7 @@ class Image
                 $image
                     ->insert($watermark_top, alignment: 'center')
                     ->insert($watermark_bot, x: 0, y: $bottom_offset, alignment: 'bottom')
-                    ->save();
+                    ->save(quality: self::WATERMARKED_PROOF_QUALITY);
 
             }
             unset($image);
