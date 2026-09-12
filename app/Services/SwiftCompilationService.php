@@ -10,10 +10,6 @@ class SwiftCompilationService
     protected SwiftCompatibilityService $swiftCompatibilityService;
 
     protected array $swiftBinaries = [
-        'ProofgenImageEnhancer' => [
-            'source' => 'app/Services/CoreImage/ProofgenImageEnhancer.swift',
-            'output' => 'storage/app/ProofgenImageEnhancer',
-        ],
         'ProofgenImageEnhancerDaemon' => [
             'source' => 'app/Services/CoreImage/ProofgenImageEnhancerDaemon.swift',
             'output' => 'storage/app/ProofgenImageEnhancerDaemon',

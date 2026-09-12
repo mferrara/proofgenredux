@@ -152,13 +152,13 @@ class PhotoMoveService
         ];
 
         // Proofs: move every expected thumbnail that exists; if all are missing
-        // and proofs were previously generated, queue regen.
+        // and proofs were previously generated, queue regen. Derivatives are
+        // always encoded as .jpg regardless of the original file_type ("jpeg").
         $proofsMovedCount = 0;
         foreach (config('proofgen.thumbnails') as $config) {
-            $suffix = $config['suffix'];
-            $filename = $proofNumber.$suffix.'.'.$extension;
-            $oldProof = $this->normalize($this->pathResolver->getProofsPath($sourceShow, $sourceClass).'/'.$filename);
-            $newProof = $this->normalize($this->pathResolver->getProofsPath($targetShow, $targetClassName).'/'.$filename);
+            $suffix = (string) ($config['suffix'] ?? '');
+            $oldProof = $this->normalize($this->pathResolver->getProofThumbnailPath($sourceShow, $sourceClass, $proofNumber.'.jpg', $suffix));
+            $newProof = $this->normalize($this->pathResolver->getProofThumbnailPath($targetShow, $targetClassName, $proofNumber.'.jpg', $suffix));
 
             if ($disk->exists($oldProof)) {
                 $disk->move($oldProof, $newProof);
@@ -170,10 +170,9 @@ class PhotoMoveService
         }
 
         // Web image
-        $webSuffix = config('proofgen.web_images.suffix', '_web');
-        $webFilename = $proofNumber.$webSuffix.'.jpg';
-        $oldWeb = $this->normalize($this->pathResolver->getWebImagesPath($sourceShow, $sourceClass).'/'.$webFilename);
-        $newWeb = $this->normalize($this->pathResolver->getWebImagesPath($targetShow, $targetClassName).'/'.$webFilename);
+        $webSuffix = (string) config('proofgen.web_images.suffix', '_web');
+        $oldWeb = $this->normalize($this->pathResolver->getWebImagePath($sourceShow, $sourceClass, $proofNumber.'.jpg', $webSuffix));
+        $newWeb = $this->normalize($this->pathResolver->getWebImagePath($targetShow, $targetClassName, $proofNumber.'.jpg', $webSuffix));
         if ($disk->exists($oldWeb)) {
             $disk->move($oldWeb, $newWeb);
         } elseif ($photo->web_image_generated_at !== null) {
@@ -181,10 +180,9 @@ class PhotoMoveService
         }
 
         // Highres image
-        $highresSuffix = config('proofgen.highres_images.suffix', '_highres');
-        $highresFilename = $proofNumber.$highresSuffix.'.jpg';
-        $oldHighres = $this->normalize($this->pathResolver->getHighresImagesPath($sourceShow, $sourceClass).'/'.$highresFilename);
-        $newHighres = $this->normalize($this->pathResolver->getHighresImagesPath($targetShow, $targetClassName).'/'.$highresFilename);
+        $highresSuffix = (string) config('proofgen.highres_images.suffix', '_highres');
+        $oldHighres = $this->normalize($this->pathResolver->getHighresImagePath($sourceShow, $sourceClass, $proofNumber.'.jpg', $highresSuffix));
+        $newHighres = $this->normalize($this->pathResolver->getHighresImagePath($targetShow, $targetClassName, $proofNumber.'.jpg', $highresSuffix));
         if ($disk->exists($oldHighres)) {
             $disk->move($oldHighres, $newHighres);
         } elseif ($photo->highres_image_generated_at !== null) {

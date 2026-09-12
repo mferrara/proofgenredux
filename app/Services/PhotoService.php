@@ -113,9 +113,16 @@ class PhotoService
         $highresImagesPath = $show_class->highres_images_path;
 
         if ($dispatchJobs) {
+            // Proofs are always generated; the web/highres product switches only
+            // govern their derivative jobs, mirroring the manual regeneration
+            // paths in ShowClass::queueWebImageGeneration/queueHighresImageGeneration.
             GenerateThumbnails::dispatch($photo->id, $proofDestPath)->onQueue('thumbnails');
-            GenerateWebImage::dispatch($photo->id, $webImagesPath)->onQueue('thumbnails');
-            GenerateHighresImage::dispatch($photo->id, $highresImagesPath)->onQueue('thumbnails');
+            if (config('proofgen.generate_web_images.enabled', true)) {
+                GenerateWebImage::dispatch($photo->id, $webImagesPath)->onQueue('thumbnails');
+            }
+            if (config('proofgen.generate_highres_images.enabled', true)) {
+                GenerateHighresImage::dispatch($photo->id, $highresImagesPath)->onQueue('thumbnails');
+            }
         }
 
         return [

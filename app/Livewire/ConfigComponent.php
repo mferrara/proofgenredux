@@ -643,7 +643,9 @@ class ConfigComponent extends Component
                     $rule[] = 'numeric';
 
                     // Tone mapping percentile validation
-                    if ($config->key === 'tone_mapping_percentile_low') {
+                    if ($config->key === 'tone_mapping_highlight_amount') {
+                        $rule[] = 'between:-100,0';
+                    } elseif ($config->key === 'tone_mapping_percentile_low') {
                         $rule[] = 'min:0.0';
                         $rule[] = 'max:1.0';
                     } elseif ($config->key === 'tone_mapping_percentile_high') {
@@ -1031,7 +1033,7 @@ class ConfigComponent extends Component
                     $largePreviewPath = $tempDir.'/large_preview_'.$timestamp.'.jpg';
                     $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $largePreviewPath, 'thumbnails', 'large', true);
                     $this->largeThumbnailPreview = '/temp/thumbnail-preview/large_preview_'.$timestamp.'.jpg';
-                    $this->largeThumbnailPreviewUnenhanced = '/temp/thumbnail-preview/large_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->largeThumbnailPreviewUnenhanced = ($previewData['enhancement']['enabled'] ?? false) ? '/temp/thumbnail-preview/large_preview_unenhanced_'.$timestamp.'.jpg' : null;
                     $this->largeThumbnailInfo = $this->getFileInfo($largePreviewPath);
                     $this->largeThumbnailProcessingTime = $previewData['processing_time'];
                     $this->largeThumbnailInputSettings = $previewData['input_settings'];
@@ -1042,7 +1044,7 @@ class ConfigComponent extends Component
                     $smallPreviewPath = $tempDir.'/small_preview_'.$timestamp.'.jpg';
                     $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $smallPreviewPath, 'thumbnails', 'small', true);
                     $this->smallThumbnailPreview = '/temp/thumbnail-preview/small_preview_'.$timestamp.'.jpg';
-                    $this->smallThumbnailPreviewUnenhanced = '/temp/thumbnail-preview/small_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->smallThumbnailPreviewUnenhanced = ($previewData['enhancement']['enabled'] ?? false) ? '/temp/thumbnail-preview/small_preview_unenhanced_'.$timestamp.'.jpg' : null;
                     $this->smallThumbnailInfo = $this->getFileInfo($smallPreviewPath);
                     $this->smallThumbnailProcessingTime = $previewData['processing_time'];
                     $this->smallThumbnailInputSettings = $previewData['input_settings'];
@@ -1053,7 +1055,7 @@ class ConfigComponent extends Component
                     $webPreviewPath = $tempDir.'/web_preview_'.$timestamp.'.jpg';
                     $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $webPreviewPath, 'web_images', null, true);
                     $this->webImagePreview = '/temp/thumbnail-preview/web_preview_'.$timestamp.'.jpg';
-                    $this->webImagePreviewUnenhanced = '/temp/thumbnail-preview/web_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->webImagePreviewUnenhanced = ($previewData['enhancement']['enabled'] ?? false) ? '/temp/thumbnail-preview/web_preview_unenhanced_'.$timestamp.'.jpg' : null;
                     $this->webImageInfo = $this->getFileInfo($webPreviewPath);
                     $this->webImageProcessingTime = $previewData['processing_time'];
                     $this->webImageInputSettings = $previewData['input_settings'];
@@ -1064,7 +1066,7 @@ class ConfigComponent extends Component
                     $highresPreviewPath = $tempDir.'/highres_preview_'.$timestamp.'.jpg';
                     $previewData = $this->createPreviewThumbnail($this->sampleImagePath, $highresPreviewPath, 'highres_images', null, true);
                     $this->highresImagePreview = '/temp/thumbnail-preview/highres_preview_'.$timestamp.'.jpg';
-                    $this->highresImagePreviewUnenhanced = '/temp/thumbnail-preview/highres_preview_unenhanced_'.$timestamp.'.jpg';
+                    $this->highresImagePreviewUnenhanced = ($previewData['enhancement']['enabled'] ?? false) ? '/temp/thumbnail-preview/highres_preview_unenhanced_'.$timestamp.'.jpg' : null;
                     $this->highresImageInfo = $this->getFileInfo($highresPreviewPath);
                     $this->highresImageProcessingTime = $previewData['processing_time'];
                     $this->highresImageInputSettings = $previewData['input_settings'];
@@ -1177,10 +1179,12 @@ class ConfigComponent extends Component
                     'method_label' => $this->getEnhancementMethodLabel($enhancementMethod),
                     'parameters' => $this->formatEnhancementParameters($enhancementMethod, $parameters),
                 ];
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 Log::error('Enhancement service failed in ConfigComponent preview: '.$e->getMessage());
-                // Fall back to reading without enhancement
+                // Fall back to reading without enhancement, and report the
+                // failure so the UI never claims enhancement was applied.
                 $image = $manager->decodePath($sourcePath);
+                $enhancementEnabled = false;
                 $enhancementInfo = [
                     'enabled' => false,
                     'error' => 'Enhancement failed: '.$e->getMessage(),
@@ -1205,42 +1209,13 @@ class ConfigComponent extends Component
 
         // Log::debug("Creating {$type}".($size ? " {$size}" : '').' preview', ['width' => $width, 'height' => $height, 'quality' => $quality]);
 
-        // Scale and save as JPEG with quality
-        $image->scale($width, $height)
+        $image->scaleDown($width, $height);
+        $this->savePreviewImage($image, $destPath, $type, $size, $quality, $manager);
 
-            ->save($destPath);
-
-        // Apply watermark if enabled and applicable
-        if ($this->previewWatermarkEnabled) {
-            if ($type === 'thumbnails' && $this->shouldApplyWatermark()) {
-                $this->applyWatermarkToPreview($destPath, $size, $manager);
-            } elseif ($type === 'web_images') {
-                $this->applyWebImageWatermark($destPath, $manager);
-            } elseif ($type === 'highres_images') {
-                $this->applyHighresImageWatermark($destPath, $manager);
-            }
-        }
-
-        // If enhancement is enabled and we need unenhanced version, create it too
         if ($generateUnenhanced && $enhancementEnabled) {
-            // Generate unenhanced version
-            $imageUnenhanced = $manager->decodePath($sourcePath);
+            $imageUnenhanced = $manager->decodePath($sourcePath)->scaleDown($width, $height);
             $unenhancedPath = str_replace('_preview_', '_preview_unenhanced_', $destPath);
-
-            $imageUnenhanced->scale($width, $height)
-
-                ->save($unenhancedPath);
-
-            // Apply watermark to unenhanced version too
-            if ($this->previewWatermarkEnabled) {
-                if ($type === 'thumbnails' && $this->shouldApplyWatermark()) {
-                    $this->applyWatermarkToPreview($unenhancedPath, $size, $manager);
-                } elseif ($type === 'web_images') {
-                    $this->applyWebImageWatermark($unenhancedPath, $manager);
-                } elseif ($type === 'highres_images') {
-                    $this->applyHighresImageWatermark($unenhancedPath, $manager);
-                }
-            }
+            $this->savePreviewImage($imageUnenhanced, $unenhancedPath, $type, $size, $quality, $manager);
         }
 
         $processingTime = microtime(true) - $startTime;
@@ -1521,47 +1496,19 @@ class ConfigComponent extends Component
         }
     }
 
-    /**
-     * Apply web image watermark to preview image
-     */
-    private function applyWebImageWatermark(string $imagePath, ImageManager $manager): void
+    /** Use the production paid-image writer; proofs retain their two quality passes. */
+    private function savePreviewImage(\Intervention\Image\Image $image, string $path, string $type, ?string $size, int $quality, ImageManager $manager): void
     {
-        $image = $manager->decodePath($imagePath);
-        $watermarkPath = storage_path('watermarks/web-image-watermark-2.png');
-
-        if (! file_exists($watermarkPath)) {
-            Log::warning('Web image watermark file not found: '.$watermarkPath);
+        if ($this->previewWatermarkEnabled && in_array($type, ['web_images', 'highres_images'], true)) {
+            Image::saveWatermarkedProduct($image, $path, $quality, $type === 'highres_images' ? 'High resolution image' : 'Web image');
 
             return;
         }
 
-        $watermark = imagecreatefrompng($watermarkPath);
-
-        // Determine average color of bottom portion
-        $averageColor = Image::determineAverageColor($imagePath);
-        $darkness = Image::determineWatermarkDarknessFromAverageColor(
-            $averageColor[0],
-            $averageColor[1],
-            $averageColor[2]
-        );
-
-        // Invert watermark if background is light
-        if ($darkness === 'light') {
-            imagefilter($watermark, IMG_FILTER_NEGATE);
+        $image->save($path, quality: $quality);
+        if ($this->previewWatermarkEnabled && $type === 'thumbnails' && $this->shouldApplyWatermark()) {
+            $this->applyWatermarkToPreview($path, $size, $manager);
         }
-
-        // Place watermark at bottom with 60px offset
-        $image->insert($watermark, x: 0, y: 60, alignment: 'bottom')->save();
-
-    }
-
-    /**
-     * Apply highres image watermark to preview image
-     */
-    private function applyHighresImageWatermark(string $imagePath, ImageManager $manager): void
-    {
-        // Highres images use the same watermark as web images
-        $this->applyWebImageWatermark($imagePath, $manager);
     }
 
     /**

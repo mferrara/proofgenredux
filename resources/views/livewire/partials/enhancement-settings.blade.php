@@ -212,7 +212,7 @@
                                                 wire:dirty.class="!border-amber-400 dark:!border-amber-500"
                                             />
                                             <flux:description>
-                                                {{ $config->description }}
+                                                {{ $config->key === 'tone_mapping_highlight_amount' ? 'Highlight darkening (-100 to 0; 0 leaves highlights unchanged)' : $config->description }}
                                                 @if(str_contains($config->key, 'percentile_low'))
                                                     <span class="block text-xs mt-0.5">Lower values preserve more shadow detail</span>
                                                 @elseif(str_contains($config->key, 'percentile_high'))

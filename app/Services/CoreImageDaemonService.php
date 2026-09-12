@@ -231,16 +231,22 @@ class CoreImageDaemonService extends ImageEnhancementService
      */
     public function enhance(string $imagePath, string $method, array $parameters = []): InterventionImage
     {
+        $this->assertSupportedMethod($method);
+
         if (! $this->coreImageAvailable) {
             // Fall back to parent implementation
             return parent::enhance($imagePath, $method, $parameters);
         }
 
+        $tempPath = null;
+
         try {
             $startTime = microtime(true);
 
-            // Create temporary output file
-            $tempPath = tempnam(sys_get_temp_dir(), 'coreimage_enhance_').'.jpg';
+            // Create temporary output file. createTempJpegPath() removes the
+            // suffix-less file tempnam() creates, so the daemon only ever sees
+            // a real .jpg path and no orphan is left behind.
+            $tempPath = $this->createTempJpegPath('coreimage_enhance_');
 
             // Prepare request data
             $request = [
@@ -253,7 +259,7 @@ class CoreImageDaemonService extends ImageEnhancementService
             // Execute enhancement via daemon
             $response = $this->sendRequestToDaemon($request);
 
-            if (! $response['success']) {
+            if (! ($response['success'] ?? false)) {
                 throw new \Exception($response['error'] ?? 'Unknown error');
             }
 
@@ -262,20 +268,18 @@ class CoreImageDaemonService extends ImageEnhancementService
                 Log::debug("Core Image {$method} processing time: {$processingTime}s");
             }
 
-            // Load the enhanced image
-            $result = $this->manager->decodePath($tempPath);
-
-            // Clean up
-            if (file_exists($tempPath)) {
-                unlink($tempPath);
-            }
-
-            return $result;
+            // decodePath() reads the bytes into memory, so the temp file can be
+            // removed by the finally block even on the returned image path.
+            return $this->manager->decodePath($tempPath);
 
         } catch (\Exception $e) {
             Log::error('Core Image enhancement failed, falling back to standard service: '.$e->getMessage());
 
             return parent::enhance($imagePath, $method, $parameters);
+        } finally {
+            if (is_string($tempPath) && is_file($tempPath)) {
+                @unlink($tempPath);
+            }
         }
     }
 
@@ -336,40 +340,19 @@ class CoreImageDaemonService extends ImageEnhancementService
     }
 
     /**
-     * Prepare parameters for Core Image
+     * Prepare parameters for Core Image.
+     *
+     * Production callers pass an empty array, so saved proofgen.* config is
+     * merged in here (explicit parameters still win) before the values are
+     * cast to the floats the Swift daemon expects.
      */
     protected function prepareParameters(string $method, array $parameters): array
     {
-        $prepared = [];
+        $this->assertSupportedMethod($method);
 
-        // Convert parameter names and ensure they're floats
-        foreach ($parameters as $key => $value) {
-            $prepared[$key] = (float) $value;
-        }
+        $resolved = $this->resolveParameters($method, $parameters);
 
-        // Add default values based on method
-        switch ($method) {
-            case 'percentile_clipping':
-            case 'advanced_tone_mapping':
-                $prepared['tone_mapping_percentile_low'] = $prepared['tone_mapping_percentile_low'] ?? 0.1;
-                $prepared['tone_mapping_percentile_high'] = $prepared['tone_mapping_percentile_high'] ?? 99.9;
-                $prepared['tone_mapping_shadow_amount'] = $prepared['tone_mapping_shadow_amount'] ?? 0.0;
-                $prepared['tone_mapping_highlight_amount'] = $prepared['tone_mapping_highlight_amount'] ?? 0.0;
-                $prepared['tone_mapping_shadow_radius'] = $prepared['tone_mapping_shadow_radius'] ?? 30.0;
-                $prepared['tone_mapping_midtone_gamma'] = $prepared['tone_mapping_midtone_gamma'] ?? 1.0;
-                break;
-
-            case 'basic_auto_levels':
-            case 'adjustable_auto_levels':
-                $prepared['auto_levels_target_brightness'] = $prepared['auto_levels_target_brightness'] ?? 128.0;
-                $prepared['auto_levels_contrast_threshold'] = $prepared['auto_levels_contrast_threshold'] ?? 200.0;
-                $prepared['auto_levels_contrast_boost'] = $prepared['auto_levels_contrast_boost'] ?? 1.2;
-                $prepared['auto_levels_black_point'] = $prepared['auto_levels_black_point'] ?? 0.0;
-                $prepared['auto_levels_white_point'] = $prepared['auto_levels_white_point'] ?? 100.0;
-                break;
-        }
-
-        return $prepared;
+        return array_map(static fn ($value): float => (float) $value, $resolved);
     }
 
     /**

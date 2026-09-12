@@ -36,6 +36,21 @@ class ImageTest extends TestCase
         $this->pathResolver = new PathResolver;
     }
 
+    public function test_proof_checks_use_exact_jpg_names_with_custom_suffixes(): void
+    {
+        Config::set('proofgen.thumbnails.small.suffix', '_small');
+        Config::set('proofgen.thumbnails.large.suffix', '_large');
+        Storage::disk('fullsize')->put('proofs/show123/class456/100_small_small.jpg.json', 'sidecar');
+        $image = new Image('show123/class456/100_small.jpeg');
+        $this->assertFalse($image->checkForProofs());
+        $this->assertSame(['_small', '_large'], $image->missing_proofs);
+
+        Storage::disk('fullsize')->put('proofs/show123/class456/100_small_small.jpg', 'small');
+        Storage::disk('fullsize')->put('proofs/show123/class456/100_small_large.jpg', 'large');
+        $this->assertTrue($image->checkForProofs());
+        $this->assertSame([], $image->missing_proofs);
+    }
+
     /**
      * Test image path parsing during construction
      */

@@ -95,6 +95,9 @@ class ProofgenImageEnhancer {
             let highPercentile = parameters["tone_mapping_percentile_high"] ?? 99.9
             let shadowAmount = parameters["tone_mapping_shadow_amount"] ?? 0.0
             let highlightAmount = parameters["tone_mapping_highlight_amount"] ?? 0.0
+            guard highlightAmount <= 0 else {
+                throw EnhancementError.invalidInput("Highlight adjustment supports values from -100 to 0. Positive highlight brightening is not supported.")
+            }
             let shadowRadius = parameters["tone_mapping_shadow_radius"] ?? 30.0
             let midtoneGamma = parameters["tone_mapping_midtone_gamma"] ?? 1.0
             return applyAdvancedToneMapping(to: image, lowPercentile: lowPercentile, highPercentile: highPercentile,
@@ -115,8 +118,12 @@ class ProofgenImageEnhancer {
 
         // Apply black/white point levels adjustment if specified
         if blackPoint > 0 || whitePoint < 100 {
-            let clipLow = blackPoint / 100.0
-            let clipHigh = whitePoint / 100.0
+            // blackPoint/whitePoint are percentages (0-100). calculatePercentileStats()
+            // expects that same 0-100 scale and divides by 100 internally, so do NOT
+            // pre-divide here. (A previous /100 made a 99% white point the 0.99th
+            // percentile and a 2% black point the 0.02nd percentile.)
+            let clipLow = blackPoint
+            let clipHigh = whitePoint
 
             // Calculate percentile values for levels adjustment
             let stats = calculatePercentileStats(for: processedImage, lowPercentile: clipLow, highPercentile: clipHigh)
@@ -185,71 +192,58 @@ class ProofgenImageEnhancer {
             }
         }
 
-        // Use CIColorClamp to clip values outside the percentile range
-        guard let clampFilter = CIFilter(name: "CIColorClamp") else { return image }
-        clampFilter.setValue(image, forKey: kCIInputImageKey)
-        clampFilter.setValue(CIVector(x: CGFloat(stats.lowValue), y: CGFloat(stats.lowValue), z: CGFloat(stats.lowValue), w: 0), forKey: "inputMinComponents")
-        clampFilter.setValue(CIVector(x: CGFloat(stats.highValue), y: CGFloat(stats.highValue), z: CGFloat(stats.highValue), w: 1), forKey: "inputMaxComponents")
+        var result = image
+        if stats.highValue > stats.lowValue {
+            // Use CIColorClamp to clip values outside the percentile range
+            guard let clampFilter = CIFilter(name: "CIColorClamp") else { return image }
+            clampFilter.setValue(image, forKey: kCIInputImageKey)
+            clampFilter.setValue(CIVector(x: CGFloat(stats.lowValue), y: CGFloat(stats.lowValue), z: CGFloat(stats.lowValue), w: 0), forKey: "inputMinComponents")
+            clampFilter.setValue(CIVector(x: CGFloat(stats.highValue), y: CGFloat(stats.highValue), z: CGFloat(stats.highValue), w: 1), forKey: "inputMaxComponents")
 
-        guard let clampedImage = clampFilter.outputImage else {
-            logDebug("ERROR: Color clamp failed")
-            return image
+            guard let clampedImage = clampFilter.outputImage else {
+                logDebug("ERROR: Color clamp failed")
+                return image
+            }
+
+            // Now apply linear stretching using an affine transform on colors
+            let scale = 1.0 / (stats.highValue - stats.lowValue)
+            let offset = -stats.lowValue * scale
+
+            guard let matrixFilter = CIFilter(name: "CIColorMatrix") else { return clampedImage }
+            matrixFilter.setValue(clampedImage, forKey: kCIInputImageKey)
+
+            // Scale RGB channels
+            matrixFilter.setValue(CIVector(x: CGFloat(scale), y: 0, z: 0, w: 0), forKey: "inputRVector")
+            matrixFilter.setValue(CIVector(x: 0, y: CGFloat(scale), z: 0, w: 0), forKey: "inputGVector")
+            matrixFilter.setValue(CIVector(x: 0, y: 0, z: CGFloat(scale), w: 0), forKey: "inputBVector")
+            matrixFilter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+            matrixFilter.setValue(CIVector(x: CGFloat(offset), y: CGFloat(offset), z: CGFloat(offset), w: 0), forKey: "inputBiasVector")
+
+            guard let stretchedImage = matrixFilter.outputImage else {
+                logDebug("ERROR: Color matrix failed, returning clamped image")
+                return clampedImage
+            }
+
+            result = stretchedImage
         }
-
-        // Now apply linear stretching using an affine transform on colors
-        let scale = 1.0 / (stats.highValue - stats.lowValue)
-        let offset = -stats.lowValue * scale
-
-        guard let matrixFilter = CIFilter(name: "CIColorMatrix") else { return clampedImage }
-        matrixFilter.setValue(clampedImage, forKey: kCIInputImageKey)
-
-        // Scale RGB channels
-        matrixFilter.setValue(CIVector(x: CGFloat(scale), y: 0, z: 0, w: 0), forKey: "inputRVector")
-        matrixFilter.setValue(CIVector(x: 0, y: CGFloat(scale), z: 0, w: 0), forKey: "inputGVector")
-        matrixFilter.setValue(CIVector(x: 0, y: 0, z: CGFloat(scale), w: 0), forKey: "inputBVector")
-        matrixFilter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
-        matrixFilter.setValue(CIVector(x: CGFloat(offset), y: CGFloat(offset), z: CGFloat(offset), w: 0), forKey: "inputBiasVector")
-
-        guard let stretchedImage = matrixFilter.outputImage else {
-            logDebug("ERROR: Color matrix failed, returning clamped image")
-            return clampedImage
-        }
-
-        var result = stretchedImage
 
         // Apply shadow/highlight adjustments if specified
         // Only apply if we have actual adjustments to make
-        let shouldApplyShadow = shadowAmount > 0
+        let shouldApplyShadow = shadowAmount != 0
         let shouldApplyHighlight = highlightAmount < 0
 
         if shouldApplyShadow || shouldApplyHighlight {
             if let highlightShadowFilter = CIFilter(name: "CIHighlightShadowAdjust") {
                 highlightShadowFilter.setValue(result, forKey: kCIInputImageKey)
 
-                // According to Apple docs and testing:
-                // inputShadowAmount: 0 to 1 (amount of shadow brightening)
-                // inputHighlightAmount: 0 to 1 (amount of highlight dampening)
-                // inputRadius: The radius of the effect (in pixels)
-
-                // Our UI uses -100 to +100 where:
-                // Shadows: positive values brighten shadows (matches filter expectation)
-                // Highlights: negative values darken highlights (matches filter expectation)
-
-                // Map shadow amount: UI 0-100 -> filter 0-1 (only positive values brighten)
-                let shadowValue = shadowAmount > 0 ? shadowAmount / 100.0 : 0
-
-                // Map highlight amount: UI -100-0 -> filter 0-1 (only negative UI values darken)
-                let highlightValue = highlightAmount < 0 ? -highlightAmount / 100.0 : 0
-
-                // Set the values as NSNumber objects as required by Core Image
-                highlightShadowFilter.setValue(NSNumber(value: shadowValue), forKey: "inputShadowAmount")
-                highlightShadowFilter.setValue(NSNumber(value: highlightValue), forKey: "inputHighlightAmount")
-                highlightShadowFilter.setValue(NSNumber(value: shadowRadius), forKey: "inputRadius")
-
-                // Log if we're applying zero values (which might trigger unexpected behavior)
-                if shadowValue == 0 && highlightValue == 0 {
-                    logDebug("WARNING: Both shadow and highlight are 0, filter might still apply some effect")
-                }
+                // Core Image's identity values are shadow=0 and highlight=1.
+                // Preserve highlights during a shadow-only edit; negative shadow
+                // values darken shadows, and negative highlights dampen highlights.
+                let shadowValue = shadowAmount / 100.0
+                let highlightValue = 1.0 + min(0, highlightAmount) / 100.0
+                highlightShadowFilter.setValue(shadowValue, forKey: "inputShadowAmount")
+                highlightShadowFilter.setValue(highlightValue, forKey: "inputHighlightAmount")
+                highlightShadowFilter.setValue(shadowRadius, forKey: "inputRadius")
 
                 if let adjustedImage = highlightShadowFilter.outputImage {
                     result = adjustedImage
@@ -278,150 +272,73 @@ class ProofgenImageEnhancer {
 
     // MARK: - Helper Methods
 
+    // Sample actual luminance values. CIAreaHistogram's normalized counts can
+    // round to zero when rendered as RGBA8, making brightness a silent no-op.
+    private func sampledHistogram(for image: CIImage) -> [Int] {
+        let extent = image.extent
+        let sampleScale = min(1.0, 500.0 / max(extent.width, extent.height))
+        let width = max(1, Int(extent.width * sampleScale))
+        let height = max(1, Int(extent.height * sampleScale))
+        let normalized = image.transformed(by: CGAffineTransform(translationX: -extent.minX, y: -extent.minY))
+        let sampled = normalized.transformed(by: CGAffineTransform(scaleX: sampleScale, y: sampleScale))
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        context.render(sampled, toBitmap: &pixels, rowBytes: width * 4,
+                       bounds: CGRect(x: 0, y: 0, width: width, height: height),
+                       format: .RGBA8, colorSpace: colorSpace)
+        var histogram = [Int](repeating: 0, count: 256)
+        for offset in stride(from: 0, to: pixels.count, by: 4) {
+            let luminance = 0.299 * Double(pixels[offset])
+                + 0.587 * Double(pixels[offset + 1]) + 0.114 * Double(pixels[offset + 2])
+            histogram[min(255, max(0, Int(luminance.rounded())))] += 1
+        }
+        return histogram
+    }
+
     private func calculateHistogramStats(for image: CIImage, targetBrightness: Int = 128, contrastThreshold: Int = 200) -> (brightness: Double, needsContrastBoost: Bool) {
-        // Create histogram filter
-        guard let histogramFilter = CIFilter(name: "CIAreaHistogram") else {
-            return (brightness: 0.0, needsContrastBoost: false)
+        let histogram = sampledHistogram(for: image)
+        let count = histogram.reduce(0, +)
+        guard count > 0,
+              let minimum = histogram.firstIndex(where: { $0 > 0 }),
+              let maximum = histogram.lastIndex(where: { $0 > 0 }) else {
+            return (brightness: 0, needsContrastBoost: false)
         }
-
-        histogramFilter.setValue(image, forKey: kCIInputImageKey)
-        histogramFilter.setValue(CIVector(cgRect: image.extent), forKey: "inputExtent")
-        histogramFilter.setValue(256, forKey: "inputCount")
-        histogramFilter.setValue(1.0, forKey: "inputScale")
-
-        guard let histogramImage = histogramFilter.outputImage else {
-            return (brightness: 0.0, needsContrastBoost: false)
-        }
-
-        // Analyze histogram data
-        var bitmap = [UInt8](repeating: 0, count: 256 * 4)
-        context.render(histogramImage, toBitmap: &bitmap, rowBytes: 256 * 4, bounds: CGRect(x: 0, y: 0, width: 256, height: 1), format: .RGBA8, colorSpace: colorSpace)
-
-        // Calculate mean and range
-        var sum: Double = 0
-        var count: Double = 0
-        var minValue: Int = 255
-        var maxValue: Int = 0
-
-        for i in 0..<256 {
-            let value = Double(bitmap[i * 4]) // Red channel contains histogram data
-            if value > 0 {
-                sum += Double(i) * value
-                count += value
-                if i < minValue { minValue = i }
-                if i > maxValue { maxValue = i }
-            }
-        }
-
-        let mean = count > 0 ? sum / count : Double(targetBrightness)
-        let range = Double(maxValue - minValue)
-
-        // Calculate adjustments
-        let brightness = (Double(targetBrightness) - mean) / 255.0
-        let needsContrastBoost = range < Double(contrastThreshold)
-
-        return (brightness: brightness, needsContrastBoost: needsContrastBoost)
+        let sum = histogram.enumerated().reduce(0.0) { $0 + Double($1.offset * $1.element) }
+        return (brightness: (Double(targetBrightness) - sum / Double(count)) / 255.0,
+                needsContrastBoost: maximum - minimum < contrastThreshold)
     }
 
     private func calculatePercentileStats(for image: CIImage, lowPercentile: Double, highPercentile: Double) -> (lowValue: Double, highValue: Double) {
-        // Log to Laravel log
-        let logPath = "\(basePath)/storage/logs/laravel.log"
-        func logDebug(_ message: String) {
-            if let handle = FileHandle(forWritingAtPath: logPath) {
-                handle.seekToEndOfFile()
-                let timestamp = ISO8601DateFormatter().string(from: Date())
-                let logEntry = "[\(timestamp)] local.DEBUG: [CoreImageDaemon] \(message)\n"
-                handle.write(logEntry.data(using: .utf8)!)
-                handle.closeFile()
+        let histogram = sampledHistogram(for: image)
+        let count = histogram.reduce(0, +)
+        guard count > 0 else { return (lowValue: 0, highValue: 1) }
+        func value(at percentile: Double) -> Double {
+            let target = max(1, Int(ceil(Double(count) * percentile / 100.0)))
+            var cumulative = 0
+            for (value, frequency) in histogram.enumerated() {
+                cumulative += frequency
+                if cumulative >= target { return Double(value) / 255.0 }
             }
+            return 1
         }
-
-        // Try manual histogram calculation
-        let extent = image.extent
-        let width = Int(extent.width)
-        let height = Int(extent.height)
-
-        // Sample the image at a lower resolution for performance
-        let sampleScale = min(1.0, 500.0 / max(Double(width), Double(height)))
-        let sampleWidth = Int(Double(width) * sampleScale)
-        let sampleHeight = Int(Double(height) * sampleScale)
-
-        // Create bitmap to read pixel data
-        var pixelData = [UInt8](repeating: 0, count: sampleWidth * sampleHeight * 4)
-        let scaledImage = image.transformed(by: CGAffineTransform(scaleX: sampleScale, y: sampleScale))
-
-        context.render(scaledImage, toBitmap: &pixelData, rowBytes: sampleWidth * 4,
-                      bounds: CGRect(x: 0, y: 0, width: sampleWidth, height: sampleHeight),
-                      format: .RGBA8, colorSpace: colorSpace)
-
-        // Build histogram manually
-        var histogram = [Int](repeating: 0, count: 256)
-        var pixelCount = 0
-
-        for y in 0..<sampleHeight {
-            for x in 0..<sampleWidth {
-                let offset = (y * sampleWidth + x) * 4
-                // Convert to grayscale using standard weights
-                let r = Double(pixelData[offset])
-                let g = Double(pixelData[offset + 1])
-                let b = Double(pixelData[offset + 2])
-                let gray = Int(0.299 * r + 0.587 * g + 0.114 * b)
-                histogram[min(255, max(0, gray))] += 1
-                pixelCount += 1
-            }
-        }
-
-        // Calculate cumulative distribution
-        var cumulative = [Double](repeating: 0, count: 256)
-        var total: Double = 0
-
-        for i in 0..<256 {
-            total += Double(histogram[i])
-            cumulative[i] = total
-        }
-
-        if total == 0 {
-            logDebug("ERROR: Manual histogram is empty")
-            return (lowValue: 0.0, highValue: 1.0)
-        }
-
-        // Find percentile values
-        let lowTarget = total * lowPercentile / 100.0
-        let highTarget = total * highPercentile / 100.0
-
-        var lowIndex = 0
-        var highIndex = 255
-
-        for i in 0..<256 {
-            if cumulative[i] >= lowTarget && lowIndex == 0 {
-                lowIndex = i
-            }
-            if cumulative[i] >= highTarget {
-                highIndex = i
-                break
-            }
-        }
-
-        let result = (lowValue: Double(lowIndex) / 255.0, highValue: Double(highIndex) / 255.0)
-        return result
+        return (lowValue: value(at: lowPercentile), highValue: value(at: highPercentile))
     }
 
     // MARK: - Image I/O
 
     private func loadImage(from path: String) -> CIImage? {
         let url = URL(fileURLWithPath: path)
-        
+
         // Load the image
         guard var image = CIImage(contentsOf: url) else {
             return nil
         }
-        
+
         // Apply EXIF orientation if present
         if let orientation = image.properties[kCGImagePropertyOrientation as String] as? Int32,
            let cgOrientation = CGImagePropertyOrientation(rawValue: UInt32(orientation)) {
             image = image.oriented(cgOrientation)
         }
-        
+
         return image
     }
 

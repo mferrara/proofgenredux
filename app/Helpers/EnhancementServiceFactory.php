@@ -3,7 +3,6 @@
 namespace App\Helpers;
 
 use App\Services\CoreImageDaemonService;
-use App\Services\CoreImageEnhancementService;
 use App\Services\ImageEnhancementService;
 use Illuminate\Support\Facades\Log;
 
@@ -28,21 +27,9 @@ class EnhancementServiceFactory
             } catch (\Exception $e) {
                 Log::warning('Failed to initialize Core Image daemon service: '.$e->getMessage());
             }
-
-            try {
-                // Fall back to stdin/stdout Core Image service
-                $coreImageService = app(CoreImageEnhancementService::class);
-                if ($coreImageService->isCoreImageAvailable()) {
-                    Log::info("Using Core Image for {$context} enhancement (GPU accelerated)");
-
-                    return $coreImageService;
-                }
-            } catch (\Exception $e) {
-                Log::warning('Failed to initialize Core Image service: '.$e->getMessage());
-            }
         }
 
-        // Fall back to standard service
+        // Use the supported in-memory GD adjustments when Core Image is unavailable.
         Log::debug("Using standard ImageEnhancementService for {$context} (Core Image not available)");
 
         return app(ImageEnhancementService::class);

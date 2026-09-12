@@ -24,6 +24,17 @@ class Photo extends Model
         'updated_at',
     ];
 
+    /**
+     * In-memory show/class identity for photos created before a ShowClass row
+     * exists (for example a direct Image::importPhoto() call). Callers set this
+     * before save() so the created hook and the path accessors never have to
+     * guess where the underscore boundaries are in the composite show_class_id.
+     * The showClass relation stays authoritative whenever it resolves.
+     */
+    protected ?string $importShowId = null;
+
+    protected ?string $importClassName = null;
+
     protected $casts = [
         'id' => 'string',
         'show_class_id' => 'string',
@@ -142,23 +153,54 @@ class Photo extends Model
 
     public function getRelativePathAttribute(): string
     {
-        // Split show_class_id into show and class parts, limiting to 2 parts
-        // This handles class names with underscores (e.g., "opening_ceremony")
-        $parts = explode('_', $this->show_class_id, 2);
+        [$show, $class] = $this->resolveShowAndClass();
 
-        return $parts[0].'/'.$parts[1].'/originals/'.$this->proof_number.'.'.$this->file_type;
+        return $show.'/'.$class.'/originals/'.$this->proof_number.'.'.$this->file_type;
     }
 
     public function getProofsPathAttribute(): string
     {
-        $path_resolver = app(PathResolver::class);
-        // Split show_class_id into show and class parts, limiting to 2 parts
-        // This handles class names with underscores (e.g., "opening_ceremony")
-        $parts = explode('_', $this->show_class_id, 2);
-        $show_name = $parts[0];
-        $class_name = $parts[1];
+        [$show, $class] = $this->resolveShowAndClass();
 
-        return $path_resolver->getProofsPath($show_name, $class_name);
+        return app(PathResolver::class)->getProofsPath($show, $class);
+    }
+
+    /**
+     * Explicit show/class identity for callers that create a Photo directly,
+     * before a ShowClass row exists. Set before save() so the created hook and
+     * the path accessors resolve paths without splitting the composite
+     * show_class_id at an underscore.
+     */
+    public function setShowClassContext(string $showId, string $className): static
+    {
+        $this->importShowId = $showId;
+        $this->importClassName = $className;
+
+        return $this;
+    }
+
+    /**
+     * Resolve the real show/class names. The showClass relation is authoritative;
+     * the explicit import context is the fallback for unsaved/pre-relation rows.
+     *
+     * @return array{0: string, 1: string}
+     */
+    protected function resolveShowAndClass(): array
+    {
+        $showClass = $this->showClass;
+
+        if ($showClass !== null) {
+            return [$showClass->show_id, $showClass->name];
+        }
+
+        if ($this->importShowId !== null && $this->importClassName !== null) {
+            return [$this->importShowId, $this->importClassName];
+        }
+
+        throw new \RuntimeException(
+            'Unable to resolve show/class for photo '.($this->id ?: '(unsaved)')
+            .'. Load the showClass relation or call setShowClassContext() before reading derived paths.'
+        );
     }
 
     public function getAbsoluteProofsPathAttribute(): string
@@ -213,13 +255,14 @@ class Photo extends Model
         return file_get_contents($this->full_path);
     }
 
-    public function expectedThumbnailFilenames()
+    public function expectedThumbnailFilenames(): array
     {
+        // The derivative generators always encode JPEGs with the .jpg
+        // extension; file_type describes the original and can be "jpeg".
         $thumbnails = [];
         foreach (config('proofgen.thumbnails') as $values) {
             $suffix = $values['suffix'];
-            $expected_filename = $this->proof_number.$suffix.'.'.$this->file_type;
-            $thumbnails[] = $expected_filename;
+            $thumbnails[] = $this->proof_number.$suffix.'.jpg';
         }
 
         return $thumbnails;
@@ -277,8 +320,9 @@ class Photo extends Model
 
     public function expectedWebImageFilePath(): string
     {
+        [$show, $class] = $this->resolveShowAndClass();
         $path_resolver = app(PathResolver::class);
-        $web_images_path = $path_resolver->getWebImagesPath($this->showClass->show->id, $this->showClass->name);
+        $web_images_path = $path_resolver->getWebImagesPath($show, $class);
         $web_images_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($web_images_path);
 
         $expected_filename = $this->proof_number.config('proofgen.web_images.suffix').'.jpg';
@@ -305,8 +349,9 @@ class Photo extends Model
 
     public function expectedHighresImageFilePath(): string
     {
+        [$show, $class] = $this->resolveShowAndClass();
         $path_resolver = app(PathResolver::class);
-        $highres_images_path = $path_resolver->getHighresImagesPath($this->showClass->show->id, $this->showClass->name);
+        $highres_images_path = $path_resolver->getHighresImagesPath($show, $class);
         $highres_images_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($highres_images_path);
 
         $expected_filename = $this->proof_number.config('proofgen.highres_images.suffix').'.jpg';
@@ -333,15 +378,14 @@ class Photo extends Model
 
     public function checkPathForProofs(): false|array
     {
-        $path_resolver = app(PathResolver::class);
-        $proofs_path = $path_resolver->getProofsPath($this->showClass->show->id, $this->showClass->name);
-        $proofs_path = config('proofgen.fullsize_home_dir').'/'.$path_resolver->normalizePath($proofs_path);
+        $proofs_path = $this->absolute_proofs_path;
 
         $proofs_found = [];
         $expected_proof_count = count(config('proofgen.thumbnails'));
         foreach (config('proofgen.thumbnails') as $values) {
             $suffix = $values['suffix'];
-            $expected_filename = $this->proof_number.$suffix.'.'.$this->file_type;
+            // Derivative proofs are always .jpg, even for .jpeg originals.
+            $expected_filename = $this->proof_number.$suffix.'.jpg';
             $expected_proof_path = $proofs_path.'/'.$expected_filename;
 
             // Determine if the $expected_proof_path exists, if so, determine the modified time using native php functions

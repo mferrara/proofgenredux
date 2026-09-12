@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Services\CoreImageEnhancementService;
+use App\Services\CoreImageDaemonService;
 use App\Services\ImageEnhancementService;
 use Tests\TestCase;
 
@@ -13,6 +13,10 @@ class ImageEnhancementPerformanceTest extends TestCase
      */
     public function test_enhancement_performance_comparison(): void
     {
+        if (getenv('PROOFGEN_TEST_CORE_IMAGE') !== '1') {
+            $this->markTestSkipped('Set PROOFGEN_TEST_CORE_IMAGE=1 to benchmark the local renderer.');
+        }
+
         // Increase memory limit for image processing
         ini_set('memory_limit', '512M');
 
@@ -53,7 +57,7 @@ class ImageEnhancementPerformanceTest extends TestCase
 
         // Test Core Image enhancement service if available
         if (PHP_OS_FAMILY === 'Darwin') {
-            $coreImageService = new CoreImageEnhancementService;
+            $coreImageService = app(CoreImageDaemonService::class);
 
             if ($coreImageService->isCoreImageAvailable()) {
                 $coreImageStart = microtime(true);

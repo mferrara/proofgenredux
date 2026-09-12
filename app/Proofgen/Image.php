@@ -10,6 +10,7 @@ use App\Services\SafeFileMover;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\Image as InterventionImage;
 use Intervention\Image\ImageManager;
 use League\Flysystem\UnableToReadFile;
 
@@ -55,56 +56,16 @@ class Image
 
     public function checkForProofs(): bool
     {
-        $proofs_path = $this->pathResolver->getProofsPath($this->show, $this->class);
-        $proofs = Storage::disk('fullsize')->files($this->pathResolver->normalizePath($proofs_path));
-        $proofed = false;
-        $proof_sizes = [];
-        foreach (config('proofgen.thumbnails') as $size) {
-            $proof_sizes[] = $size['suffix'];
-        }
-
-        $proof_sizes_found = [];
-        foreach ($proofs as $proof_index => $proof) {
-            $proof_array_key = pathinfo($this->filename, PATHINFO_FILENAME);
-            foreach ($proof_sizes as $suffix) {
-                $proof_filename = pathinfo($proof, PATHINFO_FILENAME);
-                $proof_filename = str_replace($suffix, '', $proof_filename);
-                if ($proof_filename === pathinfo($this->filename, PATHINFO_FILENAME)) {
-                    $proof_sizes_found[$proof_array_key][] = $suffix;
-                    break;
-                }
-            }
-
-            if (isset($proof_sizes_found[$proof_array_key]) && count($proof_sizes_found[$proof_array_key]) === count($proof_sizes)) {
-                // Sort $proof_sizes_round[$proof_array_key] and $proof_sizes so they're in the same order
-                sort($proof_sizes_found[$proof_array_key]);
-                sort($proof_sizes);
-                if ($proof_sizes_found[$proof_array_key] === $proof_sizes) {
-                    $proofed = true;
-                    unset($proofs[$proof_index]);
-                    break;
-                }
-            }
-        }
-        $this->is_proofed = $proofed;
-
-        $missing_proofs = [];
-        $proof_array_key = pathinfo($this->filename, PATHINFO_FILENAME);
-        foreach ($proof_sizes as $proof_size) {
-            if (! isset($proof_sizes_found[$proof_array_key]) || ! in_array($proof_size, $proof_sizes_found[$proof_array_key])) {
-                $missing_proofs[] = $proof_size;
-            }
-        }
-
-        if (count($missing_proofs)) {
-            $this->missing_proofs = $missing_proofs;
-
-            return false;
-        }
-
         $this->missing_proofs = [];
+        foreach (config('proofgen.thumbnails') as $size) {
+            $path = $this->pathResolver->getProofThumbnailPath($this->show, $this->class, $this->filename, $size['suffix']);
+            if (! Storage::disk('fullsize')->exists($this->pathResolver->normalizePath($path))) {
+                $this->missing_proofs[] = $size['suffix'];
+            }
+        }
+        $this->is_proofed = $this->missing_proofs === [];
 
-        return true;
+        return $this->is_proofed;
     }
 
     /**
@@ -198,6 +159,7 @@ class Image
         if (! $photo) {
             // If the image doesn't exist, create it
             $photo = new Photo;
+            $photo->setShowClassContext($show_id, $show_class_id);
             $photo->show_class_id = $show_id.'_'.$show_class_id;
             $photo->proof_number = $proof_number;
             $photo->file_type = $file_type;
@@ -205,6 +167,7 @@ class Image
             $photo->original_filename = $originalFilename;
             $photo->save();
         } else {
+            $photo->setShowClassContext($show_id, $show_class_id);
             $patch = [];
             if ($sha1 && empty($photo->sha1)) {
                 $patch['sha1'] = $sha1;
@@ -286,45 +249,11 @@ class Image
         // image had been written (and then as a GD TypeError from
         // insert(false, ...)), leaving an un-watermarked file on disk that
         // looked like a finished web image.
-        $watermark_path = storage_path().'/watermarks/web-image-watermark-2.png';
-        if (! is_file($watermark_path) || ! is_readable($watermark_path)) {
-            throw new \RuntimeException(
-                "Web image watermark is missing or unreadable at {$watermark_path}; refusing to write {$web_thumb_path} without a watermark."
-            );
-        }
-
-        $watermark = @imagecreatefrompng($watermark_path);
-        if (! $watermark instanceof \GdImage) {
-            throw new \RuntimeException(
-                "Web image watermark could not be decoded from {$watermark_path}; refusing to write {$web_thumb_path} without a watermark."
-            );
-        }
-
-        try {
-            // Save smaller copy of the image that we'll work with
-            $image->scale(config('proofgen.web_images.width'), config('proofgen.web_images.height'))
-                ->save($web_thumb_path, quality: (int) config('proofgen.web_images.quality'));
-            unset($image);
-
-            // Add the watermark/border/whatever it is
-            // Add watermark
-            $image = $manager->decodePath($web_thumb_path);
-
-            $average_color = self::determineAverageColor($web_thumb_path);
-            $darkness = self::determineWatermarkDarknessFromAverageColor($average_color[0], $average_color[1], $average_color[2]);
-            if ($darkness === 'light') {
-                imagefilter($watermark, IMG_FILTER_NEGATE);
-            }
-
-            $image->insert($watermark, x: 0, y: 60, alignment: 'bottom')->save();
-        } finally {
-            // The GD watermark copy is a temporary resource; release it even
-            // when decoding/inserting/saving throws.
-            imagedestroy($watermark);
-            unset($watermark);
-        }
-
-        unset($image);
+        $image->scaleDown(
+            (int) config('proofgen.web_images.width'),
+            (int) config('proofgen.web_images.height')
+        );
+        self::saveWatermarkedProduct($image, $web_thumb_path, (int) config('proofgen.web_images.quality'), 'Web image');
 
         $manager = null;
         unset($manager);
@@ -372,25 +301,14 @@ class Image
         $highres_thumb_filename = $image_filename.$highres_suf.'.jpg';
         $highres_thumb_path = $highres_dest_system_path.'/'.$highres_thumb_filename;
 
-        // Save smaller copy of the image that we'll work with
-        $image->scale(config('proofgen.highres_images.width'), config('proofgen.highres_images.height'))
-            ->save($highres_thumb_path, quality: (int) config('proofgen.highres_images.quality'));
-        unset($image);
-
-        // Add the watermark/border/whatever it is
-        // Add watermark
-        $image = $manager->decodePath($highres_thumb_path);
-        $watermark = imagecreatefrompng(storage_path().'/watermarks/web-image-watermark-2.png');
-
-        $average_color = self::determineAverageColor($highres_thumb_path);
-        $darkness = self::determineWatermarkDarknessFromAverageColor($average_color[0], $average_color[1], $average_color[2]);
-        if ($darkness === 'light') {
-            imagefilter($watermark, IMG_FILTER_NEGATE);
-        }
-
-        $image->insert($watermark, x: 0, y: 60, alignment: 'bottom')->save();
-
-        unset($image);
+        // Resolve and validate the watermark before writing anything: a
+        // missing/corrupt watermark must not leave an un-watermarked paid file
+        // behind, and it must not overwrite a previously generated one.
+        $image->scaleDown(
+            (int) config('proofgen.highres_images.width'),
+            (int) config('proofgen.highres_images.height')
+        );
+        self::saveWatermarkedProduct($image, $highres_thumb_path, (int) config('proofgen.highres_images.quality'), 'High resolution image');
 
         $manager = null;
         unset($manager);
@@ -399,13 +317,70 @@ class Image
         return $highres_thumb_path;
     }
 
+    /**
+     * Resolve and decode the shared PNG watermark, or throw before any output
+     * is written. Shared by web, highres and the Settings preview so a missing
+     * or corrupt asset can never produce an un-watermarked derivative.
+     */
+    public static function resolveWatermarkGdImage(string $output_path, string $label = 'Web image'): \GdImage
+    {
+        $watermark_path = storage_path().'/watermarks/web-image-watermark-2.png';
+        if (! is_file($watermark_path) || ! is_readable($watermark_path)) {
+            throw new \RuntimeException(
+                "{$label} watermark is missing or unreadable at {$watermark_path}; refusing to write {$output_path} without a watermark."
+            );
+        }
+
+        $watermark = @imagecreatefrompng($watermark_path);
+        if (! $watermark instanceof \GdImage) {
+            throw new \RuntimeException(
+                "{$label} watermark could not be decoded from {$watermark_path}; refusing to write {$output_path} without a watermark."
+            );
+        }
+
+        return $watermark;
+    }
+
+    /** Compose paid images and their Settings previews before the final encode. */
+    public static function saveWatermarkedProduct(InterventionImage $image, string $path, int $quality, string $label = 'Web image'): void
+    {
+        $watermark = self::resolveWatermarkGdImage($path, $label);
+        try {
+            $average = self::determineAverageColorFromImage($image);
+            if (self::determineWatermarkDarknessFromAverageColor(...$average) === 'light') {
+                imagefilter($watermark, IMG_FILTER_NEGATE);
+            }
+            $image->insert($watermark, x: 0, y: 60, alignment: 'bottom')->save($path, quality: $quality);
+        } finally {
+            imagedestroy($watermark);
+        }
+    }
+
     public static function determineAverageColor(string $image_path): array
     {
-        $image = imagecreatefromjpeg($image_path);
+        $image = @imagecreatefromjpeg($image_path);
+        if (! $image instanceof \GdImage) {
+            throw new \RuntimeException("Could not read image for average color: {$image_path}");
+        }
+
+        try {
+            return self::averageColorOfGdImage($image);
+        } finally {
+            imagedestroy($image);
+        }
+    }
+
+    /**
+     * Average RGB of the bottom 20% of an already-decoded GD image.
+     *
+     * @return array{0:int,1:int,2:int}
+     */
+    private static function averageColorOfGdImage(\GdImage $image): array
+    {
         $width = imagesx($image);
         $height = imagesy($image);
         // Calculate the height of the bottom 20% portion
-        $bottom_height = (int) ($height * 0.2);
+        $bottom_height = max(1, (int) ($height * 0.2));
         $r = $g = $b = 0;
         $total = 0;
         for ($y = $height - $bottom_height; $y < $height; $y++) {
@@ -427,11 +402,24 @@ class Image
                 $total++;
             }
         }
-        $r = (int) round($r / $total);
-        $g = (int) round($g / $total);
-        $b = (int) round($b / $total);
+        if ($total === 0) {
+            return [0, 0, 0];
+        }
 
-        return [$r, $g, $b];
+        return [(int) round($r / $total), (int) round($g / $total), (int) round($b / $total)];
+    }
+
+    /**
+     * Average color of the bottom 20% of an in-memory image, so a derivative
+     * does not have to be written before the watermark darkness is decided.
+     * Prefers the driver's native GD resource and falls back to a throw-away
+     * in-memory JPEG round-trip when the resource is not exposed.
+     *
+     * @return array{0:int,1:int,2:int}
+     */
+    public static function determineAverageColorFromImage(InterventionImage $image): array
+    {
+        return self::averageColorOfGdImage($image->core()->native());
     }
 
     public static function determineWatermarkDarknessFromAverageColor($r, $g, $b): string
@@ -499,7 +487,9 @@ class Image
         $enhancementEnabled = config('proofgen.image_enhancement_enabled') && config('proofgen.enhancement_apply_to_proofs');
         $enhancementMethod = config('proofgen.image_enhancement_method', 'basic_auto_levels');
 
-        // Process image with enhancement if enabled
+        // Process (enhance) the source exactly once. Both proof sizes are made
+        // from independent clones of this one result; the large proof must never
+        // be scaled up from the reduced small one.
         if ($enhancementEnabled) {
             $enhancementService = EnhancementServiceFactory::getService('thumbnails');
             $image = $enhancementService->enhance($full_system_path, $enhancementMethod);
@@ -516,54 +506,65 @@ class Image
         $large_thumb_path = $proofs_dest_system_path.'/'.$large_thumb_filename;
         $do_we_watermark = config('proofgen.watermark_proofs');
 
-        // Save small thumbnail
-        $image->scale(config('proofgen.thumbnails.small.width'), config('proofgen.thumbnails.small.height'))
-            ->save($small_thumb_path, quality: (int) config('proofgen.thumbnails.small.quality'));
-        unset($image);
+        // Save small thumbnail from its own clone. scaleDown() leaves a source
+        // smaller than the target at its original size instead of enlarging it.
+        $small = clone $image;
+        $small->scaleDown(
+            (int) config('proofgen.thumbnails.small.width'),
+            (int) config('proofgen.thumbnails.small.height')
+        )->save($small_thumb_path, quality: (int) config('proofgen.thumbnails.small.quality'));
+        unset($small);
 
-        // If WATERMARK_PROOFS is true..
+        // If WATERMARK_PROOFS is true, second-encode the small proof at quality 95.
         if ($do_we_watermark) {
-            // Add watermark
-            $image = $manager->decodePath($small_thumb_path);
+            $smallWatermarked = $manager->decodePath($small_thumb_path);
             $watermark = self::watermarkSmallProof($image_filename);
-            $image->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')->save(quality: self::WATERMARKED_PROOF_QUALITY);
-
-            unset($image);
+            $smallWatermarked->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')
+                ->save($small_thumb_path, quality: self::WATERMARKED_PROOF_QUALITY);
+            imagedestroy($watermark);
+            unset($watermark, $smallWatermarked);
         }
 
-        // Save large thumbnail
-        $image = $manager->decodePath($full_system_path);
-        $image->scale(config('proofgen.thumbnails.large.width'), config('proofgen.thumbnails.large.height'))
-            ->save($large_thumb_path, quality: (int) config('proofgen.thumbnails.large.quality'));
-        unset($image);
+        // Save large thumbnail from a second independent clone of the same
+        // (possibly enhanced) source. Never from the reduced small proof.
+        $large = clone $image;
+        $large->scaleDown(
+            (int) config('proofgen.thumbnails.large.width'),
+            (int) config('proofgen.thumbnails.large.height')
+        )->save($large_thumb_path, quality: (int) config('proofgen.thumbnails.large.quality'));
+        unset($large);
 
-        // If WATERMARK_PROOFS is true..
+        // If WATERMARK_PROOFS is true, second-encode the large proof at quality 95.
         if ($do_we_watermark) {
-            // Add watermark
-            $image = $manager->decodePath($large_thumb_path);
+            $largeWatermarked = $manager->decodePath($large_thumb_path);
 
-            if ($image->width() > $image->height()) {
+            if ($largeWatermarked->width() > $largeWatermarked->height()) {
                 $text = 'Proof# '.$image_filename.' - Illegal to use - Ferrara Photography';
-                $watermark = self::watermarkLargeProof($text, $image->width());
-                $image->insert($watermark, alignment: 'center')->save(quality: self::WATERMARKED_PROOF_QUALITY);
-
+                $watermark = self::watermarkLargeProof($text, $largeWatermarked->width());
+                $largeWatermarked->insert($watermark, alignment: 'center')
+                    ->save($large_thumb_path, quality: self::WATERMARKED_PROOF_QUALITY);
+                imagedestroy($watermark);
+                unset($watermark);
             } else {
                 $watermark_top = self::watermarkLargeProof('Proof# '.$image_filename.' - Proof# '.$image_filename,
-                    $image->width());
-                $watermark_bot = self::watermarkLargeProof('Illegal to use - Ferrara Photography', $image->width());
+                    $largeWatermarked->width());
+                $watermark_bot = self::watermarkLargeProof('Illegal to use - Ferrara Photography', $largeWatermarked->width());
 
-                // $top_offset = round($image->height() * 0.2);
-                // $bottom_offset = round($image->height() * 0.2);
-                $bottom_offset = round($image->height() * 0.1);
+                $bottom_offset = round($largeWatermarked->height() * 0.1);
 
-                $image
+                $largeWatermarked
                     ->insert($watermark_top, alignment: 'center')
-                    ->insert($watermark_bot, x: 0, y: $bottom_offset, alignment: 'bottom')
-                    ->save(quality: self::WATERMARKED_PROOF_QUALITY);
+                    ->insert($watermark_bot, x: 0, y: (int) $bottom_offset, alignment: 'bottom')
+                    ->save($large_thumb_path, quality: self::WATERMARKED_PROOF_QUALITY);
 
+                imagedestroy($watermark_top);
+                imagedestroy($watermark_bot);
+                unset($watermark_top, $watermark_bot);
             }
-            unset($image);
+            unset($largeWatermarked);
         }
+
+        unset($image);
 
         $manager = null;
         unset($manager);

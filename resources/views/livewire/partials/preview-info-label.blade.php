@@ -12,10 +12,17 @@
         </div>
     @endif
     @if(isset($enhancementInfo) && $enhancementInfo)
-        <div>
-            <span class="font-medium">Enhanced:</span>
-            <span>{{ $enhancementInfo['method_label'] }} {{ $enhancementInfo['parameters'] }}</span>
-        </div>
+        @if($enhancementInfo['enabled'] ?? false)
+            <div>
+                <span class="font-medium">Enhanced:</span>
+                <span>{{ $enhancementInfo['method_label'] }} {{ $enhancementInfo['parameters'] }}</span>
+            </div>
+        @elseif(isset($enhancementInfo['error']))
+            <div role="alert" class="text-amber-700 dark:text-amber-400">
+                <span class="font-medium">Enhancement not applied:</span>
+                <span>{{ $enhancementInfo['error'] }}</span>
+            </div>
+        @endif
     @endif
     @if(isset($processingTime))
         <div>
