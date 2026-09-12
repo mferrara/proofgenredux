@@ -28,6 +28,7 @@
     'showRegenerate' => false,
     'sampleImagePath' => null,
     'enhancementOn' => false,
+    'previewError' => null,
 ])
 
 @if($sampleImagePath)
@@ -41,7 +42,15 @@
             @endif
         </div>
 
-        @if($preview)
+        @if($previewError)
+            <div role="alert" class="space-y-3">
+                <flux:heading size="sm">Preview could not be generated</flux:heading>
+                <flux:text>{{ $previewError }}</flux:text>
+                <flux:button wire:click="generateThumbnailPreviews" wire:loading.attr="disabled" size="sm">
+                    Retry preview
+                </flux:button>
+            </div>
+        @elseif($preview)
             <div class="relative inline-block" x-data="{ showUnenhanced: false }">
                 <img x-bind:src="showUnenhanced && @js($unenhanced) ? @js($unenhanced) : @js($preview)"
                      alt="{{ $title }}"
@@ -88,7 +97,8 @@
             @endif
         @else
             <div class="{{ $placeholderSize }} max-w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md flex items-center justify-center">
-                <flux:icon.loading class="w-8 h-8 text-zinc-500" />
+                <span wire:loading.remove wire:target="updatePreview,updateActiveTab,generateThumbnailPreviews,previewWatermarkEnabled">Preview not generated yet.</span>
+                <flux:icon.loading wire:loading wire:target="updatePreview,updateActiveTab,generateThumbnailPreviews,previewWatermarkEnabled" class="w-8 h-8 text-zinc-500" />
             </div>
         @endif
 

@@ -10,6 +10,7 @@ Queued on 2026-09-12 after the [core review](reviews/2026-09-11-core-review/READ
 - [x] Quote filename/path values correctly in Alpine/Livewire expressions so apostrophes do not break rename/reveal actions. Verify Flux attributes after rendering.
 - [x] Reproduce the watermark-preview checkbox's double update in the browser and replace it with one model update and regeneration hook.
 - [x] Fix the grid Select all binding being evaluated as a PHP constant; verify selection in the browser.
+- [x] Fix the settings preview's endless spinner after generation failure. Repair the local stale font path, show per-tab errors with retry, and test real small/large watermark generation after a missing-font failure.
 
 Acceptance: test uncached and missing thumbnails, underscore show IDs and apostrophe filenames; spot-check table/grid/search flows in the UI. Keep this a correctness pass, not a view/framework rewrite.
 

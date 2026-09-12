@@ -601,6 +601,10 @@ function imagettfJustifytext(string $text, string $font = 'CENTURY.TTF', int $ju
     unset($Y); // legacy parameter — kept for signature compatibility, never used
     $font = config('proofgen.watermark_font');
 
+    if (! is_string($font) || ! is_file($font) || ! is_readable($font)) {
+        throw new \RuntimeException('Watermark font not found or unreadable: '.($font ?: '(not configured)').'. Update Watermark Font in Settings.');
+    }
+
     $angle = 0;
     $L_R_C = $justify;
     $_bx = \imagettfbbox($fsize, 0, $font, $text);

@@ -57,6 +57,8 @@ class ConfigComponent extends Component
 
     public bool $previewLoading = false;
 
+    public array $previewErrors = [];
+
     public bool $initialLoad = true;
 
     // Active tab for image preview
@@ -1008,6 +1010,7 @@ class ConfigComponent extends Component
         }
 
         $this->previewLoading = true;
+        unset($this->previewErrors[$this->activeTab]);
 
         try {
             // Create temp directory for previews
@@ -1069,8 +1072,9 @@ class ConfigComponent extends Component
                     break;
             }
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Error generating thumbnail previews: '.$e->getMessage());
+            $this->previewErrors[$this->activeTab] = $e->getMessage();
         } finally {
             $this->previewLoading = false;
         }

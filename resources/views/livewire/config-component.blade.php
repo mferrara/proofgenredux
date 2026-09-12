@@ -157,6 +157,7 @@
                 <div x-show="activeTab === 'large'" x-transition>
                     @include('livewire.partials.image-preview-card', [
                         'title' => 'Large Thumbnail Preview',
+                        'previewError' => $previewErrors['large'] ?? null,
                         'preview' => $largeThumbnailPreview,
                         'unenhanced' => $largeThumbnailPreviewUnenhanced,
                         'info' => $largeThumbnailInfo,
@@ -179,6 +180,7 @@
                 <div x-show="activeTab === 'small'" x-transition>
                     @include('livewire.partials.image-preview-card', [
                         'title' => 'Small Thumbnail Preview',
+                        'previewError' => $previewErrors['small'] ?? null,
                         'preview' => $smallThumbnailPreview,
                         'unenhanced' => $smallThumbnailPreviewUnenhanced,
                         'info' => $smallThumbnailInfo,
@@ -201,6 +203,7 @@
                 <div x-show="activeTab === 'web'" x-transition>
                     @include('livewire.partials.image-preview-card', [
                         'title' => 'Web Image Preview',
+                        'previewError' => $previewErrors['web'] ?? null,
                         'preview' => $webImagePreview,
                         'unenhanced' => $webImagePreviewUnenhanced,
                         'info' => $webImageInfo,
@@ -224,6 +227,7 @@
                 <div x-show="activeTab === 'highres'" x-transition>
                     @include('livewire.partials.image-preview-card', [
                         'title' => 'High Resolution Image Preview',
+                        'previewError' => $previewErrors['highres'] ?? null,
                         'preview' => $highresImagePreview,
                         'unenhanced' => $highresImagePreviewUnenhanced,
                         'info' => $highresImageInfo,
