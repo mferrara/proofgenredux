@@ -9,6 +9,7 @@
 - **Archive backups**: `docs/archive-backups.md` — archive copy semantics + audit/repair workflows.
 
 ## TODO items
+- [ ] Complete the queued [UI fixes and image-output fixes](docs/SHOW_PREP_TODO.md) after the current file-safety round (2026-09-12 core-review follow-up).
 - [x] Consolidate artisan commands that aren't in the proofgen namespace into the proofgen namespace (renamed `swift:compile` -> `proofgen:swift-compile`, `swift:check` -> `proofgen:swift-check`, `coreimage:daemon` -> `proofgen:coreimage-daemon`, `proofs:migrate` -> `proofgen:migrate-proofs`)
 - [x] Make favicon from the logo (generated 16/32/180/192/512 PNGs + multi-res ICO from the purple-orb portion of `application-logo.blade.php`; source SVG at `resources/svg/favicon-source.svg`, outputs in `public/`, referenced from all three layouts)
 - [x] Update web image and highres image uploads to happen _after_ the proofs are uploaded to ensure that the proofs are prioritized for upload (chained at the class level via Bus::chain in 2026-05; show-level upload is synchronous and already proofs-first)

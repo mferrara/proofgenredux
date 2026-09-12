@@ -1,0 +1,6 @@
+{"enhanced_marker":"red","original":"blue","output_pixels":{"thm":[254,0,0],"std":[0,0,254]}}
+{"missing_watermark_exception":"ErrorException","output_exists":true}
+artifacts=/var/folders/9x/pk1fkv957s5c15rh0ggc8hnw0000gn/T/proofgen-image-review-probe-60798
+{"thumbnail_view_decode":"Error","message":"Call to undefined method Intervention\\Image\\ImageManager::read()"}
+{"destination_after_move":"SOURCE","source_exists":false}
+{"pending_show_import":["SHOW\/1\/_import_conflicts\/conflict.jpg","SHOW\/1\/_import_conflicts\/conflict.jpg.json"]}

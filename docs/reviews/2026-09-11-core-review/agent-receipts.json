@@ -1,0 +1,69 @@
+{
+  "source_sha": "11c6e80d7c5f93fd4c785b71500bc7341baa23ef",
+  "agents": [
+    {
+      "lane": "views-livewire",
+      "exit_code": 0,
+      "seconds": 126.4,
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "session_file": "/tmp/proofgen-review-20260911/sessions/views-livewire/2026-09-11T11-11-59-607Z_01a0902a-ce76-755b-96fa-7b98a8751bca.jsonl",
+      "model_changes": [
+        {
+          "provider": "deepseek",
+          "modelId": "deepseek-flash",
+          "timestamp": "2026-09-11T11:11:59.705Z"
+        }
+      ],
+      "session_id": "01a0902a-ce76-755b-96fa-7b98a8751bca"
+    },
+    {
+      "lane": "file-handling",
+      "exit_code": 0,
+      "seconds": 136.2,
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "session_file": "/tmp/proofgen-review-20260911/sessions/file-handling/2026-09-11T11-11-59-628Z_01a0902a-ce8a-75a7-aab7-b1730a329979.jsonl",
+      "model_changes": [
+        {
+          "provider": "deepseek",
+          "modelId": "deepseek-flash",
+          "timestamp": "2026-09-11T11:11:59.715Z"
+        }
+      ],
+      "session_id": "01a0902a-ce8a-75a7-aab7-b1730a329979"
+    },
+    {
+      "lane": "image-adjustments",
+      "exit_code": 0,
+      "seconds": 125.2,
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "session_file": "/tmp/proofgen-review-20260911/sessions/image-adjustments/2026-09-11T11-11-59-600Z_01a0902a-ce6e-7006-bd71-8a3c32a269b9.jsonl",
+      "model_changes": [
+        {
+          "provider": "deepseek",
+          "modelId": "deepseek-flash",
+          "timestamp": "2026-09-11T11:11:59.712Z"
+        }
+      ],
+      "session_id": "01a0902a-ce6e-7006-bd71-8a3c32a269b9"
+    },
+    {
+      "lane": "watermarking",
+      "exit_code": 0,
+      "seconds": 210.3,
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "session_file": "/tmp/proofgen-review-20260911/sessions/watermarking/2026-09-11T11-11-59-625Z_01a0902a-ce89-7608-ba4a-d9cb3008ea2d.jsonl",
+      "model_changes": [
+        {
+          "provider": "deepseek",
+          "modelId": "deepseek-flash",
+          "timestamp": "2026-09-11T11:11:59.718Z"
+        }
+      ],
+      "session_id": "01a0902a-ce89-7608-ba4a-d9cb3008ea2d"
+    }
+  ]
+}
