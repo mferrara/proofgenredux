@@ -122,4 +122,51 @@ class FerraraphotoTargetVerifierTest extends TestCase
         $this->assertFalse($result['all_exist']);
         $this->assertNotNull($result['proofs']['error']);
     }
+
+    public function test_verify_class_reports_explicit_error_for_missing_class(): void
+    {
+        $result = app(FerraraphotoTargetVerifier::class)->verifyClass('SHOW1_999');
+
+        $this->assertFalse($result['all_exist']);
+        $this->assertStringContainsString('Class not found', $result['proofs']['error']);
+        $this->assertSame('', $result['proofs']['path']);
+    }
+
+    public function test_verify_class_resolves_underscore_show_and_class_from_string(): void
+    {
+        Show::withoutEvents(fn () => Show::create(['id' => '2023_R41', 'name' => '2023_R41']));
+        ShowClass::withoutEvents(fn () => ShowClass::create([
+            'id' => '2023_R41_opening_ceremony',
+            'show_id' => '2023_R41',
+            'name' => 'opening_ceremony',
+        ]));
+
+        File::makeDirectory($this->tempPath.'/remote-proofs/2023_R41/opening_ceremony', 0755, true);
+        File::makeDirectory($this->tempPath.'/remote-web/2023_R41/opening_ceremony', 0755, true);
+        File::makeDirectory($this->tempPath.'/remote-highres/2023_R41/opening_ceremony', 0755, true);
+
+        $result = app(FerraraphotoTargetVerifier::class)->verifyClass('2023_R41_opening_ceremony');
+
+        $this->assertTrue($result['all_exist']);
+        $this->assertSame('2023_R41/opening_ceremony', $result['proofs']['path']);
+    }
+
+    public function test_verify_class_does_not_split_when_a_wrong_prefix_show_exists(): void
+    {
+        Show::withoutEvents(function () {
+            Show::create(['id' => 'SHOW', 'name' => 'SHOW']);
+            Show::create(['id' => 'SHOW_1', 'name' => 'SHOW_1']);
+        });
+        ShowClass::withoutEvents(function () {
+            ShowClass::create(['id' => 'SHOW_101', 'show_id' => 'SHOW', 'name' => '101']);
+            ShowClass::create(['id' => 'SHOW_1_101', 'show_id' => 'SHOW_1', 'name' => '101']);
+        });
+
+        File::makeDirectory($this->tempPath.'/remote-proofs/SHOW_1/101', 0755, true);
+
+        $result = app(FerraraphotoTargetVerifier::class)->verifyClass('SHOW_1_101');
+
+        $this->assertSame('SHOW_1/101', $result['proofs']['path']);
+        $this->assertTrue($result['proofs']['exists'], 'must resolve SHOW_1/101, not SHOW/1_101');
+    }
 }

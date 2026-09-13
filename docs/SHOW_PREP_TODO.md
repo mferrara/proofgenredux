@@ -34,24 +34,18 @@ Acceptance: generated-image checks for enhancement consistency, disabled product
 - [x] Compile the updated Core Image binary and refresh the local daemon before testing the new adjustments.
 - [x] Rehearse import → adjustments/watermarks → proofs → upload → delivered-image inspection locally: four photo copies, 12 rsync-delivered images, eight successful native renders, 117 assertions. Portrait/landscape, `.jpeg`, all paid-product switch combinations, underscore identity, archive checksums and HTTP-served proof bytes verified. All four live Settings previews loaded. See the rehearsal report for scope and remaining limits.
 
+## Completed: final local show checks — September 13
+
+- [x] Hide `_graveyard` from Home and show pending imports on empty classes.
+- [x] Render Settings previews from 45 MP originals, including EXIF portrait rotation.
+- [x] Fit long proof-number watermarks inside both proof sizes without changing final quality 95.
+- [x] Resolve quarantine replacement, audit filters/projections, and string class target checks through actual show/class records.
+- [x] Run a larger NAS-backed rehearsal and measure show-status data collection. See [the final local review](reviews/2026-09-13-show-prep-finish.md) for results and limits.
+
 ## Later / separate
 
-- [ ] Hide the internal `_graveyard` directory from Home's unimported shows,
-  and show pending-import status for classes that have no imported photos yet
-  (currently their status says "All done" alongside eight pending files).
-
-- [ ] Fix Settings previews for 45 MP originals. During the NAS rehearsal, the
-  8192×5464 sample reproducibly returned HTTP 500 after enhancement; the 5472×3648
-  sample rendered successfully. Investigate peak PHP memory and release full-size
-  buffers before rendering comparison previews. Keep a modest Settings sample
-  while retaining large originals in the import dataset.
-
-
-- [ ] Fit long proof-number watermarks within the image width. The 27-character rehearsal label clipped in small and large proofs; the normal `22BUCK_00021` label fits and is readable. Preserve current visual style while preventing clipping.
-
-- [ ] Finish the separate underscore-ID fallbacks in quarantine replacement (`PhotoIssuesComponent`), the audit show-ID projection (`PhotoAuditService`), and the string-only class verifier (`FerraraphotoTargetVerifier`). The `Photo` derivative/import/move paths are fixed.
-
-- [ ] Measure polling and image-processing cost on a representative show before further performance refactoring. Consolidate duplicate code only where it removes a demonstrated bug or worthwhile cost.
+- [ ] Rehearse a small class on Dad's MacBook with its actual storage and upload targets before using it for the show.
+- [ ] Measure a full show with many classes if polling becomes noticeably slow. The two-class local rehearsal does not justify a performance rewrite.
 - [ ] Remove or update the dormant thumbnail branch in `images-table.blade.php` if that legacy pending-file table is retained; current callers do not enable its thumbnail option.
 - Thumbnail encoding research: [Flower #3689](https://flower.legitphp.com/briefs/3689), comparing single-pass JPEG, JPEG XL and PNG for new/regenerated thumbnails.
 - Updater research: [Flower #3682](https://flower.legitphp.com/briefs/3682), refining/undispatched when created.

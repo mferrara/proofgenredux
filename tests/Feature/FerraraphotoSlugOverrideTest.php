@@ -149,4 +149,28 @@ class FerraraphotoSlugOverrideTest extends TestCase
         $this->assertSame('web_images/22Buck/007', $class->web_images_path);
         $this->assertSame('highres_images/22Buck/007', $class->highres_images_path);
     }
+
+    public function test_verifier_class_string_and_model_forms_honor_override_consistently(): void
+    {
+        File::makeDirectory($this->tempPath.'/remote-proofs/buck-show-2024/007', 0755, true);
+        File::makeDirectory($this->tempPath.'/remote-web/buck-show-2024/007', 0755, true);
+        File::makeDirectory($this->tempPath.'/remote-highres/buck-show-2024/007', 0755, true);
+
+        $show = Show::find('22Buck');
+        $show->ferraraphoto_show_slug = 'buck-show-2024';
+        $show->save();
+
+        $verifier = app(FerraraphotoTargetVerifier::class);
+        $class = ShowClass::with('show')->find('22Buck_007');
+
+        $modelResult = $verifier->verifyClass($class);
+        $stringResult = $verifier->verifyClass('22Buck_007');
+
+        $this->assertTrue($modelResult['all_exist']);
+        $this->assertTrue($stringResult['all_exist']);
+        $this->assertSame('buck-show-2024/007', $modelResult['proofs']['path']);
+        $this->assertSame($modelResult['proofs']['path'], $stringResult['proofs']['path']);
+        $this->assertSame($modelResult['web_images']['path'], $stringResult['web_images']['path']);
+        $this->assertSame($modelResult['highres_images']['path'], $stringResult['highres_images']['path']);
+    }
 }

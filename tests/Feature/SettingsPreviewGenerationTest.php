@@ -3,7 +3,11 @@
 use App\Livewire\ConfigComponent;
 use App\Models\Configuration;
 use App\Services\CoreImageDaemonService;
+use App\Services\ImageEnhancementService;
 use Illuminate\Support\Facades\File;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\Image;
+use Intervention\Image\ImageManager;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -228,6 +232,78 @@ it('reports unsupported enhancement without an enhanced comparison or a broken p
         ->assertSee('Core Image')
         ->assertDontSee('Enhanced:');
 });
+
+it('writes an unenhanced comparison next to the enhanced preview', function () {
+    foreach (['image_enhancement_enabled' => true, 'enhancement_apply_to_proofs' => true, 'image_enhancement_method' => 'percentile_clipping'] as $key => $value) {
+        Configuration::setConfig($key, is_bool($value) ? 'true' : $value, is_bool($value) ? 'boolean' : 'string', 'enhancement');
+    }
+    $daemon = Mockery::mock(CoreImageDaemonService::class);
+    $daemon->shouldReceive('isCoreImageAvailable')->andReturnFalse();
+    app()->instance(CoreImageDaemonService::class, $daemon);
+    app()->instance(ImageEnhancementService::class, new SettingsPreviewGreenEnhancement);
+
+    $component = Livewire::test(SettingsEnhancementSuccessFixture::class)
+        ->set('sampleImagePath', $this->sourceImage)
+        ->set('previewWatermarkEnabled', false)
+        ->call('updateActiveTab', 'large')
+        ->assertSet('previewErrors', []);
+
+    expect($component->get('largeThumbnailEnhancementInfo')['enabled'])->toBeTrue();
+    expect($component->get('largeThumbnailPreviewUnenhanced'))->not->toBeNull();
+
+    $enhanced = storage_path('app/temp/thumbnail-previews/'.basename($component->get('largeThumbnailPreview')));
+    $unenhanced = storage_path('app/temp/thumbnail-previews/'.basename($component->get('largeThumbnailPreviewUnenhanced')));
+    expect(is_file($enhanced))->toBeTrue()->and(is_file($unenhanced))->toBeTrue();
+
+    // The enhanced output is the replacement enhancement's green; the
+    // comparison is the untouched blue source.
+    [$er, $eg, $eb] = proofgenPreviewCenterPixel($enhanced);
+    expect($eg)->toBeGreaterThan($er + 20)->toBeGreaterThan($eb + 20);
+
+    [$ur, $ug, $ub] = proofgenPreviewCenterPixel($unenhanced);
+    expect($ub)->toBeGreaterThan($ur + 20)->toBeGreaterThan($ug + 20);
+});
+
+class SettingsEnhancementSuccessFixture extends SettingsPreviewGenerationFixture
+{
+    public function mount(): void
+    {
+        parent::mount();
+        $settings = Configuration::whereIn('key', ['image_enhancement_enabled', 'enhancement_apply_to_proofs', 'image_enhancement_method'])->get();
+        $this->configurationsByCategory['enhancement'] = $settings;
+        foreach ($settings as $setting) {
+            $this->configValues[$setting->id] = $setting->key === 'image_enhancement_method' ? 'percentile_clipping' : true;
+        }
+    }
+}
+
+class SettingsPreviewGreenEnhancement extends ImageEnhancementService
+{
+    public function enhance(string $imagePath, string $method, array $parameters = []): Image
+    {
+        $size = @getimagesize($imagePath);
+        $width = is_array($size) ? $size[0] : 100;
+        $height = is_array($size) ? $size[1] : 100;
+
+        $gd = imagecreatetruecolor($width, $height);
+        imagefill($gd, 0, 0, imagecolorallocate($gd, 0, 128, 0));
+        ob_start();
+        imagejpeg($gd, null, 100);
+        $bytes = ob_get_clean();
+        imagedestroy($gd);
+
+        return (new ImageManager(GdDriver::class))->decodeBinary($bytes);
+    }
+}
+
+function proofgenPreviewCenterPixel(string $path): array
+{
+    $gd = imagecreatefromjpeg($path);
+    $color = imagecolorat($gd, (int) (imagesx($gd) / 2), (int) (imagesy($gd) / 2));
+    imagedestroy($gd);
+
+    return [($color >> 16) & 0xFF, ($color >> 8) & 0xFF, $color & 0xFF];
+}
 
 class SettingsEnhancementFailureFixture extends SettingsPreviewGenerationFixture
 {

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Photo;
 use App\Models\PhotoIssue;
+use App\Models\ShowClass;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -48,10 +49,19 @@ class PhotoAuditService
 
         $query = Photo::query()->with('showClass')->orderBy('show_class_id')->orderBy('proof_number');
         if ($showFilter !== null) {
-            $query->where('show_class_id', 'like', $showFilter.'_%');
+            // Resolve the actual show relation instead of LIKE-matching the composite
+            // show_class_id: an underscore is a SQL LIKE wildcard and show ids may
+            // themselves contain underscores (e.g. filtering "SHOW_1" must not match
+            // a "SHOW" show's class "101").
+            $query->whereHas('showClass', fn ($q) => $q->where('show_id', $showFilter));
         }
         if ($classFilter !== null) {
-            $query->where('show_class_id', $showFilter !== null ? $showFilter.'_'.$classFilter : 'like:%_'.$classFilter);
+            $query->whereHas('showClass', function ($q) use ($showFilter, $classFilter) {
+                $q->where('name', $classFilter);
+                if ($showFilter !== null) {
+                    $q->where('show_id', $showFilter);
+                }
+            });
         }
 
         $query->chunk(200, function ($photos) use (&$stats, &$findings, $repair) {
@@ -301,6 +311,7 @@ class PhotoAuditService
         return [
             'kind' => 'photo',
             'photo_id' => $photo->id,
+            'show_id' => $photo->showClass?->show_id,
             'show_class_id' => $photo->show_class_id,
             'proof_number' => $photo->proof_number,
             'status' => $effectiveStatus,
@@ -416,10 +427,16 @@ class PhotoAuditService
     {
         $query = Photo::query();
         if ($showFilter !== null) {
-            $query->where('show_class_id', 'like', $showFilter.'_%');
+            // Resolve the relation instead of LIKE-matching a composite id; see auditAll().
+            $query->whereHas('showClass', fn ($q) => $q->where('show_id', $showFilter));
         }
-        if ($classFilter !== null && $showFilter !== null) {
-            $query->where('show_class_id', $showFilter.'_'.$classFilter);
+        if ($classFilter !== null) {
+            $query->whereHas('showClass', function ($q) use ($showFilter, $classFilter) {
+                $q->where('name', $classFilter);
+                if ($showFilter !== null) {
+                    $q->where('show_id', $showFilter);
+                }
+            });
         }
 
         $missing = [];
@@ -465,11 +482,18 @@ class PhotoAuditService
             ->where('status', PhotoIssue::STATUS_OPEN)
             ->first();
 
+        // Project the real show id via the ShowClass relation; the composite id is
+        // not safe to split when the show id itself contains underscores.
+        $showId = $finding['show_id'] ?? null;
+        if ($showId === null || $showId === '') {
+            $showId = ShowClass::find($finding['show_class_id'])?->show_id;
+        }
+
         $payload = [
             'status' => PhotoIssue::STATUS_OPEN,
             'issue_type' => $issueType,
             'show_class_id' => $finding['show_class_id'],
-            'show_id' => explode('_', $finding['show_class_id'], 2)[0] ?? null,
+            'show_id' => $showId,
             'existing_photo_id' => $finding['photo_id'],
             'existing_proof_number' => $finding['proof_number'],
             'existing_sha1' => $finding['photos_sha1'],

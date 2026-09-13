@@ -166,7 +166,9 @@ it('watermarks landscape and portrait proof layouts', function () {
 
     // Opaque white watermark text on the dark proof.
     expect(proofgenDerivativeBrightPixelCount($land))->toBeGreaterThan(20);
-    expect(proofgenDerivativeBrightPixelCount($port))->toBeGreaterThan(20);
+    // The 113px portrait fits the entire label at a smaller font size.
+    // WatermarkTextFitTest separately verifies complete glyph bounds/margins.
+    expect(proofgenDerivativeBrightPixelCount($port))->toBeGreaterThan(10);
 });
 
 it('refuses to write a web image when the watermark cannot be decoded', function () {

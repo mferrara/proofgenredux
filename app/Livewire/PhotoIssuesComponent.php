@@ -274,8 +274,33 @@ class PhotoIssuesComponent extends Component
                 );
             }
 
+            // Resolve the identities before touching anything. The composite
+            // show_class_id is not safe to split on underscores (both the show id and
+            // the class name may contain them), so use the actual ShowClass rows. If
+            // either is missing we cannot know where the replacement belongs; refuse
+            // before any destructive step and leave the existing photo, its files and
+            // the quarantined bytes untouched.
+            $existingClass = ShowClass::find($existing->show_class_id);
+            if ($existingClass === null) {
+                throw new \RuntimeException(
+                    'Existing photo class not found: '.$existing->show_class_id.'; refusing to replace.'
+                );
+            }
+            $quarantineClass = ShowClass::find($issue->show_class_id);
+            if ($quarantineClass === null) {
+                throw new \RuntimeException(
+                    'Issue class not found: '.$issue->show_class_id.'; refusing to replace.'
+                );
+            }
+
+            $prefix = $quarantineClass->show_id.'/'.$quarantineClass->name.'/_import_conflicts/';
+            if (! str_starts_with($issue->quarantine_path, $prefix)) {
+                throw new \RuntimeException('Quarantined source does not match the issue class; refusing to replace.');
+            }
+
             $existingProofNumber = $existing->proof_number;
-            $existingShowClassId = $existing->show_class_id;
+            // Reuse the resolved relation so path accessors cannot re-resolve differently.
+            $existing->setRelation('showClass', $existingClass);
 
             // Bury the existing photo's original (and archive if present), then drop the DB row
             // so the next import can claim that proof number unencumbered.
@@ -310,7 +335,7 @@ class PhotoIssuesComponent extends Component
             // constructor reads show/class from segments [0]/[1], which is correct. If the
             // existing photo lived in a different class we relocate the quarantined bytes
             // there first so the imported original lands in the right class.
-            $sourcePath = $this->relocateQuarantineForReplace($issue->quarantine_path, $existingShowClassId);
+            $sourcePath = $this->relocateQuarantineForReplace($issue->quarantine_path, $quarantineClass, $existingClass);
             $issue->quarantine_path = $sourcePath;
 
             $this->reimportQuarantinedSource($issue, $existingProofNumber);
@@ -327,27 +352,24 @@ class PhotoIssuesComponent extends Component
         $this->closeIssue();
     }
 
-    private function relocateQuarantineForReplace(string $quarantinePath, string $existingShowClassId): string
+    /**
+     * Move a quarantined source into the class that owns the existing photo so the
+     * replacement is imported back into the same class. Uses the resolved ShowClass
+     * rows rather than splitting the composite id at an underscore.
+     */
+    private function relocateQuarantineForReplace(string $quarantinePath, ShowClass $quarantineClass, ShowClass $targetClass): string
     {
-        $segments = explode('/', $quarantinePath);
-        if (count($segments) < 4) {
-            return $quarantinePath;
-        }
-        [$show, $class] = [$segments[0], $segments[1]];
-        $existingParts = explode('_', $existingShowClassId, 2);
-        if (count($existingParts) !== 2) {
-            return $quarantinePath;
-        }
-        [$existingShow, $existingClass] = $existingParts;
-
-        if ($show === $existingShow && $class === $existingClass) {
+        if ($quarantineClass->id === $targetClass->id) {
             return $quarantinePath;
         }
 
+        $targetDirectory = $targetClass->show_id.'/'.$targetClass->name;
         $basename = basename($quarantinePath);
-        $target = $existingShow.'/'.$existingClass.'/'.$basename;
-        Storage::disk('fullsize')->makeDirectory($existingShow.'/'.$existingClass);
-        Storage::disk('fullsize')->move($quarantinePath, $target);
+        $target = $targetDirectory.'/'.$basename;
+        Storage::disk('fullsize')->makeDirectory($targetDirectory);
+        if (! Storage::disk('fullsize')->move($quarantinePath, $target)) {
+            throw new \RuntimeException('Failed to relocate quarantined source to '.$target.'; refusing to continue.');
+        }
 
         return $target;
     }
@@ -508,19 +530,26 @@ class PhotoIssuesComponent extends Component
         if ($this->selectedIssueId) {
             $selectedIssue = PhotoIssue::with('existingPhoto', 'showClass')->find($this->selectedIssueId);
             if ($selectedIssue && $selectedIssue->issue_type === PhotoIssue::TYPE_DUPLICATE_CONTENT && $selectedIssue->quarantine_path) {
-                try {
-                    [$show, $class] = $this->showAndClassFromShowClassId($selectedIssue->show_class_id);
-                    $plan = app(PhotoImportIdentityResolver::class)->resolve(
-                        $selectedIssue->quarantine_path,
-                        $show,
-                        $class,
-                    );
-                    $shaMatchesQuarantine = $plan->sha1 === $selectedIssue->incoming_sha1;
-                    if ($shaMatchesQuarantine) {
-                        $hints = app(ImportConflictHintService::class)->hintsFor($plan);
+                $identity = $this->showAndClassFromShowClassId($selectedIssue->show_class_id);
+                if ($identity === null) {
+                    // Unresolved class: do not guess at an underscore boundary. Leave the
+                    // hint panel empty and surface the unresolved identity in the log.
+                    Log::warning('Could not build hints for issue '.$selectedIssue->id.': show class not found ('.$selectedIssue->show_class_id.').');
+                } else {
+                    [$show, $class] = $identity;
+                    try {
+                        $plan = app(PhotoImportIdentityResolver::class)->resolve(
+                            $selectedIssue->quarantine_path,
+                            $show,
+                            $class,
+                        );
+                        $shaMatchesQuarantine = $plan->sha1 === $selectedIssue->incoming_sha1;
+                        if ($shaMatchesQuarantine) {
+                            $hints = app(ImportConflictHintService::class)->hintsFor($plan);
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('Could not build hints for issue '.$selectedIssue->id.': '.$e->getMessage());
                     }
-                } catch (\Throwable $e) {
-                    Log::warning('Could not build hints for issue '.$selectedIssue->id.': '.$e->getMessage());
                 }
             }
         }
@@ -535,15 +564,27 @@ class PhotoIssuesComponent extends Component
         ])->title('Photo Issues');
     }
 
-    private function showAndClassFromShowClassId(string $showClassId): array
+    /**
+     * Resolve show id / class name from a composite show_class_id through the
+     * actual ShowClass relation. The id is not a safe string to split: both the
+     * show id and the class name may themselves contain underscores. Returns
+     * null when the class cannot be resolved so callers can report it as
+     * unresolved instead of inventing an identity.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function showAndClassFromShowClassId(?string $showClassId): ?array
     {
-        $sc = ShowClass::find($showClassId);
-        if ($sc) {
-            return [$sc->show_id, $sc->name];
+        if ($showClassId === null || $showClassId === '') {
+            return null;
         }
-        $parts = explode('_', $showClassId, 2);
 
-        return [$parts[0] ?? '', $parts[1] ?? ''];
+        $showClass = ShowClass::find($showClassId);
+        if ($showClass === null) {
+            return null;
+        }
+
+        return [$showClass->show_id, $showClass->name];
     }
 
     private function availableIssueTypes(): array

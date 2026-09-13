@@ -10,7 +10,7 @@ The core fixes are now cherry-picked onto local `main`. Recognition and WIP
 planning remain on `feature/reid-pipeline`; use `main` for the next core release.
 The in-app updater pulls `main` and selects a release tag when one is available.
 Finish current imports/uploads before installing the update; then verify the
-new worker is running. No release, update, or restart was performed by this work.
+new worker is running. Local workers have been restarted during validation; no release or installation on Dad's MacBook has been performed.
 
 ## Local UI follow-up — September 13
 
@@ -19,10 +19,11 @@ An idle browser stop/start cycle passed without refreshing; local workers were
 left running. Class views distinguish missing originals, import issues, and
 recent failed jobs from pending generation counts. See
 [the live-processing review](reviews/2026-09-13-live-processing-fixes.md).
-Redux24/001 now has 20 restored originals and 20 successfully generated proof
-pairs, ready for upload. The 36 remaining missing originals belong to old
-records (33 additional duplicates and three without a matching source). Those
-records remain unchanged; use a fresh class for a clean import rehearsal.
+The old Redux24 catalog was subsequently reset with operator approval. Local
+working data now lives under `/Volumes/Public/proofgen-dev`; the pristine NAS
+backup library is unchanged. `NASDEMO26` contains 24 imported sample photos and
+`NAS_LOAD26` contains the additional 48-photo rehearsal. See
+[the final local review](reviews/2026-09-13-show-prep-finish.md).
 
 ## Verify the workers after installation
 

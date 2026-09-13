@@ -52,8 +52,14 @@ class HomeComponent extends Component
 
         $top_level_directories = $this->getDirectoriesOfPath($this->working_path);
 
-        $remove = ['proofs', 'web_images', 'highres_images'];
-        $top_level_directories = array_diff($top_level_directories, $remove);
+        // Hide internal tree folders (and the graveyard) from the show list.
+        // Exact basename matches only, so legitimate underscore-prefixed show
+        // directories are still preserved.
+        $remove = ['proofs', 'web_images', 'highres_images', '_graveyard'];
+        $top_level_directories = array_values(array_filter(
+            $top_level_directories,
+            fn ($directory) => ! in_array(basename($directory), $remove, true)
+        ));
 
         // Loop through the top level directories determining which are imported as Shows
         $shows = [];

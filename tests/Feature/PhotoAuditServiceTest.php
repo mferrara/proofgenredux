@@ -236,4 +236,77 @@ class PhotoAuditServiceTest extends TestCase
 
         $this->assertSame(1, PhotoIssue::where('existing_photo_id', 'SHOW1_101_SHOW1_00060')->count());
     }
+
+    public function test_audit_filtering_uses_actual_show_relation_not_like_prefix(): void
+    {
+        // "SHOW_1" filtered with a LIKE pattern would also match the "SHOW"
+        // show's class "101" (show_class_id "SHOW_101"), because underscore is a
+        // LIKE wildcard. Relation-based filtering must not.
+        Show::withoutEvents(function () {
+            Show::create(['id' => 'SHOW', 'name' => 'SHOW']);
+            Show::create(['id' => 'SHOW_1', 'name' => 'SHOW_1']);
+        });
+        ShowClass::withoutEvents(function () {
+            ShowClass::create(['id' => 'SHOW_101', 'show_id' => 'SHOW', 'name' => '101']);
+            ShowClass::create(['id' => 'SHOW_1_101', 'show_id' => 'SHOW_1', 'name' => '101']);
+        });
+
+        Photo::create([
+            'id' => 'SHOW_101_SHOW_00001',
+            'show_class_id' => 'SHOW_101',
+            'proof_number' => 'SHOW_00001',
+            'file_type' => 'jpg',
+            'sha1' => sha1('show one bytes'),
+        ]);
+        Photo::create([
+            'id' => 'SHOW_1_101_SHOW_1_00001',
+            'show_class_id' => 'SHOW_1_101',
+            'proof_number' => 'SHOW_1_00001',
+            'file_type' => 'jpg',
+            'sha1' => sha1('show underscore bytes'),
+        ]);
+
+        $result = app(PhotoAuditService::class)->auditAll(showFilter: 'SHOW_1');
+
+        $photoFindings = collect($result['findings'])->where('kind', 'photo')->values();
+        $this->assertCount(1, $photoFindings);
+        $this->assertSame('SHOW_1_101', $photoFindings->first()['show_class_id']);
+        $this->assertSame('SHOW_1', $photoFindings->first()['show_id']);
+
+        $this->assertDatabaseHas('photo_issues', [
+            'show_class_id' => 'SHOW_1_101',
+            'show_id' => 'SHOW_1',
+            'status' => PhotoIssue::STATUS_OPEN,
+        ]);
+    }
+
+    public function test_audit_projects_show_id_for_underscore_show_and_class(): void
+    {
+        Show::withoutEvents(fn () => Show::create(['id' => '2023_R41', 'name' => '2023_R41']));
+        ShowClass::withoutEvents(fn () => ShowClass::create([
+            'id' => '2023_R41_opening_ceremony',
+            'show_id' => '2023_R41',
+            'name' => 'opening_ceremony',
+        ]));
+
+        Photo::create([
+            'id' => '2023_R41_opening_ceremony_2023_R41_00001',
+            'show_class_id' => '2023_R41_opening_ceremony',
+            'proof_number' => '2023_R41_00001',
+            'file_type' => 'jpg',
+            'sha1' => sha1('underscore bytes'),
+        ]);
+
+        $result = app(PhotoAuditService::class)->auditAll(showFilter: '2023_R41', classFilter: 'opening_ceremony');
+
+        $photoFindings = collect($result['findings'])->where('kind', 'photo')->values();
+        $this->assertCount(1, $photoFindings);
+        $this->assertSame('2023_R41', $photoFindings->first()['show_id']);
+
+        $this->assertDatabaseHas('photo_issues', [
+            'show_class_id' => '2023_R41_opening_ceremony',
+            'show_id' => '2023_R41',
+            'status' => PhotoIssue::STATUS_OPEN,
+        ]);
+    }
 }

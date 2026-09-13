@@ -557,7 +557,7 @@ class Image
         // If WATERMARK_PROOFS is true, second-encode the small proof at quality 95.
         if ($do_we_watermark) {
             $smallWatermarked = $manager->decodePath($small_thumb_path);
-            $watermark = self::watermarkSmallProof($image_filename);
+            $watermark = self::watermarkSmallProof($image_filename, max(1, $smallWatermarked->width() - 20));
             $smallWatermarked->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')
                 ->save($small_thumb_path, quality: self::WATERMARKED_PROOF_QUALITY);
             imagedestroy($watermark);
@@ -619,7 +619,7 @@ class Image
         $background_opacity = config('proofgen.watermark_background_opacity');
         $text = ' '.$text.' ';
 
-        return imagettfJustifytext($text, '', 2, $width, $background_height, 0, 0, $font_size, [255, 255, 255, $foreground_opacity], [0, 0, 0, $background_opacity]);
+        return imagettfJustifytext($text, '', 2, 0, $background_height, 0, 0, $font_size, [255, 255, 255, $foreground_opacity], [0, 0, 0, $background_opacity], maxWidth: $width);
     }
 
     public static function watermarkLargeProof(string $text, int $width = 0): \GdImage
@@ -639,63 +639,49 @@ class Image
  * @param  array  $color  [r, g, b, alpha] for text
  * @param  array  $bgcolor  [r, g, b, alpha] for background
  */
-function imagettfJustifytext(string $text, string $font = 'CENTURY.TTF', int $justify = 2, int $W = 0, int $H = 0, int $X = 0, int $Y = 0, int $fsize = 12, array $color = [0x0, 0x0, 0x0, 1], array $bgcolor = [0xFF, 0xFF, 0xFF, 1]): \GdImage
+function imagettfJustifytext(string $text, string $font = 'CENTURY.TTF', int $justify = 2, int $W = 0, int $H = 0, int $X = 0, int $Y = 0, int $fsize = 12, array $color = [0x0, 0x0, 0x0, 1], array $bgcolor = [0xFF, 0xFF, 0xFF, 1], int $maxWidth = 0): \GdImage
 {
-    unset($Y); // legacy parameter — kept for signature compatibility, never used
     $font = config('proofgen.watermark_font');
-
     if (! is_string($font) || ! is_file($font) || ! is_readable($font)) {
         throw new \RuntimeException('Watermark font not found or unreadable: '.($font ?: '(not configured)').'. Update Watermark Font in Settings.');
     }
 
-    $angle = 0;
-    $L_R_C = $justify;
-    $_bx = \imagettfbbox($fsize, 0, $font, $text);
+    // Measure all glyph bearings, including descenders, rather than clipping the
+    // label to a fixed canvas and losing either end of a long proof number.
+    $measure = static function (float $size) use ($font, $text): array {
+        $box = imagettfbbox($size, 0, $font, $text);
+        $left = min($box[0], $box[2], $box[4], $box[6]);
+        $top = min($box[1], $box[3], $box[5], $box[7]);
 
-    $W = ($W == 0) ? abs($_bx[2] - $_bx[0]) : $W;    // If Height not initialized by programmer then it will detect and assign perfect height.
-    $H = ($H == 0) ? abs($_bx[5] - $_bx[3]) : $H;    // If Width not initialized by programmer then it will detect and assign perfect width.
+        return [$left, $top, max($box[0], $box[2], $box[4], $box[6]) - $left,
+            max($box[1], $box[3], $box[5], $box[7]) - $top];
+    };
+    $fontSize = (float) max(1, $fsize);
+    [$left, $top, $textWidth, $textHeight] = $measure($fontSize);
+    $W = $W > 0 ? $W : $textWidth + 4;
+    if ($maxWidth > 0) {
+        $W = min($W, $maxWidth);
+    }
+    $H = $H > 0 ? $H : $textHeight + 4;
+    $paddingX = $W > 4 ? 2 : 0;
+    $paddingY = $H > 4 ? 2 : 0;
 
-    $im = @imagecreate($W, $H)
-    or exit('Cannot Initialize new GD image stream');
-
-    // imagecolorallocatealpha for the background must be the FIRST color allocated —
-    // GD treats the first allocation as the background fill color.
-    imagecolorallocatealpha($im, $bgcolor[0], $bgcolor[1], $bgcolor[2], $bgcolor[3]);
-    $text_color = imagecolorallocatealpha($im, $color[0], $color[1], $color[2], $color[3]);
-
-    if ($L_R_C == 0) { // Justify Left
-        imagettftext($im, $fsize, $angle, $X, $fsize, $text_color, $font, $text);
-    } elseif ($L_R_C == 1) { // Justify Right
-        $s = explode("[\n]+", $text);
-        $__H = 0;
-
-        foreach ($s as $val) {
-            $_b = \imagettfbbox($fsize, 0, $font, $val);
-            $_W = abs($_b[2] - $_b[0]);
-            // Defining the X coordinate.
-            $_X = $W - $_W;
-            // Defining the Y coordinate.
-            $_H = abs($_b[5] - $_b[3]);
-            $__H += $_H;
-            imagettftext($im, $fsize, $angle, $_X, $__H, $text_color, $font, $val);
-            $__H += 6;
-        }
-    } elseif ($L_R_C == 2) { // Justify Center
-        $s = explode("[\n]+", $text);
-        $__H = 0;
-
-        foreach ($s as $val) {
-            $_b = \imagettfbbox($fsize, 0, $font, $val);
-            $_W = abs($_b[2] - $_b[0]);
-            // Defining the X coordinate.
-            $_X = abs($W / 2) - abs($_W / 2);
-            // Defining the Y coordinate.
-            $_H = abs($_b[5] - $_b[3]);
-            $__H += $_H;
-            imagettftext($im, $fsize, $angle, $_X, $__H, $text_color, $font, $val);
-            $__H += 6;
-        }
+    while (($textWidth > $W - 2 * $paddingX || $textHeight > $H - 2 * $paddingY) && $fontSize > 0.5) {
+        $fontSize = max(0.5, $fontSize - 0.5);
+        [$left, $top, $textWidth, $textHeight] = $measure($fontSize);
     }
 
-    return $im;
+    $image = imagecreate(max(1, $W), max(1, $H));
+    // First palette entry supplies the existing translucent background style.
+    imagecolorallocatealpha($image, ...$bgcolor);
+    $foreground = imagecolorallocatealpha($image, ...$color);
+    $x = match ($justify) {
+        0 => $paddingX + $X,
+        1 => $W - $paddingX - $textWidth,
+        default => (int) floor(($W - $textWidth) / 2),
+    };
+    $y = (int) floor(($H - $textHeight) / 2) + $Y;
+    imagettftext($image, $fontSize, 0, $x - $left, $y - $top, $foreground, $font, $text);
+
+    return $image;
 }

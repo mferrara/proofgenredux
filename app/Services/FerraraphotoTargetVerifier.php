@@ -84,23 +84,26 @@ class FerraraphotoTargetVerifier
      */
     public function verifyClass(ShowClass|string $showClass): array
     {
-        if ($showClass instanceof ShowClass) {
-            // Honor the show's ferraraphoto_slug override; falls back to id when null.
-            $slug = $showClass->show?->ferraraphoto_slug ?? $showClass->show_id;
-            $className = $showClass->name;
-        } else {
-            $parts = explode('_', $showClass, 2);
-            if (count($parts) !== 2) {
-                return $this->summarize([
-                    'proofs' => ['exists' => false, 'path' => '', 'error' => 'Invalid class id: '.$showClass],
-                    'web_images' => ['exists' => false, 'path' => '', 'error' => 'Invalid class id: '.$showClass],
-                    'highres_images' => ['exists' => false, 'path' => '', 'error' => 'Invalid class id: '.$showClass],
-                ]);
-            }
-            [$showId, $className] = $parts;
-            // String form is operator-supplied — use it directly, no override lookup.
-            $slug = $showId;
+        // Resolve the actual ShowClass row for both forms. The composite
+        // show_class_id cannot be split on underscores: the show id and the class
+        // name may each contain them, and a wrong-prefix split could point at a
+        // different, existing show. A missing class is reported as an explicit
+        // unresolved target, never guessed.
+        $model = $showClass instanceof ShowClass ? $showClass : ShowClass::find($showClass);
+
+        if ($model === null) {
+            $display = is_string($showClass) ? $showClass : $showClass->id;
+
+            return $this->summarize([
+                'proofs' => ['exists' => false, 'path' => '', 'error' => 'Class not found: '.$display],
+                'web_images' => ['exists' => false, 'path' => '', 'error' => 'Class not found: '.$display],
+                'highres_images' => ['exists' => false, 'path' => '', 'error' => 'Class not found: '.$display],
+            ]);
         }
+
+        // Honor the show's ferraraphoto_slug override; falls back to show_id when null.
+        $slug = $model->show?->ferraraphoto_slug ?? $model->show_id;
+        $className = $model->name;
 
         $proofsPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteProofsPath($slug, $className));
         $webPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteWebImagesPath($slug, $className));

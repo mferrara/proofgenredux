@@ -1083,9 +1083,80 @@ class ConfigComponent extends Component
     }
 
     /**
-     * Create a preview thumbnail with temporary settings
+     * Create a preview thumbnail with temporary settings.
+     *
+     * Even when Core Image renders the pixels out of process, the PHP side
+     * still decodes the full-resolution source/result, which can exceed a
+     * request's memory_limit. Give the render a source-sized allowance and
+     * restore the previous limit once its image buffers have been released.
      */
     private function createPreviewThumbnail(string $sourcePath, string $destPath, string $type, ?string $size = null, bool $generateUnenhanced = false): array
+    {
+        $previousMemoryLimit = ini_get('memory_limit');
+        $this->raiseMemoryLimitForSource($sourcePath, $previousMemoryLimit);
+
+        try {
+            return $this->renderPreviewThumbnail($sourcePath, $destPath, $type, $size, $generateUnenhanced);
+        } finally {
+            // Exception traces can retain image buffers until the caller catches
+            // them. Never mask that error by lowering the limit below live memory;
+            // PHP resets this request-local setting at the end of the request.
+            gc_collect_cycles();
+            gc_mem_caches();
+            $previousBytes = $this->memoryLimitBytes($previousMemoryLimit);
+            if ($previousBytes === null || memory_get_usage(true) <= $previousBytes) {
+                ini_set('memory_limit', $previousMemoryLimit);
+            }
+        }
+    }
+
+    /**
+     * Raise a request-local memory allowance sized from the source pixels.
+     *
+     * Never lowers an already higher limit and leaves an unlimited (-1) limit
+     * untouched.
+     */
+    private function raiseMemoryLimitForSource(string $sourcePath, ?string $previousLimit): void
+    {
+        $size = @getimagesize($sourcePath);
+        if ($size === false) {
+            return;
+        }
+
+        // GD orientation holds three canvases plus flood-fill scratch space. Allow 24 bytes
+        // per source pixel for those buffers and allocator overhead, plus
+        // 32 MiB for the reduced preview. Round up to a whole MiB.
+        $required = memory_get_usage(true) + ($size[0] * $size[1] * 24) + (32 * 1024 * 1024);
+        $required = (int) (ceil($required / 1048576) * 1048576);
+
+        $current = $this->memoryLimitBytes($previousLimit);
+        if ($current !== null && $current < $required) {
+            ini_set('memory_limit', (string) $required);
+        }
+    }
+
+    /**
+     * @return int|null Limit in bytes, or null when the limit is unlimited/unknown.
+     */
+    private function memoryLimitBytes(?string $limit): ?int
+    {
+        $limit = trim((string) $limit);
+
+        if ($limit === '' || $limit === '-1') {
+            return null;
+        }
+
+        $value = (int) $limit;
+
+        return match (strtolower(substr($limit, -1))) {
+            'g' => $value * 1024 * 1024 * 1024,
+            'm' => $value * 1024 * 1024,
+            'k' => $value * 1024,
+            default => $value,
+        };
+    }
+
+    private function renderPreviewThumbnail(string $sourcePath, string $destPath, string $type, ?string $size = null, bool $generateUnenhanced = false): array
     {
         // Log::debug('createPreviewThumbnail: Reading source image', [
         //     'sourcePath' => $sourcePath,
@@ -1099,6 +1170,24 @@ class ConfigComponent extends Component
         $startTime = microtime(true);
         $manager = new ImageManager(GdDriver::class);
         $enhancementInfo = null;
+
+        // Resolve the output dimensions and quality first. They depend only on
+        // the temporary settings, not on the decoded pixels, which lets the
+        // unenhanced comparison be prepared without a second full-resolution
+        // buffer being held alongside the enhanced result.
+        if ($type === 'thumbnails' && $size) {
+            // For thumbnails, use nested structure
+            $width = (int) ($this->tempThumbnailValues['thumbnails'][$size]['width'] ?? config("proofgen.thumbnails.{$size}.width"));
+            $height = (int) ($this->tempThumbnailValues['thumbnails'][$size]['height'] ?? config("proofgen.thumbnails.{$size}.height"));
+            $quality = (int) ($this->tempThumbnailValues['thumbnails'][$size]['quality'] ?? config("proofgen.thumbnails.{$size}.quality"));
+        } else {
+            // For web_images and highres_images, use flat structure
+            $width = (int) ($this->tempThumbnailValues[$type]['width'] ?? config("proofgen.{$type}.width"));
+            $height = (int) ($this->tempThumbnailValues[$type]['height'] ?? config("proofgen.{$type}.height"));
+            $quality = (int) ($this->tempThumbnailValues[$type]['quality'] ?? config("proofgen.{$type}.quality"));
+        }
+
+        // Log::debug("Creating {$type}".($size ? " {$size}" : '').' preview', ['width' => $width, 'height' => $height, 'quality' => $quality]);
 
         // Check if enhancement is enabled and should be applied to this image type
         $enhancementEnabled = false;
@@ -1124,6 +1213,18 @@ class ConfigComponent extends Component
             if ($enhancementMethodId && isset($this->configValues[$enhancementMethodId])) {
                 $enhancementMethod = $this->configValues[$enhancementMethodId];
             }
+        }
+
+        // Prepare the unenhanced comparison before enhancement runs, using a
+        // single decode of the original. Only the reduced copy is retained
+        // across enhancement; the full-resolution original buffer is released
+        // as soon as it is scaled. If enhancement fails this copy is dropped
+        // and the component reports the failure instead of showing a
+        // comparison, matching the existing behavior.
+        $unenhancedPreview = null;
+        if ($generateUnenhanced && $enhancementEnabled) {
+            $unenhancedPreview = $manager->decodePath($sourcePath);
+            $unenhancedPreview->scaleDown($width, $height);
         }
 
         // Apply enhancement if enabled
@@ -1194,29 +1295,17 @@ class ConfigComponent extends Component
             $image = $manager->decodePath($sourcePath);
         }
 
-        // Get the temporary values based on type
-        if ($type === 'thumbnails' && $size) {
-            // For thumbnails, use nested structure
-            $width = (int) ($this->tempThumbnailValues['thumbnails'][$size]['width'] ?? config("proofgen.thumbnails.{$size}.width"));
-            $height = (int) ($this->tempThumbnailValues['thumbnails'][$size]['height'] ?? config("proofgen.thumbnails.{$size}.height"));
-            $quality = (int) ($this->tempThumbnailValues['thumbnails'][$size]['quality'] ?? config("proofgen.thumbnails.{$size}.quality"));
-        } else {
-            // For web_images and highres_images, use flat structure
-            $width = (int) ($this->tempThumbnailValues[$type]['width'] ?? config("proofgen.{$type}.width"));
-            $height = (int) ($this->tempThumbnailValues[$type]['height'] ?? config("proofgen.{$type}.height"));
-            $quality = (int) ($this->tempThumbnailValues[$type]['quality'] ?? config("proofgen.{$type}.quality"));
-        }
-
-        // Log::debug("Creating {$type}".($size ? " {$size}" : '').' preview', ['width' => $width, 'height' => $height, 'quality' => $quality]);
-
         $image->scaleDown($width, $height);
         $this->savePreviewImage($image, $destPath, $type, $size, $quality, $manager);
 
-        if ($generateUnenhanced && $enhancementEnabled) {
-            $imageUnenhanced = $manager->decodePath($sourcePath)->scaleDown($width, $height);
+        // Release the reduced enhanced image before saving the comparison.
+        unset($image);
+
+        if ($unenhancedPreview !== null && $enhancementEnabled) {
             $unenhancedPath = str_replace('_preview_', '_preview_unenhanced_', $destPath);
-            $this->savePreviewImage($imageUnenhanced, $unenhancedPath, $type, $size, $quality, $manager);
+            $this->savePreviewImage($unenhancedPreview, $unenhancedPath, $type, $size, $quality, $manager);
         }
+        unset($unenhancedPreview);
 
         $processingTime = microtime(true) - $startTime;
 
@@ -1466,7 +1555,7 @@ class ConfigComponent extends Component
 
         if ($size === 'small') {
             // Small thumbnail watermark
-            $watermark = Image::watermarkSmallProof($originalFilename);
+            $watermark = Image::watermarkSmallProof($originalFilename, max(1, $image->width() - 20));
             $image->insert($watermark, x: 10, y: 10, alignment: 'bottom-left')->save(quality: Image::WATERMARKED_PROOF_QUALITY);
         } elseif ($size === 'large') {
             // Large thumbnail watermark

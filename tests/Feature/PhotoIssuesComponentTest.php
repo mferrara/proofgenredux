@@ -11,6 +11,8 @@ use App\Models\Photo;
 use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Models\ShowClass;
+use App\Services\PhotoImportIdentityResolver;
+use App\Services\PhotoImportPlan;
 use App\Services\PhotoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
@@ -422,5 +424,236 @@ class PhotoIssuesComponentTest extends TestCase
         $component = Livewire::test(ShowViewComponent::class, ['show_id' => 'SHOW1']);
         $component->assertSuccessful();
         $this->assertSame(2, $component->viewData('show_open_issue_count'));
+    }
+
+    public function test_replace_existing_relocates_quarantine_into_existing_class_actual_location(): void
+    {
+        Bus::fake();
+
+        // Show and class names both contain underscores. The existing photo lives in
+        // 2023_R41_opening_ceremony; the source was quarantined under the sibling class
+        // 2023_R41_closing_ceremony.
+        Show::withoutEvents(fn () => Show::create(['id' => '2023_R41', 'name' => '2023_R41']));
+        ShowClass::withoutEvents(function () {
+            ShowClass::create(['id' => '2023_R41_opening_ceremony', 'show_id' => '2023_R41', 'name' => 'opening_ceremony']);
+            ShowClass::create(['id' => '2023_R41_closing_ceremony', 'show_id' => '2023_R41', 'name' => 'closing_ceremony']);
+        });
+
+        Photo::create([
+            'id' => '2023_R41_opening_ceremony_2023_R41_00010',
+            'show_class_id' => '2023_R41_opening_ceremony',
+            'proof_number' => '2023_R41_00010',
+            'file_type' => 'jpg',
+            'sha1' => sha1('existing original bytes'),
+        ]);
+        Storage::disk('fullsize')->put('2023_R41/opening_ceremony/originals/2023_R41_00010.jpg', 'existing original bytes');
+
+        $quarantine = '2023_R41/closing_ceremony/_import_conflicts/2023_R41_00010_20260913-150000_aaaabbbb.jpg';
+        Storage::disk('fullsize')->put($quarantine, 'replacement bytes');
+
+        $issue = PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_PROOF_COLLISION,
+            'show_id' => '2023_R41',
+            'show_class_id' => '2023_R41_closing_ceremony',
+            'quarantine_path' => $quarantine,
+            'intended_proof_number' => '2023_R41_00010',
+            'incoming_sha1' => sha1('replacement bytes'),
+            'incoming_size' => strlen('replacement bytes'),
+            'existing_photo_id' => '2023_R41_opening_ceremony_2023_R41_00010',
+            'existing_proof_number' => '2023_R41_00010',
+            'existing_sha1' => sha1('existing original bytes'),
+        ]);
+
+        Livewire::test(PhotoIssuesComponent::class)
+            ->call('openIssue', $issue->id)
+            ->call('confirmDestructive', $issue->id, 'replace_existing')
+            ->call('performConfirmedDestructive');
+
+        $issue->refresh();
+        $this->assertSame(PhotoIssue::STATUS_RESOLVED, $issue->status);
+
+        // Replacement landed back in the existing photo's actual class, not in the
+        // class where the source happened to be quarantined and not in a directory
+        // guessed by splitting the composite id at the first underscore.
+        $photo = Photo::find('2023_R41_opening_ceremony_2023_R41_00010');
+        $this->assertNotNull($photo);
+        $this->assertSame('2023_R41_opening_ceremony', $photo->show_class_id);
+        $this->assertSame(sha1('replacement bytes'), $photo->sha1);
+        $this->assertSame('replacement bytes', Storage::disk('fullsize')->get('2023_R41/opening_ceremony/originals/2023_R41_00010.jpg'));
+
+        // Nothing was written into the quarantine class or the wrong-guess directory.
+        $this->assertFalse(Storage::disk('fullsize')->exists('2023_R41/closing_ceremony/originals/2023_R41_00010.jpg'));
+        $this->assertFalse(Storage::disk('fullsize')->exists('2023/R41_opening_ceremony/originals/2023_R41_00010.jpg'));
+
+        // Quarantined bytes were relocated into the existing class, then buried by
+        // the import; the issue records the actual resulting location.
+        $this->assertFalse(Storage::disk('fullsize')->exists($quarantine));
+        $this->assertSame('2023_R41/opening_ceremony/'.basename($quarantine), $issue->quarantine_path);
+        $graveyard = Storage::disk('fullsize')->allFiles('_graveyard');
+        $matching = array_filter(
+            $graveyard,
+            fn ($path) => str_contains($path, pathinfo(basename($quarantine), PATHINFO_FILENAME))
+        );
+        $this->assertNotEmpty($matching, 'quarantine bytes should end up in the graveyard');
+    }
+
+    public function test_replace_existing_refuses_when_existing_class_relation_is_missing(): void
+    {
+        // No ShowClass row for SHOW1_999: identity cannot be resolved, so the
+        // replacement must refuse before any destructive change.
+        Photo::create([
+            'id' => 'SHOW1_999_SHOW1_00010',
+            'show_class_id' => 'SHOW1_999',
+            'proof_number' => 'SHOW1_00010',
+            'file_type' => 'jpg',
+            'sha1' => sha1('existing original bytes'),
+        ]);
+        Storage::disk('fullsize')->put('SHOW1/999/originals/SHOW1_00010.jpg', 'existing original bytes');
+
+        $quarantine = 'SHOW1/101/_import_conflicts/SHOW1_00010_20260913-170000_deadbeef.jpg';
+        Storage::disk('fullsize')->put($quarantine, 'replacement bytes');
+
+        $issue = PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_PROOF_COLLISION,
+            'show_id' => 'SHOW1',
+            'show_class_id' => 'SHOW1_101',
+            'quarantine_path' => $quarantine,
+            'incoming_sha1' => sha1('replacement bytes'),
+            'incoming_size' => strlen('replacement bytes'),
+            'existing_photo_id' => 'SHOW1_999_SHOW1_00010',
+            'existing_proof_number' => 'SHOW1_00010',
+            'existing_sha1' => sha1('existing original bytes'),
+        ]);
+
+        Livewire::test(PhotoIssuesComponent::class)
+            ->call('openIssue', $issue->id)
+            ->call('confirmDestructive', $issue->id, 'replace_existing')
+            ->call('performConfirmedDestructive');
+
+        // Nothing destructive happened: row, original and quarantine all intact.
+        $this->assertNotNull(Photo::find('SHOW1_999_SHOW1_00010'));
+        $this->assertTrue(Storage::disk('fullsize')->exists('SHOW1/999/originals/SHOW1_00010.jpg'));
+        $this->assertTrue(Storage::disk('fullsize')->exists($quarantine));
+        $this->assertSame(PhotoIssue::STATUS_OPEN, $issue->fresh()->status);
+    }
+
+    public function test_hint_resolution_uses_actual_class_relation_for_underscore_ids(): void
+    {
+        // Show and class both contain underscores; splitting the composite id would
+        // resolve the wrong identity.
+        Show::withoutEvents(fn () => Show::create(['id' => '2023_R41', 'name' => '2023_R41']));
+        ShowClass::withoutEvents(fn () => ShowClass::create([
+            'id' => '2023_R41_opening_ceremony',
+            'show_id' => '2023_R41',
+            'name' => 'opening_ceremony',
+        ]));
+
+        $quarantine = '2023_R41/opening_ceremony/_import_conflicts/2023_R41_00001_20260913-160000_cafebabe.jpg';
+        Storage::disk('fullsize')->put($quarantine, 'incoming bytes');
+
+        $existing = Photo::create([
+            'id' => '2023_R41_opening_ceremony_2023_R41_00010',
+            'show_class_id' => '2023_R41_opening_ceremony',
+            'proof_number' => '2023_R41_00010',
+            'file_type' => 'jpg',
+            'sha1' => sha1('incoming bytes'),
+        ]);
+
+        $issue = PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_DUPLICATE_CONTENT,
+            'show_id' => '2023_R41',
+            'show_class_id' => '2023_R41_opening_ceremony',
+            'quarantine_path' => $quarantine,
+            'incoming_sha1' => sha1('incoming bytes'),
+            'incoming_size' => strlen('incoming bytes'),
+            'existing_photo_id' => $existing->id,
+            'existing_proof_number' => '2023_R41_00010',
+            'existing_sha1' => sha1('incoming bytes'),
+        ]);
+
+        $captured = [];
+        $mock = Mockery::mock(PhotoImportIdentityResolver::class);
+        $mock->shouldReceive('resolve')
+            ->once()
+            ->andReturnUsing(function (string $path, string $show, string $class) use (&$captured, $quarantine, $existing) {
+                $captured = [$path, $show, $class];
+
+                return new PhotoImportPlan(
+                    decision: PhotoImportIdentityResolver::DUPLICATE_CONTENT,
+                    sourcePath: $quarantine,
+                    originalFilename: '2023_R41_00001.jpg',
+                    extension: 'jpg',
+                    sha1: sha1('does not match the quarantine bytes'),
+                    size: 1,
+                    sourceMtime: null,
+                    filenameIsNumberedForShow: false,
+                    intendedProofNumber: null,
+                    allocatesNewProofNumber: false,
+                    existingByContent: $existing,
+                    existingByProofNumber: null,
+                );
+            });
+        $this->app->instance(PhotoImportIdentityResolver::class, $mock);
+
+        Livewire::test(PhotoIssuesComponent::class)
+            ->call('openIssue', $issue->id)
+            ->assertSuccessful();
+
+        $this->assertSame([$quarantine, '2023_R41', 'opening_ceremony'], $captured);
+    }
+
+    public function test_hint_resolution_is_skipped_when_issue_class_is_missing(): void
+    {
+        $quarantine = 'SHOW1/999/_import_conflicts/SHOW1_00001_20260913-180000_feedface.jpg';
+        Storage::disk('fullsize')->put($quarantine, 'incoming bytes');
+
+        $issue = PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_DUPLICATE_CONTENT,
+            'show_id' => 'SHOW1',
+            'show_class_id' => 'SHOW1_999',
+            'quarantine_path' => $quarantine,
+            'incoming_sha1' => sha1('incoming bytes'),
+            'incoming_size' => strlen('incoming bytes'),
+        ]);
+
+        $mock = Mockery::mock(PhotoImportIdentityResolver::class);
+        $mock->shouldReceive('resolve')->never();
+        $this->app->instance(PhotoImportIdentityResolver::class, $mock);
+
+        Livewire::test(PhotoIssuesComponent::class)
+            ->call('openIssue', $issue->id)
+            ->assertSuccessful()
+            ->assertSet('selectedIssueId', $issue->id);
+    }
+
+    public function test_replace_existing_checks_quarantine_identity_before_removing_the_original(): void
+    {
+        $photo = Photo::create([
+            'show_class_id' => 'SHOW1_101', 'proof_number' => 'SHOW1_00099',
+            'file_type' => 'jpg', 'sha1' => sha1('original'),
+        ]);
+        $original = 'SHOW1/101/originals/SHOW1_00099.jpg';
+        $quarantine = 'SHOW1/102/_import_conflicts/incoming.jpg';
+        Storage::disk('fullsize')->put($original, 'original');
+        Storage::disk('fullsize')->put($quarantine, 'incoming');
+        $issue = PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_PROOF_COLLISION,
+            'show_id' => 'SHOW1', 'show_class_id' => 'SHOW1_101',
+            'quarantine_path' => $quarantine, 'incoming_sha1' => sha1('incoming'),
+            'incoming_size' => strlen('incoming'), 'existing_photo_id' => $photo->id,
+            'existing_proof_number' => $photo->proof_number, 'existing_sha1' => $photo->sha1,
+        ]);
+        Livewire::test(PhotoIssuesComponent::class)
+            ->call('confirmDestructive', $issue->id, 'replace_existing')
+            ->call('performConfirmedDestructive');
+        $this->assertNotNull($photo->fresh());
+        $this->assertSame('original', Storage::disk('fullsize')->get($original));
+        $this->assertSame('incoming', Storage::disk('fullsize')->get($quarantine));
+        $this->assertSame(PhotoIssue::STATUS_OPEN, $issue->fresh()->status);
     }
 }

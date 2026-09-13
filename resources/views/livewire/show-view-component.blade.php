@@ -184,26 +184,46 @@
                             </flux:table.cell>
 
                             <flux:table.cell>
-                                @if($sc)
+                                @php
+                                    $pendingImportCount = (int) ($class_folder_data['images_pending_processing_count'] ?? 0);
+                                    $classBusy = (bool) ($class_folder_data['busy'] ?? false);
+                                    $webImagesEnabled = $web_images_enabled ?? true;
+                                    $highresImagesEnabled = $highres_images_enabled ?? true;
+                                    // A class with pending ingest files deserves a status even
+                                    // when it has no imported photos yet, instead of the em dash
+                                    // that also means "not a class".
+                                    $hasClassStatus = $class_folder_data['is_valid'] && ($sc || $pendingImportCount > 0);
+                                    $proofsPending = $proofUpload = $webPending = $webUpload = $highresPending = $highresUpload = 0;
+                                    if ($sc) {
+                                        $proofsPending = $sc->photos()->whereNull('proofs_generated_at')->count();
+                                        $proofUpload = $sc->photos()->whereNotNull('proofs_generated_at')->whereNull('proofs_uploaded_at')->count();
+                                        // Disabled products are not outstanding work for the operator.
+                                        $webPending = $webImagesEnabled ? $sc->photos()->whereNull('web_image_generated_at')->count() : 0;
+                                        $webUpload = $sc->photos()->whereNotNull('web_image_generated_at')->whereNull('web_image_uploaded_at')->count();
+                                        $highresPending = $highresImagesEnabled ? $sc->photos()->whereNull('highres_image_generated_at')->count() : 0;
+                                        $highresUpload = $sc->photos()->whereNotNull('highres_image_generated_at')->whereNull('highres_image_uploaded_at')->count();
+                                    }
+                                    $derivativeWorkPending = $proofsPending + $proofUpload + $webPending + $webUpload + $highresPending + $highresUpload;
+                                @endphp
+                                @if($hasClassStatus)
                                     <div class="flex flex-wrap gap-1">
-                                        @php
-                                            $proofsPending = $sc->photos()->whereNull('proofs_generated_at')->count();
-                                            $proofUpload = $sc->photos()->whereNotNull('proofs_generated_at')->whereNull('proofs_uploaded_at')->count();
-                                            $webPending = $sc->photos()->whereNull('web_image_generated_at')->count();
-                                            $webUpload = $sc->photos()->whereNotNull('web_image_generated_at')->whereNull('web_image_uploaded_at')->count();
-                                            $highresPending = $sc->photos()->whereNull('highres_image_generated_at')->count();
-                                            $highresUpload = $sc->photos()->whereNotNull('highres_image_generated_at')->whereNull('highres_image_uploaded_at')->count();
-                                        @endphp
-                                        @if($proofsPending) <flux:badge color="blue" size="sm">{{ $proofsPending }} proofs</flux:badge> @endif
-                                        @if($proofUpload) <flux:badge color="blue" size="sm">{{ $proofUpload }} proof upload</flux:badge> @endif
-                                        @if($webPending) <flux:badge color="cyan" size="sm">{{ $webPending }} web</flux:badge> @endif
-                                        @if($webUpload) <flux:badge color="cyan" size="sm">{{ $webUpload }} web upload</flux:badge> @endif
-                                        @if($highresPending) <flux:badge color="purple" size="sm">{{ $highresPending }} highres</flux:badge> @endif
-                                        @if($highresUpload) <flux:badge color="purple" size="sm">{{ $highresUpload }} highres upload</flux:badge> @endif
-                                        @if($proofsPending + $proofUpload + $webPending + $webUpload + $highresPending + $highresUpload === 0)
+                                        @if($pendingImportCount > 0)
+                                            <flux:badge color="amber" size="sm" icon="arrow-down-tray">Pending import: {{ number_format($pendingImportCount) }}</flux:badge>
+                                        @endif
+                                        @if($sc)
+                                            @if($proofsPending) <flux:badge color="blue" size="sm">{{ $proofsPending }} proofs</flux:badge> @endif
+                                            @if($proofUpload) <flux:badge color="blue" size="sm">{{ $proofUpload }} proof upload</flux:badge> @endif
+                                            @if($webPending) <flux:badge color="cyan" size="sm">{{ $webPending }} web</flux:badge> @endif
+                                            @if($webUpload) <flux:badge color="cyan" size="sm">{{ $webUpload }} web upload</flux:badge> @endif
+                                            @if($highresPending) <flux:badge color="purple" size="sm">{{ $highresPending }} highres</flux:badge> @endif
+                                            @if($highresUpload) <flux:badge color="purple" size="sm">{{ $highresUpload }} highres upload</flux:badge> @endif
+                                        @endif
+                                        @if($classBusy)
+                                            <flux:badge color="sky" size="sm" icon="arrow-path">Working</flux:badge>
+                                        @elseif($pendingImportCount === 0 && $derivativeWorkPending === 0)
                                             <flux:badge color="emerald" size="sm" icon="check">All done</flux:badge>
                                         @endif
-                                        @if(($class_folder_data['open_issue_count'] ?? 0) > 0)
+                                        @if($sc && ($class_folder_data['open_issue_count'] ?? 0) > 0)
                                             <a href="{{ route('photo-issues', ['show_class_id' => $sc->id]) }}">
                                                 <flux:badge color="amber" size="sm" icon="exclamation-triangle">
                                                     {{ $class_folder_data['open_issue_count'] }} {{ str('issue')->plural($class_folder_data['open_issue_count']) }}
