@@ -17,6 +17,7 @@ use App\Services\PathResolver;
 use App\Services\PhotoMoveService;
 use App\Services\PhotoService;
 use App\Services\PhotoThumbnailService;
+use App\Services\QueuedWorkStatus;
 use App\Services\SafeFileMover;
 use App\Services\StorageUsageService;
 use Exception;
@@ -129,19 +130,20 @@ class ClassViewComponent extends Component
         }
     }
 
-    public bool $showStorageUsage = false;
-
     public ?array $ferraraphotoStatus = null;
 
     public function loadStorageUsage(): void
     {
-        $this->showStorageUsage = true;
+        $this->refreshStorageUsage();
     }
 
     public function refreshStorageUsage(): void
     {
-        app(StorageUsageService::class)->classUsage($this->showClass, forceRefresh: true);
-        $this->showStorageUsage = true;
+        try {
+            app(StorageUsageService::class)->classUsage($this->showClass, forceRefresh: true);
+        } catch (\Throwable $e) {
+            $this->setFlashMessage('Could not refresh storage usage: '.$e->getMessage());
+        }
     }
 
     public function checkFerraraphotoStatus(): void
@@ -162,11 +164,22 @@ class ClassViewComponent extends Component
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
             'processing_status' => app(ClassProcessingStatus::class)->snapshot($this->showClass),
             'open_issue_count' => PhotoIssue::open()->where('show_class_id', $this->showClass->id)->count(),
-            'storage_usage' => $this->showStorageUsage
-                ? app(StorageUsageService::class)->classUsage($this->showClass)
-                : null,
+            'storage_usage' => app(StorageUsageService::class)->cachedClassUsage($this->showClass),
+            'queued_work' => app(QueuedWorkStatus::class)->snapshot($this->show, $this->class),
             'ferraraphoto_status' => $this->ferraraphotoStatus,
         ])->title($this->show.' '.$this->class.' - Proofgen');
+    }
+
+    private function workIsBusy(): bool
+    {
+        $status = app(QueuedWorkStatus::class)->snapshot($this->show, $this->class);
+        if ($status['busy']) {
+            $this->setFlashMessage($status['available']
+                ? 'Work is already queued or running. Please wait for it to finish.'
+                : 'Queue status is unavailable. Check services before queuing more work.');
+        }
+
+        return $status['busy'];
     }
 
     public function setFlashMessage(string $message): void
@@ -184,6 +197,10 @@ class ClassViewComponent extends Component
 
     public function checkProofAndWebImageUploads(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $images_pending_upload = count($this->showClass->pendingProofUploads());
         $web_images_pending_upload = count($this->showClass->pendingWebImageUploads());
         $highres_images_pending_upload = count($this->showClass->pendingHighresImageUploads());
@@ -241,6 +258,10 @@ class ClassViewComponent extends Component
 
     public function importPendingImages(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $pathResolver = app(PathResolver::class);
         $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $count = $show_class->processPendingImages();
@@ -252,6 +273,10 @@ class ClassViewComponent extends Component
      */
     public function processImage($image_path): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $pathResolver = app(PathResolver::class);
         $show_class = new ShowClass($this->show, $this->class, $pathResolver);
         $show_class->processImage($image_path);
@@ -260,12 +285,20 @@ class ClassViewComponent extends Component
 
     public function proofPendingPhotos(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $count = $this->showClass->proofPendingPhotos();
         $this->setFlashMessage($count.' photos queued. Missing originals are skipped; see processing status.');
     }
 
     public function webImagePendingPhotos(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         // Check if web images generation is enabled
         if (! config('proofgen.generate_web_images.enabled', true)) {
             Flux::toast(
@@ -284,6 +317,10 @@ class ClassViewComponent extends Component
 
     public function highresImagePendingPhotos(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         // Check if highres images generation is enabled
         if (! config('proofgen.generate_highres_images.enabled', true)) {
             Flux::toast(
@@ -302,6 +339,10 @@ class ClassViewComponent extends Component
 
     public function proofPhoto(string $photo_id): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $photo = $this->showClass->photos()->where('id', $photo_id)->first();
         if (! $photo) {
             $this->setFlashMessage('Photo not found');
@@ -321,6 +362,10 @@ class ClassViewComponent extends Component
 
     public function generateWebImage(string $photo_id): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         // Check if web images generation is enabled
         if (! config('proofgen.generate_web_images.enabled', true)) {
             Flux::toast(
@@ -375,6 +420,10 @@ class ClassViewComponent extends Component
 
     public function generateHighresImage(string $photo_id): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         // Check if highres images generation is enabled
         if (! config('proofgen.generate_highres_images.enabled', true)) {
             Flux::toast(
@@ -429,6 +478,10 @@ class ClassViewComponent extends Component
 
     public function regenerateProofs(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $photos_queued = $this->showClass->regenerateProofs();
 
         Flux::toast(
@@ -441,6 +494,10 @@ class ClassViewComponent extends Component
 
     public function regenerateWebImages(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         // Check if web images generation is enabled
         if (! config('proofgen.generate_web_images.enabled', true)) {
             Flux::toast(
@@ -465,6 +522,10 @@ class ClassViewComponent extends Component
 
     public function regenerateHighresImages(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         // Check if highres images generation is enabled
         if (! config('proofgen.generate_highres_images.enabled', true)) {
             Flux::toast(
@@ -489,6 +550,10 @@ class ClassViewComponent extends Component
 
     public function resetPhotos(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         ResetClassPhotos::dispatch($this->showClass->show_id, $this->class);
 
         Flux::toast(
@@ -501,6 +566,10 @@ class ClassViewComponent extends Component
 
     public function uploadPendingProofsAndWebImages(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $photos_queued_for_upload = $this->showClass->photosProofedNotUploaded()->count();
         $web_images_queued_for_upload = $this->showClass->photosWebImagedNotUploaded()->count();
         $highres_images_queued_for_upload = $this->showClass->photosHighresImagedNotUploaded()->count();

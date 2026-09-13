@@ -9,12 +9,13 @@
 - **Archive backups**: `docs/archive-backups.md` — archive copy semantics + audit/repair workflows.
 
 ## TODO items
+- [x] Protect show/class pipeline controls against repeat clicks and overlapping queued work; native uniqueness for import/derivative jobs, retained storage snapshots. See [queue/UI verification](docs/reviews/2026-09-13-queue-controls-storage.md).
 - [x] Complete the queued image-output fixes alongside the file-safety and UI rounds (2026-09-12). See [show-prep checklist](docs/SHOW_PREP_TODO.md) and [image-output review](docs/reviews/2026-09-12-image-output-fixes.md).
 - [x] Rebuilt/refreshed the local Core Image daemon and completed the [local import/output/upload rehearsal](docs/reviews/2026-09-12-show-rehearsal.md): 12 delivered files, 117 assertions, all four Settings previews loaded. Long proof-label clipping is queued separately. Existing thumbnails need regeneration to receive image-output changes.
 - [x] Consolidate artisan commands that aren't in the proofgen namespace into the proofgen namespace (renamed `swift:compile` -> `proofgen:swift-compile`, `swift:check` -> `proofgen:swift-check`, `coreimage:daemon` -> `proofgen:coreimage-daemon`, `proofs:migrate` -> `proofgen:migrate-proofs`)
 - [x] Make favicon from the logo (generated 16/32/180/192/512 PNGs + multi-res ICO from the purple-orb portion of `application-logo.blade.php`; source SVG at `resources/svg/favicon-source.svg`, outputs in `public/`, referenced from all three layouts)
 - [x] Update web image and highres image uploads to happen _after_ the proofs are uploaded to ensure that the proofs are prioritized for upload (chained at the class level via Bus::chain in 2026-05; show-level upload is synchronous and already proofs-first)
-- [x] Storage usage reporting at show + class level (originals, proofs, web, highres, archive, total) — `App\Services\StorageUsageService`; lazy-loaded panels on `ShowViewComponent` + `ClassViewComponent`. Cached 10 min.
+- [x] Storage usage reporting at show + class level (originals, proofs, web, highres, archive, total) — `App\Services\StorageUsageService`; panels on `ShowViewComponent` + `ClassViewComponent` retain the last calculation across visits, mark it stale after 10 minutes, and rescan only on Calculate/Refresh.
 - [x] /backups + storage/sample_images directory sizing — same service (`backupsUsage()`, `sampleImagesUsage()`); panel on `HomeComponent`.
 - [x] "Download Sample Images" button on configuration page — `ConfigComponent::downloadSampleImages()` with progress toast.
 

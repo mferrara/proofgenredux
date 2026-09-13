@@ -4,6 +4,7 @@ namespace App\Jobs\ShowClass;
 
 use App\Models\Show;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -11,7 +12,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class ImportClassPhotos implements ShouldQueue
+class ImportClassPhotos implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -51,6 +52,12 @@ class ImportClassPhotos implements ShouldQueue
         if (count($queued)) {
             Log::info(self::class.': Queued '.count($queued).' photos to import to show: '.$this->show_id.' class: '.$this->class);
         }
+    }
+
+    /** One import batch per show/class while queued or running. */
+    public function uniqueId(): string
+    {
+        return json_encode([$this->show_id, $this->class], JSON_THROW_ON_ERROR);
     }
 
     public function failed(?Throwable $exception): void

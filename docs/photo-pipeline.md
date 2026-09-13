@@ -134,6 +134,10 @@ For each image:
 ImportPhoto::dispatch($image->path())->onQueue('processing');
 ```
 
+Import and derivative jobs implement `ShouldBeUnique`: one queued/running import per source path, one generation job per photo/output type, and one class-import batch per show/class. Laravel releases these locks on completion or final failure; retryable jobs retain them. Use `::dispatch()` for these jobs so Laravel's unique admission check runs.
+
+The show/class action panels also check `QueuedWorkStatus` before enqueueing. They disable related actions while this scope has waiting, reserved, or delayed work, including upload chains. Livewire disables the whole action group during a triggering request; polling re-enables it when work drains. Other classes remain available. This reads the local Horizon Redis queues rather than maintaining a separate busy flag.
+
 **Critical**: no proof number is passed. This is intentional — pre-allocating from Redis here would burn proof numbers on duplicates. The resolver inside the job decides whether to allocate.
 
 ### 4.2 The job

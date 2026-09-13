@@ -2,14 +2,16 @@
 
 namespace App\Jobs\Photo;
 
+use App\Services\PathResolver;
 use App\Services\PhotoService;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-class ImportPhoto implements ShouldQueue
+class ImportPhoto implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -35,5 +37,11 @@ class ImportPhoto implements ShouldQueue
     {
         $photoService = app(PhotoService::class);
         $photoService->processPhoto($this->image_path, $this->proof_number_override, false);
+    }
+
+    /** Import identity excludes proof-number overrides; use the same path normalization as processing. */
+    public function uniqueId(): string
+    {
+        return app(PathResolver::class)->normalizePath($this->image_path);
     }
 }

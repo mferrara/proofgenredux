@@ -22,6 +22,7 @@ use App\Services\Migration\MigrationInventoryService;
 use App\Services\Migration\ShowMigrationCutover;
 use App\Services\Migration\VerifyMigrationCopies;
 use App\Services\PathResolver;
+use App\Services\QueuedWorkStatus;
 use App\Services\Storage\StorageProfileHealthCheck;
 use App\Services\StorageUsageService;
 use Flux\Flux;
@@ -93,19 +94,20 @@ class ShowViewComponent extends Component
         }
     }
 
-    public bool $showStorageUsage = false;
-
     public ?array $ferraraphotoStatus = null;
 
     public function loadStorageUsage(): void
     {
-        $this->showStorageUsage = true;
+        $this->refreshStorageUsage();
     }
 
     public function refreshStorageUsage(): void
     {
-        app(StorageUsageService::class)->refreshShow($this->show);
-        $this->showStorageUsage = true;
+        try {
+            app(StorageUsageService::class)->refreshShow($this->show);
+        } catch (\Throwable $e) {
+            $this->setFlashMessage('Could not refresh storage usage: '.$e->getMessage());
+        }
     }
 
     public function checkFerraraphotoStatus(): void
@@ -243,6 +245,7 @@ class ShowViewComponent extends Component
             ->all();
         $showOpenIssueCount = array_sum($issueCountsByClass);
 
+        $queuedWork = app(QueuedWorkStatus::class)->snapshot($this->show->id);
         $class_folders = [];
         foreach ($current_path_directories as $directory) {
             $folder_name = basename($directory);
@@ -269,6 +272,7 @@ class ShowViewComponent extends Component
             $class_id = $this->show->id.'_'.$folder_name;
             $class_folders[] = [
                 'path' => $folder_name,
+                'busy' => ! $queuedWork['available'] || isset($queuedWork['classes']['*']) || isset($queuedWork['classes'][$folder_name]),
                 'images_pending_processing_count' => count($images_to_process),
                 'images_pending_web_count' => count($images_to_web),
                 'images_imported' => count($images_imported),
@@ -309,9 +313,8 @@ class ShowViewComponent extends Component
             'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
             'show_open_issue_count' => $showOpenIssueCount,
-            'storage_usage' => $this->showStorageUsage
-                ? app(StorageUsageService::class)->showUsage($this->show)
-                : null,
+            'storage_usage' => app(StorageUsageService::class)->cachedShowUsage($this->show),
+            'queued_work' => $queuedWork,
             'ferraraphoto_status' => $this->ferraraphotoStatus,
             'storage_profile' => $storageProfile,
             'active_storage_profile' => $activeStorageProfile,
@@ -332,6 +335,18 @@ class ShowViewComponent extends Component
             ->first();
     }
 
+    private function workIsBusy(?string $className = null): bool
+    {
+        $status = app(QueuedWorkStatus::class)->snapshot($this->show->id, $className);
+        if ($status['busy']) {
+            $this->setFlashMessage($status['available']
+                ? 'Work is already queued or running. Please wait for it to finish.'
+                : 'Queue status is unavailable. Check services before queuing more work.');
+        }
+
+        return $status['busy'];
+    }
+
     public function setFlashMessage(string $message): void
     {
         if ($message === '') {
@@ -347,6 +362,10 @@ class ShowViewComponent extends Component
 
     public function processPendingClassImages(string $class_folder): void
     {
+        if ($this->workIsBusy($class_folder)) {
+            return;
+        }
+
         // Validate directory name before processing
         if (! DirectoryNameValidator::isValid($class_folder)) {
             $error = DirectoryNameValidator::getValidationError($class_folder);
@@ -367,12 +386,20 @@ class ShowViewComponent extends Component
 
     public function importPendingImages(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $queued = $this->show->importPendingImages();
         $this->setFlashMessage($queued.' Images queued for import.');
     }
 
     public function checkProofAndWebImageUploads(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $response = $this->show->checkAllUploads();
         $images_pending_upload = count($response['images_pending_upload']);
         $web_images_pending_upload = count($response['web_images_pending_upload']);
@@ -405,12 +432,20 @@ class ShowViewComponent extends Component
 
     public function uploadPendingProofs(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         Bus::dispatch(new UploadShowProofs($this->show->id));
         $this->setFlashMessage('Proof uploads queued for '.$this->show->id.'.');
     }
 
     public function uploadPendingProofsAndWebImages(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $jobs = [new EnsureFerraraphotoShow($this->show->id)];
 
         foreach ($this->show->classes as $showClass) {
@@ -442,6 +477,10 @@ class ShowViewComponent extends Component
 
     public function regenerateProofs(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $count = 0;
         foreach ($this->show->classes as $showClass) {
             $count += $showClass->regenerateProofs();
@@ -451,6 +490,10 @@ class ShowViewComponent extends Component
 
     public function regenerateWebImages(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $count = 0;
         foreach ($this->show->classes as $showClass) {
             $count += $showClass->regenerateWebImages();
@@ -460,6 +503,10 @@ class ShowViewComponent extends Component
 
     public function regenerateHighresImages(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $count = 0;
         foreach ($this->show->classes as $showClass) {
             $count += $showClass->regenerateHighresImages();
@@ -502,6 +549,10 @@ class ShowViewComponent extends Component
 
     public function resetPhotos(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         foreach ($this->show->classes as $showClass) {
             ResetClassPhotos::dispatch($this->show_id, $showClass->name);
         }
@@ -516,6 +567,10 @@ class ShowViewComponent extends Component
 
     public function proofPendingPhotos(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $count = 0;
         foreach ($this->show->classes as $showClass) {
             $count += $showClass->proofPendingPhotos();
@@ -525,6 +580,10 @@ class ShowViewComponent extends Component
 
     public function webImagePendingPhotos(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $count = 0;
         foreach ($this->show->classes as $showClass) {
             $count += $showClass->webImagePendingPhotos();
@@ -534,6 +593,10 @@ class ShowViewComponent extends Component
 
     public function highresImagePendingPhotos(): void
     {
+        if ($this->workIsBusy()) {
+            return;
+        }
+
         $count = 0;
         foreach ($this->show->classes as $showClass) {
             $count += $showClass->highresImagePendingPhotos();

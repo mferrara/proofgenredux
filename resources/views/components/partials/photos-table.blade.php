@@ -347,6 +347,9 @@
                                     <flux:badge color="rose" size="sm">No Proofs</flux:badge>
                                     <flux:button
                                         wire:click="proofPhoto({{ \Illuminate\Support\Js::from($photo->id) }})"
+                                        :disabled="$queued_work['busy'] ?? false"
+                                        wire:loading.attr="disabled"
+                                        wire:target="{{ \App\Services\QueuedWorkStatus::ACTION_TARGETS }}"
                                         size="xs"
                                         class="!px-0 hover:cursor-pointer"
                                     >
@@ -367,6 +370,9 @@
                                     <flux:badge color="rose" size="sm">No Web</flux:badge>
                                     <flux:button
                                         wire:click="generateWebImage({{ \Illuminate\Support\Js::from($photo->id) }})"
+                                        :disabled="$queued_work['busy'] ?? false"
+                                        wire:loading.attr="disabled"
+                                        wire:target="{{ \App\Services\QueuedWorkStatus::ACTION_TARGETS }}"
                                         size="xs"
                                         class="!px-0 hover:cursor-pointer"
                                     >
@@ -387,6 +393,9 @@
                                     <flux:badge color="rose" size="sm">No Highres</flux:badge>
                                     <flux:button
                                         wire:click="generateHighresImage({{ \Illuminate\Support\Js::from($photo->id) }})"
+                                        :disabled="$queued_work['busy'] ?? false"
+                                        wire:loading.attr="disabled"
+                                        wire:target="{{ \App\Services\QueuedWorkStatus::ACTION_TARGETS }}"
                                         size="xs"
                                         class="!px-0 hover:cursor-pointer"
                                     >

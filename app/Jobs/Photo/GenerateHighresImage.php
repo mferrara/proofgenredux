@@ -5,13 +5,14 @@ namespace App\Jobs\Photo;
 use App\Services\PhotoService;
 use Exception;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class GenerateHighresImage implements ShouldQueue
+class GenerateHighresImage implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -43,5 +44,11 @@ class GenerateHighresImage implements ShouldQueue
             Log::error('Error generating highres image: '.$e->getMessage());
             throw $e;
         }
+    }
+
+    /** One job per photo/output type, held through processing and retries. */
+    public function uniqueId(): string
+    {
+        return $this->photo_id;
     }
 }

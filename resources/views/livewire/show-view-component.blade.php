@@ -221,13 +221,13 @@
                                     @if($class_folder_data['is_valid'] && $class_folder_data['images_pending_processing_count'])
                                         <flux:button
                                             wire:click="processPendingClassImages({{ \Illuminate\Support\Js::from($class_folder_data['path']) }})"
-                                            x-data="{ isQueued: false }"
-                                            x-on:click="isQueued = true"
+                                            :disabled="$class_folder_data['busy']"
+                                            wire:loading.attr="disabled"
+                                            wire:target="{{ \App\Services\QueuedWorkStatus::ACTION_TARGETS }}"
                                             size="xs"
                                             variant="primary"
                                         >
-                                            <span x-show="!isQueued">Import</span>
-                                            <span x-show="isQueued">Queued</span>
+                                            {{ $class_folder_data['busy'] ? 'Working' : 'Import' }}
                                         </flux:button>
                                     @elseif(!$class_folder_data['is_valid'])
                                         <flux:button

@@ -92,6 +92,9 @@
                             @if(is_array($actions) && in_array('import', $actions))
                                 <flux:button
                                     wire:click="processImage('{{ $image_path }}')"
+                                        :disabled="$queued_work['busy'] ?? false"
+                                        wire:loading.attr="disabled"
+                                        wire:target="{{ \App\Services\QueuedWorkStatus::ACTION_TARGETS }}"
                                     size="xs"
                                 >
                                     Import (REMOVE THIS)

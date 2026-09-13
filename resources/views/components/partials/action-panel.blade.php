@@ -1,4 +1,6 @@
 @php
+    $workBusy = $queued_work['busy'] ?? false;
+    $queueTargets = \App\Services\QueuedWorkStatus::ACTION_TARGETS;
     $importedCount = $photos_imported->count();
     $pendingProofs = $photos_pending_proofs->count();
     $pendingWeb = $photos_pending_web_images->count();
@@ -12,6 +14,17 @@
 
 <div class="col-span-12 lg:col-span-7">
     <flux:card class="!p-0 overflow-hidden">
+        @if ($workBusy)
+            <div role="status" class="px-4 py-3 text-sm text-amber-800 bg-amber-50 dark:text-amber-200 dark:bg-amber-500/10">
+                @if ($queued_work['available'])
+                    Work in progress: {{ $queued_work['waiting'] }} queued, {{ $queued_work['active'] }} running, {{ $queued_work['delayed'] }} awaiting retry.
+                    Actions will be available when it finishes.
+                @else
+                    Queue status is unavailable. Check services before queuing more work.
+                @endif
+            </div>
+        @endif
+        <fieldset @disabled($workBusy) wire:loading.attr="disabled" wire:target="{{ $queueTargets }}" class="min-w-0">
         {{-- Per-stage pending tiles --}}
         <div class="grid grid-cols-2 divide-x divide-y divide-zinc-200 dark:divide-white/10
                     border-b border-zinc-200 dark:border-white/10">
@@ -216,5 +229,6 @@
                 </div>
             </div>
         @endif
+        </fieldset>
     </flux:card>
 </div>
