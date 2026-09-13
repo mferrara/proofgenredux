@@ -127,17 +127,19 @@ class Photo extends Model
 
     public function createMetadataRecord(?string $file_contents = null): PhotoMetadata
     {
-        if ($file_contents === null) {
-            $file_contents = $this->getFileContents();
+        // Metadata needs the byte count, not another full copy of the original.
+        $fileSize = $file_contents === null ? filesize($this->full_path) : strlen($file_contents);
+        if ($fileSize === false) {
+            throw new \RuntimeException('Cannot read original size: '.$this->full_path);
         }
 
-        // Get exif data from file contents with native PHP
+        // Read EXIF directly from the file.
         $exif_data = exif_read_data($this->full_path, 'EXIF', true);
 
         /** @var PhotoMetadata $metadata */
         $metadata = $this->metadata()->create([
             'photo_id' => $this->id,
-            'file_size' => strlen($file_contents),
+            'file_size' => $fileSize,
         ]);
         if ($exif_data !== false) {
             $metadata->fillFromExifDataArray($exif_data);

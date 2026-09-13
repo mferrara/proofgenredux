@@ -82,6 +82,9 @@ class PhotoService
 
         if ($plan->isIdempotent()) {
             $photo = $this->handleIdempotentRetry($plan, $show, $class, $debug);
+            if ($dispatchJobs) {
+                $this->queueDerivatives($photo, missingOnly: true);
+            }
 
             return [
                 'photo' => $photo,
@@ -116,16 +119,7 @@ class PhotoService
         $highresImagesPath = $show_class->highres_images_path;
 
         if ($dispatchJobs) {
-            // Proofs are always generated; the web/highres product switches only
-            // govern their derivative jobs, mirroring the manual regeneration
-            // paths in ShowClass::queueWebImageGeneration/queueHighresImageGeneration.
-            GenerateThumbnails::dispatch($photo->id, $proofDestPath)->onQueue('thumbnails');
-            if (config('proofgen.generate_web_images.enabled', true)) {
-                GenerateWebImage::dispatch($photo->id, $webImagesPath)->onQueue('thumbnails');
-            }
-            if (config('proofgen.generate_highres_images.enabled', true)) {
-                GenerateHighresImage::dispatch($photo->id, $highresImagesPath)->onQueue('thumbnails');
-            }
+            $this->queueDerivatives($photo);
         }
 
         return [
@@ -136,6 +130,19 @@ class PhotoService
             'webImagesPath' => $webImagesPath,
             'highresImagesPath' => $highresImagesPath,
         ];
+    }
+
+    private function queueDerivatives(Photo $photo, bool $missingOnly = false): void
+    {
+        if (! $missingOnly || $photo->proofs_generated_at === null) {
+            GenerateThumbnails::dispatch($photo->id, $photo->proofs_path)->onQueue('thumbnails');
+        }
+        if ((! $missingOnly || $photo->web_image_generated_at === null) && config('proofgen.generate_web_images.enabled', true)) {
+            GenerateWebImage::dispatch($photo->id, $photo->showClass->web_images_path)->onQueue('thumbnails');
+        }
+        if ((! $missingOnly || $photo->highres_image_generated_at === null) && config('proofgen.generate_highres_images.enabled', true)) {
+            GenerateHighresImage::dispatch($photo->id, $photo->showClass->highres_images_path)->onQueue('thumbnails');
+        }
     }
 
     /**
@@ -177,9 +184,17 @@ class PhotoService
                 throw new RuntimeException('Original restoration verification failed; '.$originalRelativePath);
             }
 
+            unset($incoming, $written);
+
             if ($debug) {
                 Log::debug('Restored missing original from idempotent retry; '.$originalRelativePath);
             }
+        }
+
+        // A worker can stop after the photo row is inserted but before the
+        // created hook finishes. Repair metadata before retiring the retry source.
+        if (! config('testing.skip_file_operations') && ! $photo->metadata()->exists()) {
+            $photo->createMetadataRecord();
         }
 
         $archiveService = app(PhotoArchiveService::class);

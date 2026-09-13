@@ -195,7 +195,7 @@ private function runImport($imagePath, $finalProofNumber, $debug, $dispatchJobs,
 2. If archive_enabled: PhotoArchiveService::storeContents
        → writes archive copy, verifies sha1 + size after write.
 3. Write imported original to {show}/{class}/originals/{proof}.{ext}
-       → re-reads the written file and re-verifies sha1 + size.
+       → streams the written file to verify sha1 + byte count.
 4. Image::importPhoto upserts the photos row
        (sha1, original_filename, archive metadata).
 5. SafeFileMover::bury removes the ingest source LAST.
@@ -284,7 +284,10 @@ record and proof number. If the original is missing, restore it from the incomin
 bytes and verify its SHA and size first. Then:
 1. Run `PhotoArchiveService::auditPhoto($photo)`. If `archive_missing` / `metadata_stale` / `archive_mismatched` → call `repairPhoto()`.
 2. Backfill `original_filename` if it was empty (legacy rows pre-`original_filename` migration).
-3. `SafeFileMover::bury` the duplicate source with `reason: post_import_source` and `idempotent_retry: true` in context, unless the source path is itself the original.
+3. Repair missing metadata left by an interrupted import.
+4. `SafeFileMover::bury` the duplicate source with `reason: post_import_source` and `idempotent_retry: true` in context, unless the source path is itself the original.
+5. When job dispatch is enabled, queue only unfinished derivatives, respecting
+   the web/highres switches. A complete retry does not regenerate outputs.
 
 ### 6.2 DUPLICATE_CONTENT / PROOF_COLLISION — `PhotoImportIssueRecorder::record()`
 

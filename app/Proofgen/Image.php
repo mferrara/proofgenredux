@@ -129,13 +129,27 @@ class Image
 
         // 3. Imported original (verified by sha + size, not just existence).
         Storage::disk('fullsize')->put($path_to_originals_file, $image);
-        $writtenOriginal = Storage::disk('fullsize')->get($path_to_originals_file);
-        if ($writtenOriginal === false || sha1($writtenOriginal) !== $image_sha1 || strlen($writtenOriginal) !== $image_size) {
+        $originalStream = Storage::disk('fullsize')->readStream($path_to_originals_file);
+        if (! is_resource($originalStream)) {
+            throw new \Exception('Cannot verify written original; '.$path_to_originals_file);
+        }
+        try {
+            $hash = hash_init('sha1');
+            $writtenSize = hash_update_stream($hash, $originalStream);
+            $writtenSha1 = hash_final($hash);
+        } finally {
+            fclose($originalStream);
+        }
+        if ($writtenSha1 !== $image_sha1 || $writtenSize !== $image_size) {
             throw new \Exception('Original verification failed after write; '.$path_to_originals_file);
         }
         if ($debug) {
             Log::debug('Wrote and verified original; '.$path_to_originals_file);
         }
+
+        // Verification is streamed. Release the source buffer before model
+        // events read metadata or inspect derivatives in this same worker.
+        unset($image);
 
         if ($this->rename_files) {
             $this->filename = $final_filename;

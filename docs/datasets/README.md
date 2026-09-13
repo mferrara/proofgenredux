@@ -57,3 +57,7 @@ specify another rsync 3 executable.
 This verifies Proofgen's import, image generation and local file delivery. It
 does not create a new public-facing show record in Ferraraphoto or exercise a
 customer purchase. Garage/S3 migration remains a separate task.
+
+Class 002 was subsequently imported by the operator and completed after the
+[large-import recovery fix](../reviews/2026-09-13-large-import-recovery.md). It
+also has eight fully generated/delivered photos; only class 003 remains pending.
