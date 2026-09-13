@@ -1,6 +1,6 @@
 # Show-prep follow-ups
 
-Queued on 2026-09-12 after the [core review](reviews/2026-09-11-core-review/README.md). The [file-safety round](reviews/2026-09-12-file-safety.md) and [UI round](reviews/2026-09-12-ui-fixes.md) are implemented and locally validated. The [image-output round](reviews/2026-09-12-image-output-fixes.md) is implemented; the end-to-end rehearsal is next.
+Queued on 2026-09-12 after the [core review](reviews/2026-09-11-core-review/README.md). The [file-safety round](reviews/2026-09-12-file-safety.md) and [UI round](reviews/2026-09-12-ui-fixes.md) are implemented and locally validated. The [image-output round](reviews/2026-09-12-image-output-fixes.md) is implemented; the [local end-to-end rehearsal](reviews/2026-09-12-show-rehearsal.md) has also passed.
 
 ## Completed: everyday UI fixes
 
@@ -29,12 +29,14 @@ Acceptance: test uncached and missing thumbnails, underscore show IDs and apostr
 
 Acceptance: generated-image checks for enhancement consistency, disabled products, missing/corrupt watermark, quality, suffixes and `.jpeg` inputs.
 
-## Next: end-to-end rehearsal (#3)
+## Completed: local end-to-end rehearsal (#3)
 
-- [ ] Compile the updated Core Image binary and refresh the local daemon before testing the new adjustments.
-- [ ] Rehearse import → adjustments/watermarks → proofs → upload → delivered-image inspection using a small representative batch. Include portrait/landscape, `.jpeg`, enabled/disabled paid products, and an underscore show ID. Inspect watermark readability and exposure before generating a whole show. This has not been performed in the image-output round.
+- [x] Compile the updated Core Image binary and refresh the local daemon before testing the new adjustments.
+- [x] Rehearse import → adjustments/watermarks → proofs → upload → delivered-image inspection locally: four photo copies, 12 rsync-delivered images, eight successful native renders, 117 assertions. Portrait/landscape, `.jpeg`, all paid-product switch combinations, underscore identity, archive checksums and HTTP-served proof bytes verified. All four live Settings previews loaded. See the rehearsal report for scope and remaining limits.
 
 ## Later / separate
+
+- [ ] Fit long proof-number watermarks within the image width. The 27-character rehearsal label clipped in small and large proofs; the normal `22BUCK_00021` label fits and is readable. Preserve current visual style while preventing clipping.
 
 - [ ] Finish the separate underscore-ID fallbacks in quarantine replacement (`PhotoIssuesComponent`), the audit show-ID projection (`PhotoAuditService`), and the string-only class verifier (`FerraraphotoTargetVerifier`). The `Photo` derivative/import/move paths are fixed.
 
