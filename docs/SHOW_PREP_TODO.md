@@ -45,7 +45,7 @@ Acceptance: generated-image checks for enhancement consistency, disabled product
 ## Documentation review follow-ups — September 13
 
 - [ ] Honor `proofgen:audit --persist-issues=false` for every issue writer (per-photo, ingest stragglers, orphan quarantine). The signature declares it but the command does not pass it to the service. Add a regression proving no issue rows are written with the option disabled, while default audits still persist findings.
-- [ ] Align the root Composer PHP constraint with the supported runtime. It still says `^8.2`; locked dependencies require 8.3+, and this project is validated on Herd PHP 8.4.
+- [x] Align Composer with Herd PHP 8.4: root and lock platform requirements are `^8.4`, matching the locked Symfony components. Package versions are unchanged; Composer validation and platform checks pass.
 
 ## Later / separate
 

@@ -30,7 +30,7 @@ is deferred. Encoding, S3 migration, and updater research remain separate briefs
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.
-Use Herd PHP 8.4. See README for the stale root Composer PHP constraint.
+Use Herd PHP 8.4; Composer now requires PHP `^8.4`.
 
 - Checkout: `/Users/mikeferrara/Documents/code/proofgenredux`.
 - Operator DB: `database/database.sqlite` under that checkout; never a test target.

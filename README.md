@@ -28,9 +28,8 @@ Recognition is deferred.
   [Core Image operation](docs/core-image-enhancement.md).
 
 The locked stack is Laravel 13, Livewire 4, Flux 2, Tailwind 4, Intervention Image 4,
-and Pest 4. PHP 8.4 is the validated runtime. The root Composer PHP constraint is
-still `^8.2`, but locked Laravel/Intervention/Pest dependencies require PHP 8.3+;
-that root constraint is not a guarantee of PHP 8.2 compatibility.
+and Pest 4. Composer requires PHP `^8.4`, matching the locked Symfony components
+and the validated Herd PHP 8.4 runtime.
 
 For a new installation, configure its own `.env`, application key, SQLite database,
 image roots, and upload destinations before running migrations. Preserve existing

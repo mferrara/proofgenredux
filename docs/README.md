@@ -42,8 +42,6 @@ or operational checklist.
 - `proofgen:audit --persist-issues=false` is declared but not honored by the
   command/service. Audits can still write issue rows. The active guides now state
   that behavior; wiring up the flag is tracked in SHOW_PREP_TODO.
-- Root `composer.json` still declares PHP `^8.2`, while locked framework/image/test
-  dependencies require 8.3+. PHP 8.4 is the validated project runtime.
 - `external-docs/fluxui/index.md` is absent from this checkout. Agent instructions
   now explain this instead of claiming the reference bundle is present.
 - The updater exists, but its tag selection means a commit on main need not be the
