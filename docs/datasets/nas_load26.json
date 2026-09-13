@@ -1,0 +1,344 @@
+{
+  "show": "NAS_LOAD26",
+  "library": "/Volumes/Public/_Backups/sample_show_photos",
+  "photos": [
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00625.jpg",
+      "sha1": "9f96b079e53968efc314c9db3712d6701887a6a6",
+      "bytes": 10024218,
+      "class": "class_A",
+      "filename": "CAM_0001.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00626.jpg",
+      "sha1": "5076589b663d0e3e887dcc9558a0e54929dfa9c4",
+      "bytes": 10073628,
+      "class": "class_A",
+      "filename": "CAM_0002.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00627.jpg",
+      "sha1": "4b61f08bc8e45dbd535d04185e766fc6121ad8a4",
+      "bytes": 10124412,
+      "class": "class_A",
+      "filename": "CAM_0003.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00628.jpg",
+      "sha1": "7487be9c3baf74364ac5d961b20176cc13364402",
+      "bytes": 10720912,
+      "class": "class_A",
+      "filename": "CAM_0004.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00629.jpg",
+      "sha1": "056c66b47a6052342b5dfbc03ea98e042f713642",
+      "bytes": 10527064,
+      "class": "class_A",
+      "filename": "CAM_0005.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00630.jpg",
+      "sha1": "d4e3e3a9acc4d0a37230c695fbc220eb940a05d3",
+      "bytes": 11139341,
+      "class": "class_A",
+      "filename": "CAM_0006.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00631.jpg",
+      "sha1": "492337df4476bbb8596af59c30d6eb619abf0540",
+      "bytes": 11293076,
+      "class": "class_A",
+      "filename": "CAM_0007.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00632.jpg",
+      "sha1": "f8dca3da1e17bbc0e935ac38001f0e72020fd998",
+      "bytes": 10934301,
+      "class": "class_A",
+      "filename": "CAM_0008.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00633.jpg",
+      "sha1": "9a8de9d10ae7c8e2ac660674c2eae17a6f2f7c94",
+      "bytes": 11949228,
+      "class": "class_A",
+      "filename": "CAM_0009.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/22BUCK_00634.jpg",
+      "sha1": "b07475d3d25a2604d401e3234b47550b7178241d",
+      "bytes": 11674237,
+      "class": "class_A",
+      "filename": "CAM_0010.JPG"
+    },
+    {
+      "source": "shows/22Buck/001/originals/25R13_14200.jpg",
+      "sha1": "6d491d23c87f1851bf727fde40277ae0762a9613",
+      "bytes": 9435954,
+      "class": "class_A",
+      "filename": "CAM_0011.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00635.jpg",
+      "sha1": "66ed0985aced2e2f06f828212e6b522da5ce0aa9",
+      "bytes": 9691269,
+      "class": "class_A",
+      "filename": "CAM_0012.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00636.jpg",
+      "sha1": "393216b5f5c775ca8c811c1d601aa3c85e0a0b40",
+      "bytes": 10158150,
+      "class": "class_A",
+      "filename": "CAM_0013.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00637.jpg",
+      "sha1": "b43c02c90d15e99a166865d247e4967d6ab35fb4",
+      "bytes": 8814818,
+      "class": "class_A",
+      "filename": "CAM_0014.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00638.jpg",
+      "sha1": "880458f62a7818a88632b429e7a5142f4188c73b",
+      "bytes": 8686875,
+      "class": "class_A",
+      "filename": "CAM_0015.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00639.jpg",
+      "sha1": "d4ad0befa0a77d7bba757a29210ef15f30a6f691",
+      "bytes": 9859751,
+      "class": "class_A",
+      "filename": "CAM_0016.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00640.jpg",
+      "sha1": "9c739b7b6738cca94eaafac95a4fe86a106a30be",
+      "bytes": 10711339,
+      "class": "class_A",
+      "filename": "CAM_0017.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00641.jpg",
+      "sha1": "31a6e052b0097502850e1a3bb2b54112cb0e935d",
+      "bytes": 10429476,
+      "class": "class_A",
+      "filename": "CAM_0018.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00642.jpg",
+      "sha1": "1a13d67b414fc73d951ecf99337b5a7ec95e926d",
+      "bytes": 10440418,
+      "class": "class_A",
+      "filename": "CAM_0019.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00643.jpg",
+      "sha1": "47864ecef4bf7e917d16c6b525102e7de7c79efd",
+      "bytes": 8763332,
+      "class": "class_A",
+      "filename": "CAM_0020.JPG"
+    },
+    {
+      "source": "shows/22Buck/002/originals/22BUCK_00644.jpg",
+      "sha1": "31fa0bbc07bec6d34af1dd7ae8e55fb47335aa68",
+      "bytes": 10467279,
+      "class": "class_A",
+      "filename": "CAM_0021.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00645.jpg",
+      "sha1": "3e2345e7ed9a378a579593b5a846ab3cf5bb40ac",
+      "bytes": 10793605,
+      "class": "class_A",
+      "filename": "CAM_0022.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00646.jpg",
+      "sha1": "736e5b6615b4ea8b1d5c92941ee39fef1b66efa1",
+      "bytes": 10186317,
+      "class": "class_A",
+      "filename": "CAM_0023.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00647.jpg",
+      "sha1": "4c606158773e363930f20ac0674f895382c81ccd",
+      "bytes": 9822470,
+      "class": "class_A",
+      "filename": "CAM_0024.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00648.jpg",
+      "sha1": "fb69cd15f408531d57f497707d86ada0a6eacd9f",
+      "bytes": 9428461,
+      "class": "class_B",
+      "filename": "CAM_0025.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00649.jpg",
+      "sha1": "e15e2286665c33e46b5eb1d296bb44175cd0ed2b",
+      "bytes": 10670263,
+      "class": "class_B",
+      "filename": "CAM_0026.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00650.jpg",
+      "sha1": "25f1e251c4dcf7afd4cdc1a68609c70b10803fa0",
+      "bytes": 10370239,
+      "class": "class_B",
+      "filename": "CAM_0027.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00651.jpg",
+      "sha1": "5c0fca3f0d0ec643c2c2a90919b8dbe1d5445f45",
+      "bytes": 9870983,
+      "class": "class_B",
+      "filename": "CAM_0028.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00652.jpg",
+      "sha1": "adc5c37100468b20856dda6a05dc3a2daa94eeea",
+      "bytes": 9904582,
+      "class": "class_B",
+      "filename": "CAM_0029.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00653.jpg",
+      "sha1": "aa6d0aff053aadb4b6fc95337674671049f1c8b2",
+      "bytes": 9832179,
+      "class": "class_B",
+      "filename": "CAM_0030.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00654.jpg",
+      "sha1": "2161a8addb2e9ea5d8a0a230eb1d5945f6f60ee1",
+      "bytes": 10077932,
+      "class": "class_B",
+      "filename": "CAM_0031.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00655.jpg",
+      "sha1": "74683e38a600ee30e8c944ee06e54cb0e3db103d",
+      "bytes": 10235244,
+      "class": "class_B",
+      "filename": "CAM_0032.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00656.jpg",
+      "sha1": "eb10bb96cd40924b49cff7f4d268bf035355fa5a",
+      "bytes": 10149143,
+      "class": "class_B",
+      "filename": "CAM_0033.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00657.jpg",
+      "sha1": "02cac4c2b0a55b93d5d04a8bfcb2170dac14d1a6",
+      "bytes": 9664607,
+      "class": "class_B",
+      "filename": "CAM_0034.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00658.jpg",
+      "sha1": "e852516d7742c9d1e7627a184ffe3fbf1379c95a",
+      "bytes": 9691163,
+      "class": "class_B",
+      "filename": "CAM_0035.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00659.jpg",
+      "sha1": "49eb19b0a034aa41c7bffe6de83708b4297d46e8",
+      "bytes": 9690958,
+      "class": "class_B",
+      "filename": "CAM_0036.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00660.jpg",
+      "sha1": "0e225fc2971ca4625e332638989727325f8c4a38",
+      "bytes": 9780517,
+      "class": "class_B",
+      "filename": "CAM_0037.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00661.jpg",
+      "sha1": "9e7639d591b08904857ae02a2936e64bb59c7039",
+      "bytes": 9884798,
+      "class": "class_B",
+      "filename": "CAM_0038.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00662.jpg",
+      "sha1": "ad0e324f0b0fc228720f706fc2a34864a7b12c32",
+      "bytes": 9660016,
+      "class": "class_B",
+      "filename": "CAM_0039.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00663.jpg",
+      "sha1": "91667592b11e5451118a4be6ab462fc28f0894af",
+      "bytes": 9472144,
+      "class": "class_B",
+      "filename": "CAM_0040.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00664.jpg",
+      "sha1": "0dafd8cfcd4068edcf2916f4a460ad6451bb3bca",
+      "bytes": 9230757,
+      "class": "class_B",
+      "filename": "CAM_0041.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00665.jpg",
+      "sha1": "b5e660c6b89e2ffe58bf4cc41c8e3445f5170b92",
+      "bytes": 9527650,
+      "class": "class_B",
+      "filename": "CAM_0042.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00666.jpg",
+      "sha1": "cff53519b386774d74deadf6b06276d12122b155",
+      "bytes": 9135527,
+      "class": "class_B",
+      "filename": "CAM_0043.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00667.jpg",
+      "sha1": "7c9d79a7a6106adb5a95bbc05c30a63def5bb4ae",
+      "bytes": 9217052,
+      "class": "class_B",
+      "filename": "CAM_0044.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00668.jpg",
+      "sha1": "0bc62084b58d93fc871af2b8ecd49f9666b20ff8",
+      "bytes": 9560975,
+      "class": "class_B",
+      "filename": "CAM_0045.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00669.jpg",
+      "sha1": "592bae7196698f51b77acf7432bf962c261d36c2",
+      "bytes": 9960406,
+      "class": "class_B",
+      "filename": "CAM_0046.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00670.jpg",
+      "sha1": "ce20a02a3419a9f596c60f79a1c92a103c3374da",
+      "bytes": 9228245,
+      "class": "class_B",
+      "filename": "CAM_0047.JPG"
+    },
+    {
+      "source": "shows/22Buck/004/originals/22BUCK_00671.jpg",
+      "sha1": "1c56e6685aca8c115c9914922d4c39a4ee18fa81",
+      "bytes": 8509620,
+      "class": "class_B",
+      "filename": "CAM_0048.JPG"
+    }
+  ],
+  "total_bytes": 479474931,
+  "selection_seconds": 7.5
+}

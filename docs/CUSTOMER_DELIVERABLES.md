@@ -1,5 +1,7 @@
 # Customer-Facing Deliverables Page
 
+> **Status — September 13, 2026:** Companion-app design, not a verified customer flow. The local Proofgen rehearsal verified file delivery only; purchase, email, token downloads and deployed availability require separate Ferraraphoto verification. See [current integration status](FERRARAPHOTO_INTEGRATION.md).
+
 > Companion to `FERRARAPHOTO_API_SPEC.md` §8-10. This doc walks through the customer flow with
 > all the UX details that don't fit cleanly in the API spec.
 

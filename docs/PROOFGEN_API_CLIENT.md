@@ -1,5 +1,7 @@
 # Proofgen-side API Client + Storage Refactor
 
+> **Status — September 13, 2026:** Earlier design reference: the API client, upload orchestration and profile UI now exist in Proofgen source. The rollout sequence and tests-to-add list below are historical, not a current backlog. See [current integration status](FERRARAPHOTO_INTEGRATION.md).
+
 > **Audience.** Whoever picks up the proofgen-side Phase 2 work. Read alongside
 > `STORAGE_PROFILES.md` (the contract this implements) and `FERRARAPHOTO_API_SPEC.md` (what we
 > call).

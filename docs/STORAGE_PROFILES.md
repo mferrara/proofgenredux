@@ -1,5 +1,7 @@
 # Storage Profile Architecture
 
+> **Status — September 13, 2026:** Earlier design reference: storage profiles, detection, binding and resolution now exist in Proofgen source. The examples below are design sketches and may differ from the implementation. See [current integration status](FERRARAPHOTO_INTEGRATION.md).
+
 > **Audience.** Future proofgen/ferraraphoto contributors and the Codex session that builds the
 > ferraraphoto API. Read alongside `FERRARAPHOTO_INTEGRATION.md` (overview),
 > `FERRARAPHOTO_API_SPEC.md` (the wire contract that uses these profiles), and

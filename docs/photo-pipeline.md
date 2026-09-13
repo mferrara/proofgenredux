@@ -317,7 +317,7 @@ See §4.5. Photo created, source buried, derivative jobs dispatched (when `dispa
 |---|---|---|
 | **Discard incoming** | duplicate_content, proof_collision | `SafeFileMover::bury()` the quarantined source. Resolve issue. |
 | **Assign next proof number** | proof_collision with unowned incoming bytes | `Show::getNextProofNumber()` then `PhotoService::processPhoto(quarantine_path, $newNumber, bypassResolver: true, dispatchJobs: true)`. Resolve. Derivative regen jobs fire so thumbnails appear immediately. |
-| **Replace existing with incoming** | proof_collision, duplicate_content | Modal confirm → verify incoming SHA and reject any other content owner → bury existing's original + archive → `$existing->delete()` → relocate quarantined bytes if needed → `processPhoto(..., bypassResolver: true, dispatchJobs: true)` under existing's proof number. Resolve. |
+| **Replace existing with incoming** | proof_collision, duplicate_content | Modal confirm → verify incoming SHA, content ownership, actual class records and quarantine path → bury existing's original + archive → `$existing->delete()` → relocate quarantined bytes if needed → `processPhoto(..., bypassResolver: true, dispatchJobs: true)` under existing's proof number. Resolve. |
 | **Move existing photo to this class** | duplicate_content (cross-class) | `PhotoMoveService::movePhotos([$existing->id], $thisClassId)` → bury quarantined incoming. Resolve. |
 | **Run safe repair** | missing_archive, metadata_mismatch | `PhotoArchiveService::repairPhoto($photo)`. Resolve if status now `ok`. |
 | **Mark ignored** | any | `status = ignored` + notes. No file changes. |
@@ -329,6 +329,11 @@ See §4.5. Photo created, source buried, derivative jobs dispatched (when `dispa
 `php artisan proofgen:audit [--repair] [--show=X] [--class=Y]`
 
 `app/Console/Commands/AuditPhotoArchivesCommand.php` → `app/Services/PhotoAuditService.php::auditAll()`.
+
+Audits can persist issue rows even without `--repair`. The signature's
+`--persist-issues=false` option is not passed through to the service and currently
+has no effect. Do not describe this as a read-only mode. Photo/class filters use
+actual ShowClass relations; duplicate-group scans remain catalog-wide.
 
 Per-photo checks (in `auditOnePhoto()`):
 - SHA consistency: `photos.sha1` vs sha1 of local original bytes.
@@ -512,7 +517,7 @@ Alphabetical reference. File paths are absolute from repo root.
 | `App\Services\ClassRenameService` | `app/Services/ClassRenameService.php` | Rename whole class folder; bulk directory moves |
 | `App\Services\SafeFileMover` | `app/Services/SafeFileMover.php` | The single legitimate "delete" path. `bury()` + `quarantineImport()` + `buryAbsolute()` |
 | `App\Services\FinderRevealService` | `app/Services/FinderRevealService.php` | macOS-only — shells out to `open -R` for "Reveal in Finder" buttons. Validates path is under a known disk root |
-| `App\Services\StorageUsageService` | `app/Services/StorageUsageService.php` | Walks image trees to report bytes + file counts at class/show scope plus `_graveyard/sample_images/backups`. Cached 10 min |
+| `App\Services\StorageUsageService` | `app/Services/StorageUsageService.php` | Walks image trees to report bytes + file counts at class/show scope plus `_graveyard/sample_images/backups`. Show/class snapshots retained; stale after 10 min, manually refreshed |
 | `App\Services\Transport\RsyncCommandBuilder` | `app/Services/Transport/RsyncCommandBuilder.php` | Builds rsync argv/shell string (local or SFTP driver); SSH key/port quoting for rsync's `-e` parser; `-ii --out-format=%i %n` so transferred **and unchanged** files are reported; SSH `ConnectTimeout=15` + `BatchMode=yes` (host-key verification untouched) |
 | `App\Services\Transport\RsyncRunner` | `app/Services/Transport/RsyncRunner.php` | The only place real rsync runs. Laravel Process, explicit timeout, bounded stderr, throws `RsyncFailedException` on any non-zero exit. Timeout and start-failure (126/127 or launch exception) messages never embed the argv |
 | `App\Services\Transport\UploadConfigurationException` | `app/Services/Transport/UploadConfigurationException.php` | Thrown by real uploads when the destination config key is blank, before Storage or rsync is touched. Pending checks return empty instead |
@@ -571,9 +576,9 @@ This checks the import/audit/move/quarantine/graveyard regression surface using 
 
 ## 15. Known follow-ups / sharp edges
 
-Surfaced during the resolver/audit/upload work. The first three are resolved; the last two are documented constraints that aren't currently blocking but are worth knowing about.
+Current constraints and dated resolutions from the resolver/audit/upload work are listed below.
 
-- **Sync resolution actions in `PhotoIssuesComponent::reimportQuarantinedSource`** (documented constraint). The action writes archive + original + DB row + dispatches three derivative jobs synchronously inside the Livewire request. For typical 20-30MB JPGs that's well under a second. For 100MB+ medium-format files on slow archive disks it could approach the request timeout. If that ever bites, move it to a queued `ResolveImportConflict` job and have the UI poll for completion. The method's docblock notes the same.
+- **Sync resolution actions in `PhotoIssuesComponent::reimportQuarantinedSource`** (documented constraint). The action writes archive + original + DB row + dispatches three derivative jobs synchronously inside the Livewire request. Request time depends on file size and drive speed; large originals on slow mounted drives can approach the request timeout. If that ever bites, move it to a queued `ResolveImportConflict` job and have the UI poll for completion. The method's docblock notes the same.
 - **`*_uploaded_at` semantics** (documented, revised 2026-09-11). A successful real rsync (exit 0) reports its own file list via `-ii`: every regular file it transferred plus every file it found already up to date. Upload methods treat that rsync-reported list — never a separate directory walk — as the successful-sync manifest: a missing `*_uploaded_at` is backfilled, a partial failure followed by a successful retry catches up, and a byte-identical retry keeps the existing stamp (the stamp advances only when the run actually re-transferred that photo's content, so attribute-only changes such as permissions never masquerade as a new upload). Dry-runs never stamp — they only report the files rsync would transfer and clear stale stamps for them. Proofs require every configured suffix to be in the manifest (a complete pair), and the same rule applies per web/highres variant. Any non-zero rsync exit throws (`RsyncFailedException`), so chained metadata jobs are not reached; a blank destination path for a real upload throws `UploadConfigurationException` before Storage or rsync is contacted, while pending checks for an unconfigured optional kind return an empty list.
 
 ### Resolved 2026-05-10
@@ -591,4 +596,13 @@ Surfaced during the resolver/audit/upload work. The first three are resolved; th
 - Show import scans immediate class directories for final `.jpg`/`.jpeg` extensions, excluding nested originals, quarantine and sidecars. Class/move/archive paths use actual show and class fields rather than splitting composite IDs.
 - Validation and remaining limits: [file-safety review](reviews/2026-09-12-file-safety.md). UI and image-output follow-ups: [show-prep checklist](SHOW_PREP_TODO.md).
 
-*Last updated: 2026-09-12. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
+### Resolved 2026-09-13
+
+- Non-null photo SHA1 values are globally unique; same-class retries repair/reuse identity.
+- Queue-scoped action guards and native job uniqueness prevent repeated overlapping work.
+- Home excludes `_graveyard`; empty classes report pending imports and busy classes report Working.
+- Settings handles the tested 45 MP EXIF portrait and long proof labels fit their canvases.
+- Quarantine replacement, audit projection/filtering, and class target verification resolve actual class records, including underscore names.
+- See [the final local review](reviews/2026-09-13-show-prep-finish.md) for the 48-photo NAS rehearsal and [follow-ups](SHOW_PREP_TODO.md) for remaining work.
+
+*Last updated: 2026-09-13. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*

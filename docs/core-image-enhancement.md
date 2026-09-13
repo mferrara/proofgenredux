@@ -18,6 +18,14 @@ Both proof sizes start from independent copies of the same enhanced image and fi
 
 Web and high-resolution products, including Settings previews, share a watermark compositor and finish with one explicitly configured final JPEG encode. The daemon itself currently returns a JPEG intermediate; removing that is part of future pipeline/format research. Missing or corrupt paid-image watermark assets fail before the final output is written. Existing output is preserved in that case.
 
+Settings previews size their temporary PHP memory allowance from the source
+pixels, including EXIF rotation buffers. The previous limit is restored once
+buffers are released; exceptions can retain the allowance until the request ends.
+The actual 45 MP portrait rendered in all four tabs during the September 13 check.
+Proof labels fit their canvas, reducing font size only when necessary. Existing
+proofs need regeneration to receive output changes. See
+[the final local validation](reviews/2026-09-13-show-prep-finish.md).
+
 ## Local operation
 
 Swift and Metal require the macOS development tools. After changing Swift source, compile and refresh the daemon when local image jobs are idle:
@@ -32,7 +40,7 @@ The in-app updater already compiles registered Swift binaries and refreshes proc
 
 ## Validation
 
-Use the project's isolated test setup; do not point tests at the operator database or photo directories. The normal suite covers real synthetic GD outputs, JPEG quality tables, EXIF orientation, saved parameters, preview failure state, missing watermarks, and temporary-file cleanup.
+Use [the project's isolated test setup](TESTING.md); do not point tests at the operator database or photo directories. The normal suite covers real synthetic GD outputs, JPEG quality tables, EXIF orientation, saved parameters, preview failure state, missing watermarks, and temporary-file cleanup.
 
 The macOS renderer test explicitly opts into compiling the actual daemon source and processing generated gradients/flat images through Metal. It uses its own temporary files and stdin process, without starting or stopping the application's daemon:
 

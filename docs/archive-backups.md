@@ -29,29 +29,37 @@ ARCHIVE_HOME_DIR/
 
 ## Audit And Repair
 
-Run an audit after changing archive drives, recovering a machine, or importing older pre-archive photos:
+The current command is `proofgen:audit` (the old `proofgen:audit-archives` name
+no longer exists). It audits originals, archives and related file/identity issues.
+It can create/update `photo_issues` records even without `--repair`.
+**The declared `--persist-issues=false` option is currently ignored by the
+implementation; do not use it as a read-only guarantee.** This is tracked in
+[show-prep follow-ups](SHOW_PREP_TODO.md).
+
+To deliberately audit after changing drives, recovering a machine, or importing
+older pre-archive photos:
 
 ```bash
-php artisan proofgen:audit-archives
+php artisan proofgen:audit
 ```
 
 Limit the scan:
 
 ```bash
-php artisan proofgen:audit-archives --show=2023R41
-php artisan proofgen:audit-archives --show=2023R41 --class=121
+php artisan proofgen:audit --show=2023R41
+php artisan proofgen:audit --show=2023R41 --class=121
 ```
 
 Repair missing or mismatched archive files from local originals and refresh photo archive metadata:
 
 ```bash
-php artisan proofgen:audit-archives --repair
+php artisan proofgen:audit --repair
 ```
 
 Use JSON for scripting:
 
 ```bash
-php artisan proofgen:audit-archives --format=json
+php artisan proofgen:audit --format=json
 ```
 
 The repair command cannot recreate a backup when both the local original and archive file are missing. In that case it reports the photo as needing attention.

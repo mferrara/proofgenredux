@@ -1,5 +1,7 @@
 # Bulk Migration of Legacy Proofs to Cloud Storage
 
+> **Status — September 13, 2026:** Superseded rollout proposal: the operator chose to implement/configure storage, copy all existing files into the bucket(s), then switch over. Staged customer cutover, rollback machinery and automated source retention below are not current requirements. Do not execute this as a current migration runbook. See [current integration status](FERRARAPHOTO_INTEGRATION.md).
+
 > **Audience.** Whoever picks up the migration work after the storage-profile and
 > ferraraphoto-API plumbing lands. Read alongside `STORAGE_PROFILES.md`,
 > `FERRARAPHOTO_API_SPEC.md`, and `PROOFGEN_API_CLIENT.md`.

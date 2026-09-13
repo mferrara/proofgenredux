@@ -42,6 +42,11 @@ Acceptance: generated-image checks for enhancement consistency, disabled product
 - [x] Resolve quarantine replacement, audit filters/projections, and string class target checks through actual show/class records.
 - [x] Run a larger NAS-backed rehearsal and measure show-status data collection. See [the final local review](reviews/2026-09-13-show-prep-finish.md) for results and limits.
 
+## Documentation review follow-ups — September 13
+
+- [ ] Honor `proofgen:audit --persist-issues=false` for every issue writer (per-photo, ingest stragglers, orphan quarantine). The signature declares it but the command does not pass it to the service. Add a regression proving no issue rows are written with the option disabled, while default audits still persist findings.
+- [ ] Align the root Composer PHP constraint with the supported runtime. It still says `^8.2`; locked dependencies require 8.3+, and this project is validated on Herd PHP 8.4.
+
 ## Later / separate
 
 - [ ] Rehearse a small class on Dad's MacBook with its actual storage and upload targets before using it for the show.

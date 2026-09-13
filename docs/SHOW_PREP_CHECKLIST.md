@@ -1,6 +1,6 @@
 # Show-prep checklist
 
-Core upload, proof-number, and test-isolation fixes, reviewed 2026-09-11.
+Core upload, proof-number, and test-isolation checklist, refreshed 2026-09-13.
 These changes have not been installed or exercised against Dad's real upload targets.
 Horse recognition remains deferred.
 
@@ -10,7 +10,8 @@ The core fixes are now cherry-picked onto local `main`. Recognition and WIP
 planning remain on `feature/reid-pipeline`; use `main` for the next core release.
 The in-app updater pulls `main` and selects a release tag when one is available.
 Finish current imports/uploads before installing the update; then verify the
-new worker is running. Local workers have been restarted during validation; no release or installation on Dad's MacBook has been performed.
+new worker is running. Local workers have been restarted during validation; no
+release or installation on Dad's MacBook has been performed.
 
 ## Local UI follow-up — September 13
 
@@ -28,11 +29,11 @@ backup library is unchanged. `NASDEMO26` contains 24 imported sample photos and
 ## Verify the workers after installation
 
 Use Herd PHP 8.4 and modern Homebrew rsync (README.md already requires
-`brew install rsync`). Check `command -v rsync` and `rsync --version` in the
-worker's environment: the verified binary is Homebrew rsync 3.4.3. Apple's
-`/usr/bin/rsync` (openrsync) emits a different itemize format and is not covered
-by the upload-status parser. Installing Homebrew rsync is not enough if the
-worker PATH still selects the system binary.
+`brew install rsync`). The upload runner selects `/opt/homebrew/bin/rsync` or
+`/usr/local/bin/rsync`
+unless `RSYNC_BINARY` is configured. Verify that selected binary's version; the
+locally verified version is Homebrew rsync 3.4.3. Apple's openrsync emits a
+different itemize format and does not provide the required completion evidence.
 
 The updater clears/rebuilds configuration and restarts Horizon. If installing
 manually, refresh any cached configuration and restart Horizon through the
@@ -63,8 +64,8 @@ them. Uploads have 5 attempts with delays of 60, 300, 900, then 1800 seconds.
 
 1. Confirm the full-size and archive drives are mounted, the show slug is correct,
    and the configured proof/web/highres destinations match Ferraraphoto.
-2. Import a handful of photos. Originals and archive copies should be present,
-   followed by both proof sizes, web images, and high-resolution images.
+2. Import a handful of photos. Originals and enabled archive copies should be present,
+   followed by both proof sizes and the enabled web/high-resolution products.
    An ambiguous JPEG name in `originals/` now stops number allocation with the
    show and filename. Resolve it while retaining the original. Use proof-number
    renaming for this workflow; raw filenames in `originals/` remain incompatible
@@ -86,31 +87,19 @@ them. Uploads have 5 attempts with delays of 60, 300, 900, then 1800 seconds.
 
 ## Check archive coverage
 
-This form inspects files without persisting issue records or repairing anything:
-
-```bash
-php artisan proofgen:audit --show=YOUR_SHOW_ID --persist-issues=false --format=table
-```
-
-Resolve missing originals/archives and hash mismatches before clearing cards or
-removing source copies. The normal audit can record issues; `--repair` additionally
-writes repairs. Use those deliberately after reviewing the findings.
+`php artisan proofgen:audit --show=YOUR_SHOW_ID --format=table` inspects originals
+and archives and can persist issue rows. The advertised `--persist-issues=false`
+option is not wired up; it is **not** a read-only mode. Use the audit deliberately.
+`--repair` additionally writes repairs. See [archive backups](archive-backups.md).
 
 ## Local regression gate
 
-```bash
-./vendor/bin/pest
-```
+Follow [TESTING.md](TESTING.md) from a disposable checkout. The last recorded gate
+at `2aae180` passed 486 tests with 22 skips; the separate local rehearsal completed
+48 additional photos and 192 verified delivered JPEGs.
 
-`phpunit.xml` and the test bootstrap pin SQLite in memory, disposable infrastructure,
-synthetic image fixtures, and a sync replacement for the named upload connection.
-A fresh test checkout also needs disposable image roots and the usual suffixes
-(`_thm`, `_std`, `_web`, `_highres`). Older sample-dependent tests skip when local
-sample photos are absent. The guards reject unsafe database/cached configuration
-before providers boot and block unfaked Laravel HTTP requests. Transport regressions use local/fake rsync and SSH.
-
-Still unverified: actual targets, SSH/rsync versions on Dad's Mac and the receiver,
-show-network throughput, largest camera files, and the customer workflow after
-installation. The existing 60-second web-generation worker timeout and unlimited
-image memory setting remain; highres watermark handling and the legacy allocation
-architecture were not redesigned. Recognition is outside this release scope.
+Still unverified on Dad's machine: actual targets, SSH/rsync versions at both ends,
+show-network throughput, and the customer workflow after installation. Locally,
+the tested 45 MP files and all Settings preview tabs passed. The existing
+60-second web-generation worker timeout and unlimited web-job memory setting
+remain; recognition is outside this release scope.

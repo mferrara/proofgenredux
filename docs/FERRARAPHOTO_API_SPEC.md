@@ -1,5 +1,7 @@
 # Ferraraphoto API Specification
 
+> **Status — September 13, 2026:** Companion-app design contract, not deployment evidence. Confirm Ferraraphoto source and deployed endpoints before treating the examples below as available behavior; this Proofgen documentation pass did not re-audit that app. See [current integration status](FERRARAPHOTO_INTEGRATION.md).
+
 > **Audience.** The Codex session that builds this on the ferraraphoto repo, and future
 > contributors maintaining the API. Read alongside `STORAGE_PROFILES.md` (storage identity model)
 > and `PROOFGEN_API_CLIENT.md` (the proofgen-side caller).
