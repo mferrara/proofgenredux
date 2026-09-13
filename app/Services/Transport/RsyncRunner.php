@@ -25,6 +25,25 @@ class RsyncRunner
         private ?int $timeoutSeconds = null,
     ) {}
 
+    private function installedBinary(): string
+    {
+        if ($configured = config('proofgen.sftp.rsync_binary')) {
+            return $configured;
+        }
+
+        // Herd's PATH can select Apple's openrsync. Its output does not provide
+        // the rsync 3 itemized completion evidence our upload accounting needs.
+        foreach (['/opt/homebrew/bin/rsync', '/usr/local/bin/rsync'] as $binary) {
+            if (is_executable($binary)) {
+                return $binary;
+            }
+        }
+
+        throw RsyncFailedException::couldNotStart(
+            'Install Homebrew rsync (brew install rsync), or set RSYNC_BINARY to your rsync 3 executable.'
+        );
+    }
+
     /**
      * @param  array<int, string>  $argv  Full rsync argv (argv[0] = binary)
      *
@@ -36,9 +55,7 @@ class RsyncRunner
             throw new InvalidArgumentException('Cannot run rsync with an empty argv.');
         }
 
-        if ($this->rsyncBinary !== null && $this->rsyncBinary !== '') {
-            $argv[0] = $this->rsyncBinary;
-        }
+        $argv[0] = $this->rsyncBinary ?: $this->installedBinary();
 
         $timeout = $this->timeoutSeconds ?? (int) config('proofgen.sftp.timeout', self::DEFAULT_TIMEOUT_SECONDS);
 

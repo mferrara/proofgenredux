@@ -34,7 +34,7 @@ class UploadSampleImagesCommand extends Command
         // If no path is provided, use the sample_images disk path
         if (! $sourcePath) {
             $sourcePath = null; // null means use the sample_images disk
-            $this->info('Using default sample_images directory: '.storage_path('sample_images'));
+            $this->info('Using default sample_images directory: '.config('filesystems.disks.sample_images.root'));
         } else {
             $this->info('Using custom source directory: '.$sourcePath);
         }

@@ -67,7 +67,7 @@ class RsyncCommandBuilderTest extends TestCase
         $this->assertSame('/dest/sub', $dry[count($dry) - 1]);
     }
 
-    public function test_real_rsync_reports_unchanged_files_as_synced_evidence(): void
+    public function test_real_rsync_reports_unchanged_files_even_when_herd_path_omits_homebrew(): void
     {
         config(['proofgen.sftp.driver' => 'local']);
 
@@ -78,14 +78,21 @@ class RsyncCommandBuilderTest extends TestCase
 
         $runner = new RsyncRunner;
 
-        $first = $runner->run(RsyncCommandBuilder::argv($source, $dest, '', false));
-        $this->assertContains('SHOW1_00001_thm.jpg', $first->transferredFiles());
+        $previousPath = getenv('PATH');
+        putenv('PATH=/usr/bin:/bin');
+        try {
+            $first = $runner->run(RsyncCommandBuilder::argv($source, $dest, '', false));
+            $this->assertContains('SHOW1_00001_thm.jpg', $first->transferredFiles());
 
-        // Second run is a no-op; only the repeated -i unchanged entries prove
-        // that rsync saw and confirmed the file at the destination.
-        $second = $runner->run(RsyncCommandBuilder::argv($source, $dest, '', false));
-        $this->assertSame([], $second->transferredFiles(), 'the no-op run transfers nothing');
-        $this->assertContains('SHOW1_00001_thm.jpg', $second->syncedFiles(), '-ii must report unchanged files');
+            // Second run is a no-op; only the repeated -i unchanged entries prove
+            // that rsync saw and confirmed the file at the destination.
+            $second = $runner->run(RsyncCommandBuilder::argv($source, $dest, '', false));
+            $this->assertSame([], $second->transferredFiles(), 'the no-op run transfers nothing');
+            $this->assertContains('SHOW1_00001_thm.jpg', $second->syncedFiles(), '-ii must report unchanged files');
+        } finally {
+            $previousPath === false ? putenv('PATH') : putenv('PATH='.$previousPath);
+        }
+
     }
 
     public function test_sftp_driver_quotes_key_for_rsync_rsh_and_includes_port(): void

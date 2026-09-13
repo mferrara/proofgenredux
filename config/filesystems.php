@@ -86,7 +86,7 @@ return [
 
         'sample_images' => [
             'driver' => 'local',
-            'root' => storage_path('sample_images'),
+            'root' => env('SAMPLE_IMAGES_PATH', storage_path('sample_images')),
             'throw' => false,
         ],
 

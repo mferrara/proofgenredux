@@ -36,6 +36,17 @@ Acceptance: generated-image checks for enhancement consistency, disabled product
 
 ## Later / separate
 
+- [ ] Hide the internal `_graveyard` directory from Home's unimported shows,
+  and show pending-import status for classes that have no imported photos yet
+  (currently their status says "All done" alongside eight pending files).
+
+- [ ] Fix Settings previews for 45 MP originals. During the NAS rehearsal, the
+  8192×5464 sample reproducibly returned HTTP 500 after enhancement; the 5472×3648
+  sample rendered successfully. Investigate peak PHP memory and release full-size
+  buffers before rendering comparison previews. Keep a modest Settings sample
+  while retaining large originals in the import dataset.
+
+
 - [ ] Fit long proof-number watermarks within the image width. The 27-character rehearsal label clipped in small and large proofs; the normal `22BUCK_00021` label fits and is readable. Preserve current visual style while preventing clipping.
 
 - [ ] Finish the separate underscore-ID fallbacks in quarantine replacement (`PhotoIssuesComponent`), the audit show-ID projection (`PhotoAuditService`), and the string-only class verifier (`FerraraphotoTargetVerifier`). The `Photo` derivative/import/move paths are fixed.

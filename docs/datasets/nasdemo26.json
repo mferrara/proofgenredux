@@ -1,0 +1,173 @@
+{
+  "library": "/Volumes/Public/_Backups/sample_show_photos",
+  "images": [
+    {
+      "path": "shows/22Buck/008/originals/22BUCK_00797.jpg",
+      "bytes": 16580707,
+      "sha1": "30a2d99c0d3675036c85a8c48da156b99b6571a5",
+      "class": "001",
+      "destination": "NASDEMO26/001/IMG_0001.JPG"
+    },
+    {
+      "path": "shows/22Buck/008/originals/22BUCK_00765.jpg",
+      "bytes": 8607790,
+      "sha1": "687028b8e0b838b1e60d9fdd7bbae17fdec2294b",
+      "class": "001",
+      "destination": "NASDEMO26/001/IMG_0002.JPG"
+    },
+    {
+      "path": "shows/22Buck/008/originals/22BUCK_00777.jpg",
+      "bytes": 9246768,
+      "sha1": "87eca741c7644735df9fe4c30c6b35f2f63aa061",
+      "class": "001",
+      "destination": "NASDEMO26/001/IMG_0003.JPG"
+    },
+    {
+      "path": "shows/22Buck/008/originals/22BUCK_00778.jpg",
+      "bytes": 9405320,
+      "sha1": "0744c4e434782e976447ba8f4bc9f49b0901248a",
+      "class": "001",
+      "destination": "NASDEMO26/001/IMG_0004.JPG"
+    },
+    {
+      "path": "shows/22Buck/008/originals/22BUCK_00762.jpg",
+      "bytes": 9427283,
+      "sha1": "628823081e95a2f172149c8ff6dd89d0c091d5e7",
+      "class": "001",
+      "destination": "NASDEMO26/001/IMG_0005.JPG"
+    },
+    {
+      "path": "shows/22Buck/008/originals/22BUCK_00764.jpg",
+      "bytes": 9638844,
+      "sha1": "5e37b71c969251f45f8055ad5172e363d2411f11",
+      "class": "001",
+      "destination": "NASDEMO26/001/IMG_0006.JPG"
+    },
+    {
+      "path": "shows/22Buck/008/originals/22BUCK_00810.jpg",
+      "bytes": 10124697,
+      "sha1": "9feaad1dc87482e5a1f8e7045a3ebd1f69830aa2",
+      "class": "001",
+      "destination": "NASDEMO26/001/IMG_0007.JPG"
+    },
+    {
+      "path": "shows/22Buck/008/originals/22BUCK_00773.jpg",
+      "bytes": 10226583,
+      "sha1": "aa84218b312f1fd47db75c2b562670ce9742b744",
+      "class": "001",
+      "destination": "NASDEMO26/001/IMG_0008.JPG"
+    },
+    {
+      "path": "shows/29R31/127/originals/29R31_00114.jpg",
+      "bytes": 31457024,
+      "sha1": "9c6302ca54600b450f7818e94e1b651ba3ec3062",
+      "class": "002",
+      "destination": "NASDEMO26/002/IMG_0001.JPG"
+    },
+    {
+      "path": "shows/29R31/127/originals/29R31_00043.jpg",
+      "bytes": 8578085,
+      "sha1": "af6e2ad0034f4355ad8dc0a580bf674cce12239d",
+      "class": "002",
+      "destination": "NASDEMO26/002/IMG_0002.JPG"
+    },
+    {
+      "path": "shows/29R31/127/originals/29R31_00068.jpg",
+      "bytes": 9465537,
+      "sha1": "aadfe8fb5a23c027982c90c2ec4d83f66400423c",
+      "class": "002",
+      "destination": "NASDEMO26/002/IMG_0003.JPG"
+    },
+    {
+      "path": "shows/29R31/127/originals/29R31_00050.jpg",
+      "bytes": 9617870,
+      "sha1": "77f0d0c85679fe797d6f4da22819117df157c38c",
+      "class": "002",
+      "destination": "NASDEMO26/002/IMG_0004.JPG"
+    },
+    {
+      "path": "shows/29R31/127/originals/29R31_00047.jpg",
+      "bytes": 9913163,
+      "sha1": "2aa2a959364a4d07cdda0b63e862c2048c97044e",
+      "class": "002",
+      "destination": "NASDEMO26/002/IMG_0005.JPG"
+    },
+    {
+      "path": "shows/29R31/127/originals/29R31_00056.jpg",
+      "bytes": 10119161,
+      "sha1": "092e84da41172dcffdee6185aed6d20a8c9c42a5",
+      "class": "002",
+      "destination": "NASDEMO26/002/IMG_0006.JPG"
+    },
+    {
+      "path": "shows/29R31/127/originals/29R31_00063.jpg",
+      "bytes": 10270686,
+      "sha1": "d933d080d55a9274c60807a923ff167a5da3eec2",
+      "class": "002",
+      "destination": "NASDEMO26/002/IMG_0007.JPG"
+    },
+    {
+      "path": "shows/29R31/127/originals/29R31_00084.jpg",
+      "bytes": 10698062,
+      "sha1": "953fe95c01ef93f067ba61a52844fa5c93d6327f",
+      "class": "002",
+      "destination": "NASDEMO26/002/IMG_0008.JPG"
+    },
+    {
+      "path": "shows/Redux24/001/originals/REDUX24_00395.jpg",
+      "bytes": 10024710,
+      "sha1": "e32d9ea6e3b2075d4e3cf3a731f22a640af2260b",
+      "class": "003",
+      "destination": "NASDEMO26/003/IMG_0001.JPG"
+    },
+    {
+      "path": "shows/Redux24/001/originals/REDUX24_00214.jpg",
+      "bytes": 2480082,
+      "sha1": "743be0236996eff2be7933c3b3b434734bb8a434",
+      "class": "003",
+      "destination": "NASDEMO26/003/IMG_0002.JPG"
+    },
+    {
+      "path": "shows/Redux24/001/originals/REDUX24_00276.jpg",
+      "bytes": 2550112,
+      "sha1": "7eb3e8c9218de419eaf7aeaa91af588aaee8da2e",
+      "class": "003",
+      "destination": "NASDEMO26/003/IMG_0003.JPG"
+    },
+    {
+      "path": "shows/Redux24/001/originals/REDUX24_00203.jpg",
+      "bytes": 2667588,
+      "sha1": "1911541282fb949c0e7cdf9361ae70910485e1a5",
+      "class": "003",
+      "destination": "NASDEMO26/003/IMG_0004.JPG"
+    },
+    {
+      "path": "shows/Redux24/001/originals/REDUX24_00272.jpg",
+      "bytes": 2694392,
+      "sha1": "3fc5bcc05c2d049159b764bd76c903a105dc96ff",
+      "class": "003",
+      "destination": "NASDEMO26/003/IMG_0005.JPG"
+    },
+    {
+      "path": "shows/Redux24/001/originals/REDUX24_00274.jpg",
+      "bytes": 2977010,
+      "sha1": "b3c7df72e71012fedb30e0bd60fc1c83a8db37d4",
+      "class": "003",
+      "destination": "NASDEMO26/003/IMG_0006.JPG"
+    },
+    {
+      "path": "shows/Redux24/001/originals/REDUX24_00275.jpg",
+      "bytes": 3036861,
+      "sha1": "379ef169ebb89de75b35ad66a72f416d0fdaf817",
+      "class": "003",
+      "destination": "NASDEMO26/003/IMG_0007.JPG"
+    },
+    {
+      "path": "shows/Redux24/001/originals/REDUX24_00215.jpg",
+      "bytes": 3153103,
+      "sha1": "26940de72418c11eeee85d47ac3b8adf013cb7ac",
+      "class": "003",
+      "destination": "NASDEMO26/003/IMG_0008.JPG"
+    }
+  ]
+}

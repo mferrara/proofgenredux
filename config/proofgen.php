@@ -114,6 +114,7 @@ return [
     ],
 
     'sftp' => [
+        'rsync_binary' => env('RSYNC_BINARY'),
         // Transport driver: 'sftp' for rsync-over-SSH (production / staging),
         // 'local' for plain rsync between local directories (local dev against
         // a sibling install on the same Mac, or any future "proofgen runs on

@@ -98,7 +98,7 @@ class ListSampleImagesCommand extends Command
             'total_count' => count($imageFiles),
             'shows' => $groupedFiles['shows'],
             'ungrouped' => $groupedFiles['ungrouped'],
-            'storage_path' => storage_path('sample_images'),
+            'storage_path' => config('filesystems.disks.sample_images.root'),
         ];
     }
 

@@ -951,7 +951,7 @@ class ConfigComponent extends Component
     private function findSampleImage(): void
     {
         // First try storage/sample_images
-        $sampleImagesPath = storage_path('sample_images');
+        $sampleImagesPath = config('filesystems.disks.sample_images.root');
 
         if (File::exists($sampleImagesPath)) {
             $images = File::allFiles($sampleImagesPath);
