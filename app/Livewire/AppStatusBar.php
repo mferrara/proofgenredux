@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\PhotoIssue;
 use App\Services\GraveyardService;
 use App\Services\HorizonService;
+use App\Services\WorkerActivityService;
 use Flux\Flux;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -45,7 +46,7 @@ class AppStatusBar extends Component
                 );
             } else {
                 Flux::toast(
-                    text: 'Failed to start Horizon. Check logs for details.',
+                    text: 'Horizon has not reported running yet. Status will refresh automatically; check the Horizon log if it stays stopped.',
                     heading: 'Start Failed',
                     variant: 'danger',
                     position: 'top right'
@@ -77,8 +78,8 @@ class AppStatusBar extends Component
             // Stop Horizon
             if ($horizonService->stop()) {
                 Flux::toast(
-                    text: 'Horizon has been stopped successfully.',
-                    heading: 'Horizon Stopped',
+                    text: 'Workers will stop after finishing their current jobs.',
+                    heading: 'Stop Requested',
                     variant: 'success',
                     position: 'top right'
                 );
@@ -159,7 +160,7 @@ class AppStatusBar extends Component
             return null;
         }
 
-        $summary = app(GraveyardService::class)->summary();
+        $summary = Cache::remember('app-status-graveyard-summary', 60, fn () => app(GraveyardService::class)->summary());
         $agedDisks = [];
         $agedTotal = 0;
 
@@ -193,6 +194,7 @@ class AppStatusBar extends Component
 
         return view('livewire.app-status-bar', [
             'isHorizonRunning' => $isHorizonRunning,
+            'activity' => app(WorkerActivityService::class)->snapshot(),
             'autoRestartEnabled' => config('proofgen.auto_restart_horizon', false),
             'graveyardAlert' => $this->gravyardAlert(),
             'openIssuesCount' => $this->openIssuesCount(),

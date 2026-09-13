@@ -21,7 +21,7 @@
                 <div class="flex items-center justify-between gap-3">
                     <flux:badge :color="$pendingImportCount > 0 ? 'amber' : 'zinc'" size="lg" inset="top bottom">{{ $pendingImportCount }}</flux:badge>
                     @if($pendingImportCount > 0)
-                        <flux:button wire:click="importPendingImages" size="xs" variant="primary">Import</flux:button>
+                        <flux:button wire:click="importPendingImages" wire:loading.attr="disabled" wire:target="importPendingImages" size="xs" variant="primary">Import</flux:button>
                     @else
                         <span class="text-xs text-zinc-500 dark:text-zinc-400">Nothing pending</span>
                     @endif
@@ -34,7 +34,7 @@
                 <div class="flex items-center justify-between gap-3">
                     <flux:badge :color="$pendingProofs > 0 ? 'amber' : 'zinc'" size="lg" inset="top bottom">{{ $pendingProofs }}</flux:badge>
                     @if($pendingProofs > 0)
-                        <flux:button wire:click="proofPendingPhotos" size="xs" variant="primary">Generate</flux:button>
+                        <flux:button wire:click="proofPendingPhotos" wire:loading.attr="disabled" wire:target="proofPendingPhotos" :disabled="isset($processing_status) && $processing_status['ready']['proofs'] === 0" size="xs" variant="primary">Generate</flux:button>
                     @else
                         <span class="text-xs text-zinc-500 dark:text-zinc-400">All generated</span>
                     @endif
@@ -54,7 +54,7 @@
                     @if(!$web_images_enabled)
                         <span class="text-xs text-zinc-500 dark:text-zinc-400">Disabled</span>
                     @elseif($pendingWeb > 0)
-                        <flux:button wire:click="webImagePendingPhotos" size="xs" variant="primary">Generate</flux:button>
+                        <flux:button wire:click="webImagePendingPhotos" wire:loading.attr="disabled" wire:target="webImagePendingPhotos" :disabled="isset($processing_status) && $processing_status['ready']['web'] === 0" size="xs" variant="primary">Generate</flux:button>
                     @else
                         <span class="text-xs text-zinc-500 dark:text-zinc-400">All generated</span>
                     @endif
@@ -74,7 +74,7 @@
                     @if(!$highres_images_enabled)
                         <span class="text-xs text-zinc-500 dark:text-zinc-400">Disabled</span>
                     @elseif($pendingHighres > 0)
-                        <flux:button wire:click="highresImagePendingPhotos" size="xs" variant="primary">Generate</flux:button>
+                        <flux:button wire:click="highresImagePendingPhotos" wire:loading.attr="disabled" wire:target="highresImagePendingPhotos" :disabled="isset($processing_status) && $processing_status['ready']['highres'] === 0" size="xs" variant="primary">Generate</flux:button>
                     @else
                         <span class="text-xs text-zinc-500 dark:text-zinc-400">All generated</span>
                     @endif
@@ -138,7 +138,7 @@
                             border border-emerald-200/60 dark:border-emerald-500/20
                             text-sm text-emerald-900 dark:text-emerald-200/90">
                     <flux:icon name="check-circle" class="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    All generated proofs, web, and highres images are uploaded.
+                    No generated images are waiting for upload.
                 </div>
             @endif
         </div>

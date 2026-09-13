@@ -519,7 +519,7 @@
         </section>
 
         {{-- Services: Updates + Background workers --}}
-        <section id="services" data-section class="scroll-mt-20 mb-14">
+        <section id="services" wire:poll.5s="updateHorizonStatus" data-section class="scroll-mt-20 mb-14">
             <flux:heading size="lg" level="2" class="mb-4">Services</flux:heading>
 
             <div class="grid gap-6 md:grid-cols-2">

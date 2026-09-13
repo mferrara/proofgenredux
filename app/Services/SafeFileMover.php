@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use League\Flysystem\UnableToCreateDirectory;
 use RuntimeException;
 
 class SafeFileMover
@@ -55,7 +56,16 @@ class SafeFileMover
         );
         $directory = $this->directoryFor($graveyardPath);
         if ($directory !== '') {
-            $storage->makeDirectory($directory);
+            try {
+                $storage->makeDirectory($directory);
+            } catch (UnableToCreateDirectory $e) {
+                // Parallel import workers can create the same class directory.
+                // Accept only an actually existing directory; other IO failures still fail.
+                clearstatcache();
+                if (! $storage->directoryExists($directory)) {
+                    throw $e;
+                }
+            }
         }
 
         $storage->move($relative, $graveyardPath);
@@ -114,7 +124,16 @@ class SafeFileMover
         $target = $this->resolveAvailableGraveyardPath($disk, $candidate);
         $directory = $this->directoryFor($target);
         if ($directory !== '') {
-            $storage->makeDirectory($directory);
+            try {
+                $storage->makeDirectory($directory);
+            } catch (UnableToCreateDirectory $e) {
+                // Parallel import workers can create the same class directory.
+                // Accept only an actually existing directory; other IO failures still fail.
+                clearstatcache();
+                if (! $storage->directoryExists($directory)) {
+                    throw $e;
+                }
+            }
         }
 
         $storage->move($relative, $target);

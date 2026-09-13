@@ -28,6 +28,7 @@
 
         <div class="min-h-screen">
             @livewire('navigation-menu')
+            <livewire:app-status-bar />
 
             <!-- Page Heading -->
             @if (isset($header))
@@ -46,6 +47,7 @@
 
         @stack('modals')
 
+        <flux:toast />
         @fluxScripts
     </body>
 </html>

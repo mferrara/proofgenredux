@@ -40,7 +40,7 @@ class HorizonService
 
             return ! empty($ps_output);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Error checking Horizon status: '.$e->getMessage());
 
             return false;
@@ -115,80 +115,174 @@ class HorizonService
     public function terminate(): bool
     {
         try {
-            // First try to terminate using Artisan::call
-            // Log::debug('Terminating Horizon using Artisan::call');
+            return Artisan::call('horizon:terminate') === 0;
+        } catch (\Throwable $e) {
+            Log::error('Error terminating Horizon: '.$e->getMessage());
 
-            $exitCode = Artisan::call('horizon:terminate');
-            $output = Artisan::output();
-            // Log::debug('Horizon terminate output: '.$output);
-
-            return true;
-        } catch (\Exception $e) {
-            Log::error('Error using Artisan::call to terminate Horizon: '.$e->getMessage());
-
-            // Fall back to shell exec
-            // Get the PHP binary path for fallback
-            $phpBinary = Configuration::getPhpBinary();
-            // Log::debug('Falling back to shell exec with PHP binary: '.$phpBinary);
-
-            // Change directory to the application root to ensure the command works
-            $terminateCommand = 'cd '.base_path().' && '.escapeshellarg($phpBinary).' artisan horizon:terminate > /dev/null 2>&1';
-            // Log::debug('Running command: '.$terminateCommand);
-            exec($terminateCommand);
-
-            return true;
+            return false;
         }
     }
 
     /**
-     * Start Horizon in a detached process
+     * Start Horizon in a fully detached process.
+     *
+     * Idempotent: if Horizon is already running the existing master is kept and
+     * no second process is spawned. The launcher returns as soon as the shell
+     * has backgrounded Horizon, then this method waits a bounded amount of time
+     * for Horizon to actually report running before claiming success.
      */
     public function start(): bool
     {
         try {
-            // Get the PHP binary path
-            $phpBinary = Configuration::getPhpBinary();
-
-            // Command to execute
-            $command = 'cd '.base_path().' && '.escapeshellarg($phpBinary).' artisan horizon';
-
-            // Descriptors for proc_open
-            $descriptorspec = [
-                0 => ['file', '/dev/null', 'r'],  // stdin
-                1 => ['file', storage_path('logs/horizon.log'), 'a'], // stdout
-                2 => ['file', storage_path('logs/horizon.log'), 'a'],  // stderr
-            ];
-
-            // Current working directory and environment variables
-            $cwd = base_path();
-            $env = null; // Use current environment
-
-            // Use shell_exec to start Horizon in the background
-            $fullCommand = sprintf(
-                'cd %s && nohup %s artisan horizon > %s 2>&1 &',
-                escapeshellarg($cwd),
-                escapeshellarg($phpBinary),
-                escapeshellarg(storage_path('logs/horizon.log'))
-            );
-
-            shell_exec($fullCommand);
-
-            // Give it a moment to start
-            usleep(500000); // 0.5 seconds
-
-            // Check if it started successfully
+            // Idempotent: never stack a second master supervisor on top of a
+            // running one.
             if ($this->isRunning()) {
-                // Log::debug('Successfully started Horizon process');
                 return true;
-            } else {
-                Log::error('Failed to start Horizon process');
+            }
+
+            $this->ensureHorizonLogDirectoryExists();
+
+            if (! $this->launchDetached($this->buildStartCommand())) {
+                Log::error('Failed to start Horizon process: detached launcher did not run');
 
                 return false;
             }
-        } catch (\Exception $e) {
+
+            if ($this->waitUntilRunning()) {
+                return true;
+            }
+
+            // The launcher succeeded but Horizon has not reported running yet.
+            // Report honestly rather than claiming a start we could not verify.
+            Log::warning('Horizon did not report running within the startup window; it may still be starting');
+
+            return false;
+        } catch (\Throwable $e) {
             Log::error('Failed to start Horizon: '.$e->getMessage());
 
             return false;
+        }
+    }
+
+    /**
+     * How long start() waits for Horizon to report running, in seconds.
+     */
+    protected function readinessTimeoutSeconds(): float
+    {
+        return 8.0;
+    }
+
+    /**
+     * Delay between readiness probes, in microseconds.
+     */
+    protected function readinessPollMicroseconds(): int
+    {
+        return 250000;
+    }
+
+    /**
+     * PHP binary used to launch Horizon.
+     */
+    protected function phpBinary(): string
+    {
+        return Configuration::getPhpBinary();
+    }
+
+    /**
+     * Directory the detached Horizon process is launched from.
+     */
+    protected function basePath(): string
+    {
+        return base_path();
+    }
+
+    /**
+     * File Horizon's stdout/stderr are appended to.
+     */
+    protected function horizonLogPath(): string
+    {
+        return storage_path('logs/horizon.log');
+    }
+
+    /**
+     * Ensure the directory holding the Horizon log exists.
+     */
+    protected function ensureHorizonLogDirectoryExists(): void
+    {
+        $directory = dirname($this->horizonLogPath());
+
+        if (! is_dir($directory)) {
+            @mkdir($directory, 0755, true);
+        }
+    }
+
+    /**
+     * Build the shell command that launches Horizon.
+     *
+     * Every path is passed through escapeshellarg() so paths containing spaces
+     * (for example a Herd/PHP binary under a home directory with a space) arrive
+     * at the shell as a single argument. stdin is re-pointed at /dev/null and the
+     * whole pipeline is backgrounded so the launcher can exit immediately.
+     */
+    protected function buildStartCommand(): string
+    {
+        return sprintf(
+            'cd %s && nohup %s artisan horizon >> %s 2>&1 < /dev/null &',
+            escapeshellarg($this->basePath()),
+            escapeshellarg($this->phpBinary()),
+            escapeshellarg($this->horizonLogPath())
+        );
+    }
+
+    /**
+     * Launch a command with every standard stream detached.
+     *
+     * proc_open() is given file descriptors (never pipes) so PHP never waits on
+     * a pipe held open by the long-lived Horizon process. Combined with the
+     * command's own redirections and the trailing "&", this returns as soon as
+     * the launcher shell exits and leaves Horizon reparented and independent of
+     * the web request.
+     */
+    protected function launchDetached(string $command): bool
+    {
+        $logPath = $this->horizonLogPath();
+
+        $descriptors = [
+            0 => ['file', '/dev/null', 'r'],
+            1 => ['file', $logPath, 'a'],
+            2 => ['file', $logPath, 'a'],
+        ];
+
+        $process = @proc_open($command, $descriptors, $pipes, $this->basePath());
+
+        if (! is_resource($process)) {
+            return false;
+        }
+
+        // The launcher shell backgrounds Horizon and exits immediately, so this
+        // does not wait on the daemon itself.
+        $exitCode = proc_close($process);
+
+        return $exitCode === 0;
+    }
+
+    /**
+     * Poll isRunning() until Horizon comes up or the bounded window expires.
+     */
+    protected function waitUntilRunning(): bool
+    {
+        $deadline = microtime(true) + $this->readinessTimeoutSeconds();
+
+        while (true) {
+            if ($this->isRunning()) {
+                return true;
+            }
+
+            if (microtime(true) >= $deadline) {
+                return false;
+            }
+
+            usleep($this->readinessPollMicroseconds());
         }
     }
 

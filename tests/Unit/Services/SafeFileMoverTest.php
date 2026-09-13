@@ -6,6 +6,7 @@ use App\Services\SafeFileMover;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use League\Flysystem\UnableToCreateDirectory;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -44,6 +45,36 @@ class SafeFileMoverTest extends TestCase
         }
 
         parent::tearDown();
+    }
+
+    public function test_quarantine_accepts_directory_created_by_another_worker(): void
+    {
+        $disk = Storage::disk('fullsize');
+        $disk->put('SHOW/001/input.jpg', 'preserved original');
+        $proxy = \Mockery::mock($disk);
+        $proxy->shouldReceive('makeDirectory')->once()->andReturnUsing(function ($path) use ($disk) {
+            $disk->makeDirectory($path);
+            throw UnableToCreateDirectory::atLocation($path, 'File exists');
+        });
+        Storage::set('fullsize', $proxy);
+        $result = app(SafeFileMover::class)->quarantineImport('fullsize', 'SHOW/001/input.jpg', 'SHOW', '001');
+        $this->assertSame('preserved original', $disk->get($result['quarantine_path']));
+        $this->assertTrue($disk->exists($result['sidecar_path']));
+    }
+
+    public function test_quarantine_preserves_source_when_directory_creation_really_fails(): void
+    {
+        $disk = Storage::disk('fullsize');
+        $disk->put('SHOW/001/input.jpg', 'preserved original');
+        $proxy = \Mockery::mock($disk);
+        $proxy->shouldReceive('makeDirectory')->once()->andThrow(UnableToCreateDirectory::atLocation('blocked'));
+        Storage::set('fullsize', $proxy);
+        try {
+            app(SafeFileMover::class)->quarantineImport('fullsize', 'SHOW/001/input.jpg', 'SHOW', '001');
+            $this->fail('Expected directory failure');
+        } catch (UnableToCreateDirectory) {
+            $this->assertSame('preserved original', $disk->get('SHOW/001/input.jpg'));
+        }
     }
 
     public function test_bury_moves_file_to_dated_graveyard_with_sidecar(): void

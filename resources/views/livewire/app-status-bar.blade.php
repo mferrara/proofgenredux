@@ -9,7 +9,7 @@
     }
 @endphp
 
-<div class="w-full border-b border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-900/40">
+<div wire:poll.3s class="w-full border-b border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-900/40">
     @if($graveyardAlert)
         <div class="w-full bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-500/30">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-x-4 text-sm">
@@ -29,7 +29,17 @@
         </div>
     @endif
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-end gap-x-4 text-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between flex-wrap gap-3 text-sm">
+        <div role="status" aria-live="polite" class="flex items-center gap-2">
+            @if($activity['available'])
+                <span>{{ $activity['waiting'] }} queued</span>
+                <span>· {{ $activity['active'] }} processing</span>
+                @if($activity['delayed'] > 0)<span>· {{ $activity['delayed'] }} delayed</span>@endif
+                @if(!$isHorizonRunning)<span class="text-amber-700 dark:text-amber-300">Start workers to process queued work.</span>@endif
+            @else
+                <span class="text-amber-700 dark:text-amber-300">Queue status unavailable</span>
+            @endif
+        </div>
         {{-- Issues --}}
         <div class="flex items-center gap-1.5">
             <span class="text-zinc-500 dark:text-zinc-400">Issues</span>
@@ -86,7 +96,7 @@
 
         {{-- Horizon --}}
         <div class="flex items-center gap-1.5">
-            <span class="text-zinc-500 dark:text-zinc-400">Horizon</span>
+            <span class="text-zinc-500 dark:text-zinc-400">Background workers</span>
             @if($isHorizonRunning)
                 <flux:badge color="emerald" size="sm" icon="bolt">Running</flux:badge>
                 @if($autoRestartEnabled)

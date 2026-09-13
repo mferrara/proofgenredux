@@ -11,6 +11,7 @@ use App\Models\ShowClass;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ToggleImageGenerationTest extends TestCase
@@ -27,6 +28,8 @@ class ToggleImageGenerationTest extends TestCase
 
         // Skip file operations during tests
         Config::set('testing.skip_file_operations', true);
+
+        Storage::fake('fullsize');
 
         // Create test show and class
         $this->show = Show::create([
@@ -62,6 +65,9 @@ class ToggleImageGenerationTest extends TestCase
         }
 
         // Try to queue web images
+        foreach ($photos as $photo) {
+            Storage::disk('fullsize')->put($photo->relative_path, 'original');
+        }
         $queued = $this->showClass->queueWebImageGeneration($photos);
 
         // Assert no jobs were queued
@@ -91,6 +97,9 @@ class ToggleImageGenerationTest extends TestCase
         }
 
         // Queue web images
+        foreach ($photos as $photo) {
+            Storage::disk('fullsize')->put($photo->relative_path, 'original');
+        }
         $queued = $this->showClass->queueWebImageGeneration($photos);
 
         // Assert jobs were queued
@@ -120,6 +129,9 @@ class ToggleImageGenerationTest extends TestCase
         }
 
         // Try to queue highres images
+        foreach ($photos as $photo) {
+            Storage::disk('fullsize')->put($photo->relative_path, 'original');
+        }
         $queued = $this->showClass->queueHighresImageGeneration($photos);
 
         // Assert no jobs were queued
@@ -149,6 +161,9 @@ class ToggleImageGenerationTest extends TestCase
         }
 
         // Queue highres images
+        foreach ($photos as $photo) {
+            Storage::disk('fullsize')->put($photo->relative_path, 'original');
+        }
         $queued = $this->showClass->queueHighresImageGeneration($photos);
 
         // Assert jobs were queued
@@ -197,6 +212,10 @@ class ToggleImageGenerationTest extends TestCase
             ]),
         ]);
 
+        foreach ($photos as $photo) {
+            Storage::disk('fullsize')->put($photo->relative_path, 'original');
+        }
+
         // Both should default to enabled (true)
         $webQueued = $this->showClass->queueWebImageGeneration($photos);
         $highresQueued = $this->showClass->queueHighresImageGeneration($photos);
@@ -228,6 +247,9 @@ class ToggleImageGenerationTest extends TestCase
         putenv('GENERATE_WEB_IMAGES_ENABLED=FALSE');
         Config::set('proofgen.generate_web_images.enabled', getenv('GENERATE_WEB_IMAGES_ENABLED') !== 'FALSE');
 
+        foreach ($photos as $photo) {
+            Storage::disk('fullsize')->put($photo->relative_path, 'original');
+        }
         $queued = $this->showClass->queueWebImageGeneration($photos);
         $this->assertEquals(0, $queued);
 
@@ -235,6 +257,9 @@ class ToggleImageGenerationTest extends TestCase
         putenv('GENERATE_WEB_IMAGES_ENABLED=TRUE');
         Config::set('proofgen.generate_web_images.enabled', getenv('GENERATE_WEB_IMAGES_ENABLED') !== 'FALSE');
 
+        foreach ($photos as $photo) {
+            Storage::disk('fullsize')->put($photo->relative_path, 'original');
+        }
         $queued = $this->showClass->queueWebImageGeneration($photos);
         $this->assertEquals(1, $queued);
 

@@ -514,6 +514,9 @@ class ShowClass extends Model
     {
         $queued = 0;
         foreach ($photos as $photo) {
+            if (! Storage::disk('fullsize')->exists($photo->relative_path)) {
+                continue;
+            }
             GenerateThumbnails::dispatch($photo->id, $this->proofs_path)->onQueue('thumbnails');
             $queued++;
         }
@@ -533,6 +536,9 @@ class ShowClass extends Model
 
         $queued = 0;
         foreach ($photos as $photo) {
+            if (! Storage::disk('fullsize')->exists($photo->relative_path)) {
+                continue;
+            }
             GenerateWebImage::dispatch($photo->id, $this->web_images_path)->onQueue('thumbnails');
             $queued++;
         }
@@ -552,6 +558,9 @@ class ShowClass extends Model
 
         $queued = 0;
         foreach ($photos as $photo) {
+            if (! Storage::disk('fullsize')->exists($photo->relative_path)) {
+                continue;
+            }
             GenerateHighresImage::dispatch($photo->id, $this->highres_images_path)->onQueue('thumbnails');
             $queued++;
         }
@@ -566,6 +575,9 @@ class ShowClass extends Model
     {
         // Remove the local proof files for this class and reset the proofs_generated_at
         foreach ($this->photosProofed()->get() as $photo) {
+            if (! Storage::disk('fullsize')->exists($photo->relative_path)) {
+                continue;
+            }
             /** @var Photo $photo */
             $photo->deleteLocalProofs();
         }
@@ -577,6 +589,9 @@ class ShowClass extends Model
     {
         // Remove the local web images for this class and reset the web_image_generated_at
         foreach ($this->photosWebImaged()->get() as $photo) {
+            if (! Storage::disk('fullsize')->exists($photo->relative_path)) {
+                continue;
+            }
             /** @var Photo $photo */
             $photo->deleteLocalWebImage();
         }
@@ -593,6 +608,9 @@ class ShowClass extends Model
     {
         // Remove the local highres images for this class and reset the highres_image_generated_at
         foreach ($this->photosHighresImaged()->get() as $photo) {
+            if (! Storage::disk('fullsize')->exists($photo->relative_path)) {
+                continue;
+            }
             /** @var Photo $photo */
             $photo->deleteLocalHighresImage();
         }

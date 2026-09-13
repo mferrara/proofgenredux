@@ -62,6 +62,33 @@
         </div>
     </div>
 
+    <div class="mb-4 space-y-2" aria-live="polite">
+        @if($processing_status['missing_originals'] > 0)
+            <div role="alert" class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+                <strong>{{ $processing_status['missing_originals'] }} original files missing.</strong>
+                These records cannot generate images until their originals are restored. They are not queued for generation.
+            </div>
+        @endif
+        @if($open_issue_count > 0)
+            <div class="rounded-lg border border-amber-300 p-3 text-sm">
+                <strong>{{ $open_issue_count }} photos need review.</strong> An import can move duplicate or conflicting files to Import Conflicts without creating a new photo.
+                <a class="underline" href="{{ route('photo-issues', ['show_class_id' => $show_class->id]) }}">Review this class's issues</a>
+            </div>
+        @endif
+        @if($processing_status['failed_count'] > 0)
+            <details class="rounded-lg border border-red-300 p-3 text-sm">
+                <summary class="cursor-pointer text-red-700 dark:text-red-300">{{ $processing_status['failed_count'] }} failed jobs for this class in the last 24 hours — view errors</summary>
+                <ul class="mt-2 space-y-2">
+                    @foreach($processing_status['failures'] as $failure)
+                        <li class="break-words">{{ $failure['at'] }} — {{ $failure['message'] }}</li>
+                    @endforeach
+                </ul>
+                <a class="underline" href="{{ url('/horizon/failed') }}">View failed jobs</a>
+            </details>
+        @endif
+        <p class="text-xs text-zinc-500">Counts refresh every 5 seconds. Pending means unfinished, not necessarily queued. Failed-job history remains after a successful retry.</p>
+    </div>
+
     {{-- Status snapshot + actions --}}
     <div class="grid grid-cols-12 gap-4 mb-8">
         @include('components.partials.photo-process-status-table')

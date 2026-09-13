@@ -11,6 +11,7 @@ use App\Models\Photo;
 use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Proofgen\ShowClass;
+use App\Services\ClassProcessingStatus;
 use App\Services\FerraraphotoTargetVerifier;
 use App\Services\PathResolver;
 use App\Services\PhotoMoveService;
@@ -159,6 +160,7 @@ class ClassViewComponent extends Component
             ...$this->showClass->processingCounts(),
             'web_images_enabled' => config('proofgen.generate_web_images.enabled', true),
             'highres_images_enabled' => config('proofgen.generate_highres_images.enabled', true),
+            'processing_status' => app(ClassProcessingStatus::class)->snapshot($this->showClass),
             'open_issue_count' => PhotoIssue::open()->where('show_class_id', $this->showClass->id)->count(),
             'storage_usage' => $this->showStorageUsage
                 ? app(StorageUsageService::class)->classUsage($this->showClass)
@@ -259,7 +261,7 @@ class ClassViewComponent extends Component
     public function proofPendingPhotos(): void
     {
         $count = $this->showClass->proofPendingPhotos();
-        $this->setFlashMessage($count.' Photos queued.');
+        $this->setFlashMessage($count.' photos queued. Missing originals are skipped; see processing status.');
     }
 
     public function webImagePendingPhotos(): void
@@ -277,7 +279,7 @@ class ClassViewComponent extends Component
         }
 
         $count = $this->showClass->webImagePendingPhotos();
-        $this->setFlashMessage($count.' Photos queued.');
+        $this->setFlashMessage($count.' photos queued. Missing originals are skipped; see processing status.');
     }
 
     public function highresImagePendingPhotos(): void
@@ -295,7 +297,7 @@ class ClassViewComponent extends Component
         }
 
         $count = $this->showClass->highresImagePendingPhotos();
-        $this->setFlashMessage($count.' Photos queued.');
+        $this->setFlashMessage($count.' photos queued. Missing originals are skipped; see processing status.');
     }
 
     public function proofPhoto(string $photo_id): void

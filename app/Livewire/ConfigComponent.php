@@ -221,8 +221,8 @@ class ConfigComponent extends Component
             // Stop Horizon
             if ($horizonService->stop()) {
                 Flux::toast(
-                    text: 'Horizon has been stopped successfully.',
-                    heading: 'Horizon Stopped',
+                    text: 'Workers will stop after finishing their current jobs.',
+                    heading: 'Stop Requested',
                     variant: 'success',
                     position: 'top right'
                 );
@@ -826,7 +826,7 @@ class ConfigComponent extends Component
                 $this->updateHorizonStatus();
             } else {
                 Flux::toast(
-                    text: 'Failed to start Horizon. Check logs for details.',
+                    text: 'Horizon has not reported running yet. Status will refresh automatically; check the Horizon log if it stays stopped.',
                     heading: 'Start Failed',
                     variant: 'danger',
                     position: 'top right'
@@ -1525,7 +1525,7 @@ class ConfigComponent extends Component
     /**
      * Update Horizon running status
      */
-    protected function updateHorizonStatus(): void
+    public function updateHorizonStatus(): void
     {
         $horizonService = app(HorizonService::class);
         $this->isHorizonRunning = $horizonService->isRunning();

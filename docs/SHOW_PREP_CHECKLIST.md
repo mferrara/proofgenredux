@@ -12,6 +12,18 @@ The in-app updater pulls `main` and selects a release tag when one is available.
 Finish current imports/uploads before installing the update; then verify the
 new worker is running. No release, update, or restart was performed by this work.
 
+## Local UI follow-up — September 13
+
+The active layout now shows live worker status and queue activity on every page.
+An idle browser stop/start cycle passed without refreshing; local workers were
+left running. Class views distinguish missing originals, import issues, and
+recent failed jobs from pending generation counts. See
+[the live-processing review](reviews/2026-09-13-live-processing-fixes.md).
+Redux24/001 now has 20 restored originals and 20 successfully generated proof
+pairs, ready for upload. The 36 remaining missing originals belong to old
+records (33 additional duplicates and three without a matching source). Those
+records remain unchanged; use a fresh class for a clean import rehearsal.
+
 ## Verify the workers after installation
 
 Use Herd PHP 8.4 and modern Homebrew rsync (README.md already requires
