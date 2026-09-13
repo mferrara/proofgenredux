@@ -13,6 +13,9 @@ use App\Models\Show;
 use App\Models\ShowClass;
 use App\Proofgen\Image;
 use Exception;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 
 class PhotoService
 {
@@ -78,7 +81,7 @@ class PhotoService
         }
 
         if ($plan->isIdempotent()) {
-            $photo = $this->handleIdempotentRetry($plan, $debug);
+            $photo = $this->handleIdempotentRetry($plan, $show, $class, $debug);
 
             return [
                 'photo' => $photo,
@@ -136,12 +139,48 @@ class PhotoService
     }
 
     /**
-     * Same image already imported with the same proof number in the same class:
-     * refresh archive metadata if drifted, ensure original_filename is set, bury the source.
+     * Same bytes already represented in this show/class: refresh archive metadata
+     * if drifted, ensure original_filename is set, restore a missing original from
+     * the verified incoming bytes, then bury the retry source. Identity and proof
+     * number are preserved — no new record and no new number.
      */
-    private function handleIdempotentRetry(PhotoImportPlan $plan, bool $debug): Photo
+    private function handleIdempotentRetry(PhotoImportPlan $plan, string $show, string $class, bool $debug): Photo
     {
         $photo = $plan->existingByContent;
+        $storage = Storage::disk('fullsize');
+        $originalRelativePath = $this->pathResolver->normalizePath(
+            $this->pathResolver->getOriginalFilePath($show, $class, $photo->proof_number.'.'.$photo->file_type)
+        );
+
+        // Restore a missing original from the incoming bytes. A present original
+        // is never overwritten: the incoming file is a retry of the same content,
+        // not a replacement.
+        if (! $storage->exists($originalRelativePath)) {
+            $incoming = $storage->get($plan->sourcePath);
+            $recordedSha1 = (string) $photo->sha1;
+
+            if ($incoming === false || $recordedSha1 === '' || sha1($incoming) !== $recordedSha1) {
+                throw new RuntimeException(
+                    'Cannot restore missing original for '.$photo->id.
+                    ': incoming source no longer matches the recorded file identity.'
+                );
+            }
+
+            $directory = dirname($originalRelativePath);
+            if ($directory !== '' && $directory !== '.' && $directory !== '/') {
+                $storage->makeDirectory($directory);
+            }
+
+            $storage->put($originalRelativePath, $incoming);
+            $written = $storage->get($originalRelativePath);
+            if ($written === false || sha1($written) !== $recordedSha1 || strlen($written) !== strlen($incoming)) {
+                throw new RuntimeException('Original restoration verification failed; '.$originalRelativePath);
+            }
+
+            if ($debug) {
+                Log::debug('Restored missing original from idempotent retry; '.$originalRelativePath);
+            }
+        }
 
         $archiveService = app(PhotoArchiveService::class);
         if ($archiveService->enabled()) {
@@ -156,23 +195,26 @@ class PhotoService
             $photo->forceFill(['original_filename' => $plan->originalFilename])->save();
         }
 
-        app(SafeFileMover::class)->bury(
-            disk: 'fullsize',
-            path: $plan->sourcePath,
-            reason: SafeFileMover::REASON_POST_IMPORT_SOURCE,
-            context: [
-                'sha1' => $plan->sha1,
-                'size' => $plan->size,
-                'photo_id' => $photo->id,
-                'original_filename' => $plan->originalFilename,
-                'idempotent_retry' => true,
-            ],
-        );
+        // Never bury a source that IS the original itself — that would destroy the
+        // only copy we just verified/restored.
+        $sourcePath = $this->pathResolver->normalizePath($plan->sourcePath);
+        if ($sourcePath !== $originalRelativePath && $storage->exists($sourcePath)) {
+            app(SafeFileMover::class)->bury(
+                disk: 'fullsize',
+                path: $sourcePath,
+                reason: SafeFileMover::REASON_POST_IMPORT_SOURCE,
+                context: [
+                    'sha1' => $plan->sha1,
+                    'size' => $plan->size,
+                    'photo_id' => $photo->id,
+                    'original_filename' => $plan->originalFilename,
+                    'idempotent_retry' => true,
+                ],
+            );
+        }
 
         if ($debug) {
-            Log::debug(
-                'Idempotent re-import; buried duplicate source; '.$plan->sourcePath.' (photo '.$photo->id.')'
-            );
+            Log::debug('Idempotent re-import; preserved source identity for photo '.$photo->id.'.');
         }
 
         return $photo;

@@ -88,6 +88,26 @@ class Image
         $final_proof_number = $this->rename_files
             ? $proof_number
             : pathinfo($this->filename, PATHINFO_FILENAME);
+
+        // Low-level uniqueness guard: reject identical bytes that already belong
+        // to a *different* photo id before any archive/original bytes are written.
+        // This protects direct callers that bypass the resolver; the DB unique
+        // index on photos.sha1 is the final line of defence.
+        $existingByContent = Photo::query()->where('sha1', $image_sha1)->first();
+        $candidatePhotoId = $this->show.'_'.$this->class.'_'.$final_proof_number;
+        if ($existingByContent !== null && $existingByContent->id !== $candidatePhotoId) {
+            throw new \RuntimeException(
+                'Refusing to import duplicate content for '.$candidatePhotoId.
+                ': identical bytes already belong to photo '.$existingByContent->id.
+                '. Reuse the existing record instead of creating a second one.'
+            );
+        }
+
+        $existingById = Photo::find($candidatePhotoId);
+        if ($existingById?->sha1 && $existingById->sha1 !== $image_sha1) {
+            throw new \RuntimeException('Refusing to overwrite different content owned by photo '.$candidatePhotoId);
+        }
+
         $final_filename = $final_proof_number.'.'.$extension;
         $path_to_originals_file = $this->pathResolver->normalizePath(
             $this->pathResolver->getOriginalFilePath($this->show, $this->class, $final_filename)
@@ -132,21 +152,26 @@ class Image
             $original_filename,
         );
 
-        // 5. Bury ingest source LAST.
-        $burial = app(SafeFileMover::class)->bury(
-            disk: 'fullsize',
-            path: $this->image_path,
-            reason: SafeFileMover::REASON_POST_IMPORT_SOURCE,
-            context: [
-                'sha1' => $image_sha1,
-                'size' => $image_size,
-                'photo_id' => $photo->id,
-                'original_filename' => $original_filename,
-            ],
-        );
+        // 5. Bury ingest source LAST, unless the source path *is* the original
+        // we just wrote. An originals-path import must never bury its only copy.
+        if ($this->pathResolver->normalizePath($this->image_path) !== $this->pathResolver->normalizePath($path_to_originals_file)) {
+            $burial = app(SafeFileMover::class)->bury(
+                disk: 'fullsize',
+                path: $this->image_path,
+                reason: SafeFileMover::REASON_POST_IMPORT_SOURCE,
+                context: [
+                    'sha1' => $image_sha1,
+                    'size' => $image_size,
+                    'photo_id' => $photo->id,
+                    'original_filename' => $original_filename,
+                ],
+            );
 
-        if ($debug) {
-            Log::debug('Buried ingest source; '.$this->image_path.' → '.$burial['graveyard_path']);
+            if ($debug) {
+                Log::debug('Buried ingest source; '.$this->image_path.' → '.$burial['graveyard_path']);
+            }
+        } elseif ($debug) {
+            Log::debug('Source path is the imported original; not burying '.$this->image_path);
         }
 
         return $photo;

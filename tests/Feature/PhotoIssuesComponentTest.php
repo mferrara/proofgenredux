@@ -92,6 +92,27 @@ class PhotoIssuesComponentTest extends TestCase
         return $result['issue']->fresh();
     }
 
+    private function createProofCollisionIssue(): PhotoIssue
+    {
+        // Existing photo owns the proof number but with different bytes, so an
+        // incoming numbered file with the same number is a genuine proof
+        // collision (different content) that may be assigned a new number.
+        Photo::create([
+            'id' => 'SHOW1_101_SHOW1_00010',
+            'show_class_id' => 'SHOW1_101',
+            'proof_number' => 'SHOW1_00010',
+            'file_type' => 'jpg',
+            'sha1' => sha1('original collision bytes'),
+        ]);
+
+        Storage::disk('fullsize')->put('SHOW1/101/SHOW1_00010.jpg', 'incoming collision bytes');
+
+        $result = app(PhotoService::class)->processPhoto('SHOW1/101/SHOW1_00010.jpg', null, false, false);
+        $this->assertNotNull($result['issue']);
+
+        return $result['issue']->fresh();
+    }
+
     public function test_renders_open_issues_with_filter(): void
     {
         $issue = $this->createDuplicateContentIssue();
@@ -147,7 +168,7 @@ class PhotoIssuesComponentTest extends TestCase
         $redisClient->shouldReceive('lpop')->andReturn($allocated);
         Redis::shouldReceive('client')->andReturn($redisClient);
 
-        $issue = $this->createDuplicateContentIssue();
+        $issue = $this->createProofCollisionIssue();
 
         Livewire::test(PhotoIssuesComponent::class)
             ->call('openIssue', $issue->id)
@@ -170,6 +191,168 @@ class PhotoIssuesComponentTest extends TestCase
         Bus::assertDispatched(GenerateThumbnails::class);
         Bus::assertDispatched(GenerateWebImage::class);
         Bus::assertDispatched(GenerateHighresImage::class);
+    }
+
+    public function test_assign_next_proof_number_is_refused_for_duplicate_content_without_allocating(): void
+    {
+        // Guard must return before Show::getNextProofNumber() touches Redis.
+        Redis::shouldReceive('client')->never();
+
+        $issue = $this->createDuplicateContentIssue();
+        $beforePhotoCount = Photo::count();
+
+        Livewire::test(PhotoIssuesComponent::class)
+            ->call('openIssue', $issue->id)
+            ->call('assignNextProofNumberToIncoming', $issue->id);
+
+        $issue->refresh();
+        $this->assertSame(PhotoIssue::STATUS_OPEN, $issue->status);
+        $this->assertSame($beforePhotoCount, Photo::count());
+        $this->assertTrue(Storage::disk('fullsize')->exists($issue->quarantine_path));
+    }
+
+    public function test_assign_next_proof_number_is_refused_when_incoming_content_is_now_owned(): void
+    {
+        // The incoming content was unowned when the issue was recorded but a
+        // different photo owns those exact bytes now. Allocation must not happen.
+        Photo::create([
+            'id' => 'SHOW1_102_SHOW1_00050',
+            'show_class_id' => 'SHOW1_102',
+            'proof_number' => 'SHOW1_00050',
+            'file_type' => 'jpg',
+            'sha1' => sha1('late owned bytes'),
+        ]);
+        Photo::create([
+            'id' => 'SHOW1_101_SHOW1_00010',
+            'show_class_id' => 'SHOW1_101',
+            'proof_number' => 'SHOW1_00010',
+            'file_type' => 'jpg',
+            'sha1' => sha1('collision bytes'),
+        ]);
+
+        $quarantine = 'SHOW1/101/_import_conflicts/SHOW1_00010_20260913-140000_cafebabe.jpg';
+        Storage::disk('fullsize')->put($quarantine, 'late owned bytes');
+
+        $issue = PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_PROOF_COLLISION,
+            'show_id' => 'SHOW1',
+            'show_class_id' => 'SHOW1_101',
+            'quarantine_path' => $quarantine,
+            'intended_proof_number' => 'SHOW1_00010',
+            'incoming_sha1' => sha1('late owned bytes'),
+            'incoming_size' => strlen('late owned bytes'),
+            'existing_photo_id' => 'SHOW1_101_SHOW1_00010',
+            'existing_proof_number' => 'SHOW1_00010',
+            'existing_sha1' => sha1('collision bytes'),
+        ]);
+
+        Redis::shouldReceive('client')->never();
+
+        Livewire::test(PhotoIssuesComponent::class)
+            ->call('openIssue', $issue->id)
+            ->call('assignNextProofNumberToIncoming', $issue->id);
+
+        $issue->refresh();
+        $this->assertSame(PhotoIssue::STATUS_OPEN, $issue->status);
+        $this->assertNull(Photo::find('SHOW1_101_SHOW1_00500'));
+        $this->assertTrue(Storage::disk('fullsize')->exists($quarantine));
+    }
+
+    public function test_replace_existing_refuses_when_another_photo_owns_incoming_content(): void
+    {
+        Photo::create([
+            'id' => 'SHOW1_101_SHOW1_00010',
+            'show_class_id' => 'SHOW1_101',
+            'proof_number' => 'SHOW1_00010',
+            'file_type' => 'jpg',
+            'sha1' => sha1('existing original bytes'),
+        ]);
+        Storage::disk('fullsize')->put('SHOW1/101/originals/SHOW1_00010.jpg', 'existing original bytes');
+
+        // A different photo already owns the incoming content.
+        Photo::create([
+            'id' => 'SHOW1_102_SHOW1_00050',
+            'show_class_id' => 'SHOW1_102',
+            'proof_number' => 'SHOW1_00050',
+            'file_type' => 'jpg',
+            'sha1' => sha1('incoming bytes'),
+        ]);
+
+        $quarantine = 'SHOW1/101/_import_conflicts/SHOW1_00010_20260913-120000_deadbeef.jpg';
+        Storage::disk('fullsize')->put($quarantine, 'incoming bytes');
+
+        $issue = PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_PROOF_COLLISION,
+            'show_id' => 'SHOW1',
+            'show_class_id' => 'SHOW1_101',
+            'quarantine_path' => $quarantine,
+            'intended_proof_number' => 'SHOW1_00010',
+            'incoming_sha1' => sha1('incoming bytes'),
+            'incoming_size' => strlen('incoming bytes'),
+            'existing_photo_id' => 'SHOW1_101_SHOW1_00010',
+            'existing_proof_number' => 'SHOW1_00010',
+            'existing_sha1' => sha1('existing original bytes'),
+        ]);
+
+        Livewire::test(PhotoIssuesComponent::class)
+            ->call('openIssue', $issue->id)
+            ->call('confirmDestructive', $issue->id, 'replace_existing')
+            ->call('performConfirmedDestructive');
+
+        // Nothing destructive happened: row, original, and quarantine all intact.
+        $existing = Photo::find('SHOW1_101_SHOW1_00010');
+        $this->assertNotNull($existing);
+        $this->assertSame(sha1('existing original bytes'), $existing->sha1);
+        $this->assertTrue(Storage::disk('fullsize')->exists('SHOW1/101/originals/SHOW1_00010.jpg'));
+        $this->assertTrue(Storage::disk('fullsize')->exists($quarantine));
+        $this->assertSame(PhotoIssue::STATUS_OPEN, $issue->fresh()->status);
+    }
+
+    public function test_replace_existing_with_incoming_still_works_for_genuinely_different_content(): void
+    {
+        Bus::fake();
+
+        Photo::create([
+            'id' => 'SHOW1_101_SHOW1_00010',
+            'show_class_id' => 'SHOW1_101',
+            'proof_number' => 'SHOW1_00010',
+            'file_type' => 'jpg',
+            'sha1' => sha1('existing original bytes'),
+        ]);
+        Storage::disk('fullsize')->put('SHOW1/101/originals/SHOW1_00010.jpg', 'existing original bytes');
+
+        $quarantine = 'SHOW1/101/_import_conflicts/SHOW1_00010_20260913-130000_feedface.jpg';
+        Storage::disk('fullsize')->put($quarantine, 'replacement bytes');
+
+        $issue = PhotoIssue::create([
+            'status' => PhotoIssue::STATUS_OPEN,
+            'issue_type' => PhotoIssue::TYPE_PROOF_COLLISION,
+            'show_id' => 'SHOW1',
+            'show_class_id' => 'SHOW1_101',
+            'quarantine_path' => $quarantine,
+            'intended_proof_number' => 'SHOW1_00010',
+            'incoming_sha1' => sha1('replacement bytes'),
+            'incoming_size' => strlen('replacement bytes'),
+            'existing_photo_id' => 'SHOW1_101_SHOW1_00010',
+            'existing_proof_number' => 'SHOW1_00010',
+            'existing_sha1' => sha1('existing original bytes'),
+        ]);
+
+        Livewire::test(PhotoIssuesComponent::class)
+            ->call('openIssue', $issue->id)
+            ->call('confirmDestructive', $issue->id, 'replace_existing')
+            ->call('performConfirmedDestructive');
+
+        $issue->refresh();
+        $this->assertSame(PhotoIssue::STATUS_RESOLVED, $issue->status);
+
+        $photo = Photo::find('SHOW1_101_SHOW1_00010');
+        $this->assertNotNull($photo);
+        $this->assertSame(sha1('replacement bytes'), $photo->sha1);
+        $this->assertTrue(Storage::disk('fullsize')->exists('SHOW1/101/originals/SHOW1_00010.jpg'));
+        $this->assertSame('replacement bytes', Storage::disk('fullsize')->get('SHOW1/101/originals/SHOW1_00010.jpg'));
     }
 
     public function test_mark_ignored_sets_status_and_writes_note(): void

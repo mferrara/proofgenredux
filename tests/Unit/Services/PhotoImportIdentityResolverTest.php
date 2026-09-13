@@ -114,7 +114,7 @@ class PhotoImportIdentityResolverTest extends TestCase
         $this->assertSame('22Buck_007_22BUCK_00093', $plan->existingByContent->id);
     }
 
-    public function test_same_sha_different_proof_is_duplicate_content(): void
+    public function test_same_sha_different_proof_same_class_is_idempotent_existing(): void
     {
         Storage::disk('fullsize')->put('22Buck/007/22BUCK_00093.jpg', 'shared bytes');
         Photo::create([
@@ -127,8 +127,44 @@ class PhotoImportIdentityResolverTest extends TestCase
 
         $plan = app(PhotoImportIdentityResolver::class)->resolve('22Buck/007/22BUCK_00093.jpg', '22Buck', '007');
 
-        $this->assertSame(PhotoImportIdentityResolver::DUPLICATE_CONTENT, $plan->decision);
+        $this->assertSame(PhotoImportIdentityResolver::IDEMPOTENT_EXISTING, $plan->decision);
+        $this->assertFalse($plan->allocatesNewProofNumber);
         $this->assertSame('22BUCK_00050', $plan->existingByContent->proof_number);
+    }
+
+    public function test_same_sha_same_class_raw_filename_is_idempotent_existing(): void
+    {
+        Storage::disk('fullsize')->put('22Buck/007/IMG_0001.jpg', 'raw shared bytes');
+        Photo::create([
+            'id' => '22Buck_007_22BUCK_00050',
+            'show_class_id' => '22Buck_007',
+            'proof_number' => '22BUCK_00050',
+            'file_type' => 'jpg',
+            'sha1' => sha1('raw shared bytes'),
+        ]);
+
+        $plan = app(PhotoImportIdentityResolver::class)->resolve('22Buck/007/IMG_0001.jpg', '22Buck', '007');
+
+        $this->assertSame(PhotoImportIdentityResolver::IDEMPOTENT_EXISTING, $plan->decision);
+        $this->assertFalse($plan->allocatesNewProofNumber);
+        $this->assertSame('22Buck_007_22BUCK_00050', $plan->existingByContent->id);
+    }
+
+    public function test_same_sha_different_class_is_duplicate_content(): void
+    {
+        Storage::disk('fullsize')->put('22Buck/007/22BUCK_00093.jpg', 'cross class shared bytes');
+        Photo::create([
+            'id' => '22Buck_008_22BUCK_00050',
+            'show_class_id' => '22Buck_008',
+            'proof_number' => '22BUCK_00050',
+            'file_type' => 'jpg',
+            'sha1' => sha1('cross class shared bytes'),
+        ]);
+
+        $plan = app(PhotoImportIdentityResolver::class)->resolve('22Buck/007/22BUCK_00093.jpg', '22Buck', '007');
+
+        $this->assertSame(PhotoImportIdentityResolver::DUPLICATE_CONTENT, $plan->decision);
+        $this->assertSame('22Buck_008_22BUCK_00050', $plan->existingByContent->id);
     }
 
     public function test_same_proof_different_sha_is_proof_collision(): void

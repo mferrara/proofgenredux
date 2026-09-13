@@ -242,8 +242,9 @@ class ClassRenameService
                     : null;
             }
 
-            // Create new photo record with updated ID
-            $newPhoto = $photo->replicate();
+            // Update in place: the content hash must never belong to two rows.
+            $metadata = $photo->metadata;
+            $newPhoto = $photo;
             $newPhoto->id = $newPhotoId;
             $newPhoto->show_class_id = $newClassId;
             $newPhoto->archive_path = $archiveMetadata['archive_path'] ?? null;
@@ -255,12 +256,9 @@ class ClassRenameService
             $newPhoto->saveQuietly();
 
             // Update metadata if exists
-            if ($photo->metadata) {
-                $photo->metadata->update(['photo_id' => $newPhotoId]);
+            if ($metadata) {
+                $metadata->update(['photo_id' => $newPhotoId]);
             }
-
-            // Delete old photo record
-            $photo->delete();
         }
 
         Log::debug('Updated '.count($photos).' photo records for class rename');

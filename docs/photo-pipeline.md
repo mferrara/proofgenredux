@@ -221,14 +221,19 @@ The classifier looks at **two things**:
 
 ### Decision table
 
-| Filename type | SHA found? | Proof# found? | Same photo? | Decision | What happens |
-|---|---|---|---|---|---|
-| numbered | yes | yes | yes (same row) | `IDEMPOTENT_EXISTING` | repair archive metadata if drifted, bury source |
-| numbered | yes | * | * | `DUPLICATE_CONTENT` | quarantine source, create issue |
-| numbered | no | yes | n/a | `PROOF_COLLISION` | quarantine source, create issue |
-| numbered | no | no | n/a | `IMPORT_NEW` (use embedded #) | import; do NOT consume Redis proof number |
-| raw | yes | n/a | n/a | `DUPLICATE_CONTENT` | quarantine source, create issue |
-| raw | no | n/a | n/a | `IMPORT_NEW` (allocate next #) | import; consume next Redis proof number |
+| Filename type | Content owner | Proof# taken? | Decision | What happens |
+|---|---|---|---|---|
+| any | same show/class | any | `IDEMPOTENT_EXISTING` | preserve existing number, restore missing original, repair archive, bury retry source |
+| any | different show/class | any | `DUPLICATE_CONTENT` | quarantine source, create issue linked to owner |
+| numbered | none | yes | `PROOF_COLLISION` | quarantine source, create issue |
+| numbered | none | no | `IMPORT_NEW` (use embedded #) | import without consuming Redis proof number |
+| raw | none | n/a | `IMPORT_NEW` (allocate next #) | import; consume next Redis proof number |
+
+The database enforces global uniqueness of non-null `photos.sha1`. The migration
+refuses existing duplicate hashes without modifying them. Normal imports and
+original discovery calculate the hash before inserting a row. Photo moves and
+class renames update the existing row in place. Direct imports reject duplicate
+content or a different image claiming an existing ID before writing files.
 
 `INVALID_NUMBERED_FILENAME` and `NEEDS_REVIEW` are reserved decision codes; nothing currently emits them. If/when classification gets more nuanced, those slots are pre-wired into `PhotoImportPlan::requiresReview()` and `PhotoImportIssueRecorder::DECISION_TO_TYPE`.
 
@@ -274,10 +279,12 @@ The resolver **does not mutate**. It reads bytes, hashes, queries the DB, parses
 
 ### 6.1 IDEMPOTENT_EXISTING — `PhotoService::handleIdempotentRetry()`
 
-The exact same image was dropped again. We don't re-import; we:
+The exact same image was dropped again into the same class. We preserve its
+record and proof number. If the original is missing, restore it from the incoming
+bytes and verify its SHA and size first. Then:
 1. Run `PhotoArchiveService::auditPhoto($photo)`. If `archive_missing` / `metadata_stale` / `archive_mismatched` → call `repairPhoto()`.
 2. Backfill `original_filename` if it was empty (legacy rows pre-`original_filename` migration).
-3. `SafeFileMover::bury` the duplicate source with `reason: post_import_source` and `idempotent_retry: true` in context.
+3. `SafeFileMover::bury` the duplicate source with `reason: post_import_source` and `idempotent_retry: true` in context, unless the source path is itself the original.
 
 ### 6.2 DUPLICATE_CONTENT / PROOF_COLLISION — `PhotoImportIssueRecorder::record()`
 
@@ -302,8 +309,8 @@ See §4.5. Photo created, source buried, derivative jobs dispatched (when `dispa
 | Action | Issue types it applies to | What it does |
 |---|---|---|
 | **Discard incoming** | duplicate_content, proof_collision | `SafeFileMover::bury()` the quarantined source. Resolve issue. |
-| **Assign next proof number** | duplicate_content | `Show::getNextProofNumber()` then `PhotoService::processPhoto(quarantine_path, $newNumber, bypassResolver: true, dispatchJobs: true)`. Resolve. Derivative regen jobs fire so thumbnails appear immediately. |
-| **Replace existing with incoming** | proof_collision, duplicate_content | Modal confirm → bury existing's original + archive → `$existing->delete()` → relocate quarantined bytes if needed → `processPhoto(..., bypassResolver: true, dispatchJobs: true)` under existing's proof number. Resolve. |
+| **Assign next proof number** | proof_collision with unowned incoming bytes | `Show::getNextProofNumber()` then `PhotoService::processPhoto(quarantine_path, $newNumber, bypassResolver: true, dispatchJobs: true)`. Resolve. Derivative regen jobs fire so thumbnails appear immediately. |
+| **Replace existing with incoming** | proof_collision, duplicate_content | Modal confirm → verify incoming SHA and reject any other content owner → bury existing's original + archive → `$existing->delete()` → relocate quarantined bytes if needed → `processPhoto(..., bypassResolver: true, dispatchJobs: true)` under existing's proof number. Resolve. |
 | **Move existing photo to this class** | duplicate_content (cross-class) | `PhotoMoveService::movePhotos([$existing->id], $thisClassId)` → bury quarantined incoming. Resolve. |
 | **Run safe repair** | missing_archive, metadata_mismatch | `PhotoArchiveService::repairPhoto($photo)`. Resolve if status now `ok`. |
 | **Mark ignored** | any | `status = ignored` + notes. No file changes. |
@@ -548,7 +555,7 @@ This checks the import/audit/move/quarantine/graveyard regression surface using 
 - **Proof number**: business identity. Show-scoped (Redis pool keyed on show id). Format `{SHOW_UPPERCASE}_{5-digit}`.
 - **SHA-1**: file identity. The audit and resolver both treat sha1 as authoritative for "is this the same image?"
 - **Original filename**: camera-given basename (e.g. `IMG_02631.jpg`). Captured at import time, used by `ImportConflictHintService` to suggest where a duplicate naturally fits among siblings.
-- **Idempotent retry**: same image dropped into ingest folder again. Detected by sha1 + proof# match → repair-only path (no new photo, source buried).
+- **Idempotent retry**: same image dropped into ingest folder again. Detected by SHA match within the same show/class → repair-only path (no new photo, source buried).
 - **Quarantine** vs **Bury** vs **Conflict-aside**: see §1 table. They are NOT interchangeable.
 - **The resolver is pure**. It reads bytes and queries the DB. It does not move, write, or delete anything. All side effects happen downstream of it.
 - **The graveyard is the only delete path**. If you find yourself reaching for `unlink()` or `Storage::delete()` on an original or archive copy, you're doing it wrong — go through `SafeFileMover`.

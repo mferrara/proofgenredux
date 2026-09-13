@@ -8,6 +8,7 @@ use App\Models\Show;
 use App\Models\ShowClass;
 use App\Services\PhotoAuditService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -99,21 +100,37 @@ class PhotoAuditServiceTest extends TestCase
 
     public function test_finds_duplicate_sha1_groups(): void
     {
-        Photo::create([
-            'id' => 'SHOW1_101_SHOW1_00010', 'show_class_id' => 'SHOW1_101',
-            'proof_number' => 'SHOW1_00010', 'file_type' => 'jpg', 'sha1' => sha1('same'),
-        ]);
-        Photo::create([
-            'id' => 'SHOW1_101_SHOW1_00011', 'show_class_id' => 'SHOW1_101',
-            'proof_number' => 'SHOW1_00011', 'file_type' => 'jpg', 'sha1' => sha1('same'),
-        ]);
+        $sha = sha1('same');
 
-        $result = app(PhotoAuditService::class)->auditAll();
+        // The unique index makes duplicate sha1 rows impossible in normal
+        // operation, so drop it just for this test to exercise the audit's
+        // defensive duplicate detection (e.g. a pre-migration database).
+        DB::statement('DROP INDEX IF EXISTS photos_sha1_unique');
 
-        $this->assertSame(1, $result['stats']['duplicate_sha1_groups']);
-        $duplicateGroup = collect($result['findings'])->firstWhere('kind', 'duplicate_sha1_group');
-        $this->assertSame(2, $duplicateGroup['count']);
-        $this->assertSame(sha1('same'), $duplicateGroup['sha1']);
+        try {
+            DB::table('photos')->insert([
+                [
+                    'id' => 'SHOW1_101_SHOW1_00010', 'show_class_id' => 'SHOW1_101',
+                    'proof_number' => 'SHOW1_00010', 'file_type' => 'jpg', 'sha1' => $sha,
+                    'created_at' => now(), 'updated_at' => now(),
+                ],
+                [
+                    'id' => 'SHOW1_101_SHOW1_00011', 'show_class_id' => 'SHOW1_101',
+                    'proof_number' => 'SHOW1_00011', 'file_type' => 'jpg', 'sha1' => $sha,
+                    'created_at' => now(), 'updated_at' => now(),
+                ],
+            ]);
+
+            $result = app(PhotoAuditService::class)->auditAll();
+
+            $this->assertSame(1, $result['stats']['duplicate_sha1_groups']);
+            $duplicateGroup = collect($result['findings'])->firstWhere('kind', 'duplicate_sha1_group');
+            $this->assertSame(2, $duplicateGroup['count']);
+            $this->assertSame($sha, $duplicateGroup['sha1']);
+        } finally {
+            DB::table('photos')->where('sha1', $sha)->delete();
+            DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS photos_sha1_unique ON photos (sha1)');
+        }
     }
 
     public function test_finds_orphan_originals_in_filesystem(): void

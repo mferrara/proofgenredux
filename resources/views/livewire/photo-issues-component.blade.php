@@ -309,10 +309,12 @@
 
                     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-200 dark:border-white/10">
                         @if($selectedIssue->hasQuarantinedSource())
-                            <flux:button size="sm" variant="primary" icon="arrow-down-tray"
-                                         wire:click="assignNextProofNumberToIncoming({{ $selectedIssue->id }})">
-                                Assign next proof number to incoming
-                            </flux:button>
+                            @if($selectedIssue->issue_type !== \App\Models\PhotoIssue::TYPE_DUPLICATE_CONTENT)
+                                <flux:button size="sm" variant="primary" icon="arrow-down-tray"
+                                             wire:click="assignNextProofNumberToIncoming({{ $selectedIssue->id }})">
+                                    Assign next proof number to incoming
+                                </flux:button>
+                            @endif
                             <flux:button size="sm" variant="ghost" icon="trash"
                                          wire:click="discardIncoming({{ $selectedIssue->id }})">
                                 Discard incoming

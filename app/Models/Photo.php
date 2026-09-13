@@ -64,6 +64,16 @@ class Photo extends Model
 
         static::creating(function (Photo $model) {
             $model->id = (string) $model->show_class_id.'_'.$model->proof_number;
+
+            // Discovery also creates photos. Hash before INSERT so a duplicate
+            // cannot leave an incomplete row when the unique constraint rejects it.
+            if (! config('testing.skip_file_operations') && empty($model->sha1)) {
+                $hash = hash_file('sha1', $model->full_path);
+                if ($hash === false) {
+                    throw new \RuntimeException('Cannot hash original: '.$model->full_path);
+                }
+                $model->sha1 = $hash;
+            }
         });
 
         static::created(function (Photo $model) {
@@ -71,15 +81,8 @@ class Photo extends Model
                 return;
             }
 
-            $file_contents = null;
-            if (empty($model->sha1)) {
-                $file_contents = $model->getFileContents();
-                $model->sha1 = sha1($file_contents);
-                $model->save();
-            }
-
             if (empty($model->metadata)) {
-                $model->createMetadataRecord($file_contents);
+                $model->createMetadataRecord();
             }
 
             // Each of these has the side effect of stamping *_generated_at when

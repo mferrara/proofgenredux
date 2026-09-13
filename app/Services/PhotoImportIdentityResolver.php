@@ -21,10 +21,10 @@ class PhotoImportIdentityResolver
     /** Filename is raw and unseen — allocate next proof number and import. */
     public const IMPORT_NEW = 'import_new';
 
-    /** Same SHA + same proof number + same target — repair-only path; do not re-import. */
+    /** Same SHA + same show/class — repair/restore-only path; do not re-import. */
     public const IDEMPOTENT_EXISTING = 'idempotent_existing';
 
-    /** SHA already exists in photos under a different proof number or class. */
+    /** SHA already exists in photos under a different show/class. */
     public const DUPLICATE_CONTENT = 'duplicate_content';
 
     /** Proof number is taken by a different file (different SHA). */
@@ -142,9 +142,11 @@ class PhotoImportIdentityResolver
         ?Photo $existingByContent,
         ?Photo $existingByProofNumber,
     ): array {
+        $showClassId = $showId.'_'.$class;
         $evidence = [
             'show_id' => $showId,
             'class' => $class,
+            'show_class_id' => $showClassId,
             'sha1_match_photo_id' => $existingByContent?->id,
             'sha1_match_proof_number' => $existingByContent?->proof_number,
             'sha1_match_show_class_id' => $existingByContent?->show_class_id,
@@ -152,37 +154,27 @@ class PhotoImportIdentityResolver
             'proof_number_match_sha1' => $existingByProofNumber?->sha1,
         ];
 
-        if ($filenameIsNumbered) {
-            // Already-numbered filename branch.
-            $sameProof = $existingByContent
-                && $existingByProofNumber
-                && $existingByContent->id === $existingByProofNumber->id;
-
-            if ($existingByContent !== null && $sameProof) {
-                return [self::IDEMPOTENT_EXISTING, false, $evidence];
-            }
-
-            if ($existingByContent !== null) {
-                // SHA exists but mapped to a different proof number/photo. Don't import.
-                return [self::DUPLICATE_CONTENT, false, $evidence];
-            }
-
-            if ($existingByProofNumber !== null) {
-                // Different bytes claim the same proof number.
-                return [self::PROOF_COLLISION, false, $evidence];
-            }
-
-            // Rehydrated/recovered numbered original — import under embedded proof number,
-            // do NOT consume a new one from Redis.
-            return [self::IMPORT_NEW, false, $evidence];
+        // Exact same bytes already represented in this show/class: reuse the
+        // existing record. This covers both raw re-imports and "same content
+        // under a different proof number" retries. Identity and proof number
+        // are preserved and no new proof number is allocated.
+        if ($existingByContent !== null && $existingByContent->show_class_id === $showClassId) {
+            return [self::IDEMPOTENT_EXISTING, false, $evidence];
         }
 
-        // Raw camera filename branch.
+        // Exact same bytes owned by a different show/class: surface a visible
+        // duplicate linked to the existing photo. Never create a second row.
         if ($existingByContent !== null) {
-            // Same bytes already imported elsewhere; don't burn a proof number.
             return [self::DUPLICATE_CONTENT, false, $evidence];
         }
 
-        return [self::IMPORT_NEW, true, $evidence];
+        // Different bytes claim a proof number that is already taken.
+        if ($filenameIsNumbered && $existingByProofNumber !== null) {
+            return [self::PROOF_COLLISION, false, $evidence];
+        }
+
+        // Genuinely new content. Raw camera names allocate the next proof
+        // number; already-numbered names reuse their embedded proof number.
+        return [self::IMPORT_NEW, ! $filenameIsNumbered, $evidence];
     }
 }

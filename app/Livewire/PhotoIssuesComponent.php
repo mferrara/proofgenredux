@@ -159,7 +159,36 @@ class PhotoIssuesComponent extends Component
             return;
         }
 
+        // Identical content already has an authoritative record; importing it
+        // under a new proof number would create a second row for the same bytes.
+        // Refuse before Show::getNextProofNumber() allocates anything.
+        if ($issue->issue_type === PhotoIssue::TYPE_DUPLICATE_CONTENT) {
+            $this->toast(
+                'Duplicate content cannot be imported as a new number. Move the existing photo or discard the incoming source.',
+                'danger',
+            );
+
+            return;
+        }
+
         try {
+            // If the incoming bytes are now owned by any record, refuse before
+            // allocating a proof number. The low-level Image guard would reject
+            // the write later anyway, but we must not burn a number first.
+            $incomingSha1 = $issue->incoming_sha1;
+            if ($issue->quarantine_path && Storage::disk('fullsize')->exists($issue->quarantine_path)) {
+                $incomingSha1 = sha1(Storage::disk('fullsize')->get($issue->quarantine_path));
+            }
+            if ($incomingSha1) {
+                $owner = Photo::query()->where('sha1', $incomingSha1)->first();
+                if ($owner) {
+                    throw new \RuntimeException(
+                        'Incoming content already belongs to photo '.$owner->id.
+                        '; resolve it as a duplicate instead of allocating a new number.'
+                    );
+                }
+            }
+
             $show = Show::find($issue->show_id);
             if (! $show) {
                 throw new \RuntimeException('Show not found: '.$issue->show_id);
@@ -218,6 +247,31 @@ class PhotoIssuesComponent extends Component
             $existing = $issue->existingPhoto;
             if (! $existing) {
                 throw new \RuntimeException('Existing photo not found: '.$issue->existing_photo_id);
+            }
+
+            // Verify the quarantined bytes still match the recorded incoming identity,
+            // then confirm no *other* record already owns that content. Deleting the
+            // existing row when another photo owns the incoming content would lose
+            // data and the DB unique index would reject the re-import anyway.
+            if (! Storage::disk('fullsize')->exists($issue->quarantine_path)) {
+                throw new \RuntimeException('Quarantined source is missing; refusing to replace the existing photo.');
+            }
+
+            $incomingBytes = Storage::disk('fullsize')->get($issue->quarantine_path);
+            $incomingSha1 = sha1($incomingBytes);
+            if ($issue->incoming_sha1 && $incomingSha1 !== $issue->incoming_sha1) {
+                throw new \RuntimeException('Quarantined source no longer matches the recorded incoming SHA; refusing to replace.');
+            }
+
+            $otherOwner = Photo::query()
+                ->where('sha1', $incomingSha1)
+                ->where('id', '!=', $existing->id)
+                ->first();
+            if ($otherOwner) {
+                throw new \RuntimeException(
+                    'Incoming content is already owned by photo '.$otherOwner->id.
+                    '; resolve as a duplicate instead of replacing the existing photo.'
+                );
             }
 
             $existingProofNumber = $existing->proof_number;

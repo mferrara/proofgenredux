@@ -57,20 +57,12 @@ class PhotoMoveService
                         $moveResult['original_absolute_path'] ?? null
                     );
 
-                    // Create new photo record without triggering boot events
-                    $newPhoto = new Photo;
+                    // Move the existing row so its unique content hash keeps one owner.
+                    $metadata = $photo->metadata;
+                    $newPhoto = $photo;
                     $newPhoto->id = $newPhotoId;
-                    $newPhoto->proof_number = $photo->proof_number;
                     $newPhoto->show_class_id = $targetClassId;
-                    $newPhoto->sha1 = $photo->sha1;
-                    $newPhoto->file_type = $photo->file_type;
-                    $newPhoto->original_filename = $photo->original_filename;
-                    $newPhoto->proofs_generated_at = $photo->proofs_generated_at;
-                    $newPhoto->proofs_uploaded_at = $photo->proofs_uploaded_at;
-                    $newPhoto->web_image_generated_at = $photo->web_image_generated_at;
-                    $newPhoto->web_image_uploaded_at = $photo->web_image_uploaded_at;
-                    $newPhoto->highres_image_generated_at = $photo->highres_image_generated_at;
-                    $newPhoto->highres_image_uploaded_at = $photo->highres_image_uploaded_at;
+                    $newPhoto->unsetRelation('showClass');
                     if ($archiveMetadata) {
                         $newPhoto->archive_path = $archiveMetadata['archive_path'];
                         $newPhoto->archive_sha1 = $archiveMetadata['archive_sha1'];
@@ -82,12 +74,9 @@ class PhotoMoveService
                     $newPhoto->saveQuietly();
 
                     // Update metadata
-                    if ($photo->metadata) {
-                        $photo->metadata->update(['photo_id' => $newPhotoId]);
+                    if ($metadata) {
+                        $metadata->update(['photo_id' => $newPhotoId]);
                     }
-
-                    // Delete old photo record
-                    $photo->delete();
 
                     $this->dispatchRegenJobsForMissingDerivatives(
                         $newPhoto,
