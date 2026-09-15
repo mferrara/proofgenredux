@@ -29,6 +29,11 @@ is deferred. Nothing in the local reports establishes Ferraraphoto's production
 deployment state. Recognition is deferred. Encoding, S3 migration, and updater
 research remain separate briefs.
 
+The [new-server rehearsal](docs/NEW_SERVER_REHEARSAL.md) is prepared: eight new
+photos are staged on TrueNAS outside the import tree. Uploads are OFF and local
+API overrides are parked at an invalid placeholder with an empty token; replace
+both when configuring the new server. No mock-show import or remote test has run.
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.

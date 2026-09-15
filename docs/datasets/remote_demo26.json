@@ -1,0 +1,64 @@
+{
+  "show": "REMOTEDEMO26",
+  "remote_slug": "proofgen-rehearsal-26",
+  "library": "/Volumes/Public/_Backups/sample_show_photos",
+  "staging_root": "/Volumes/Public/proofgen-dev/rehearsals/REMOTEDEMO26",
+  "photos": [
+    {
+      "source": "shows/22Buck/008/originals/22BUCK_00759.jpg",
+      "sha1": "899f32806e2cdc3ff7e64a33978c34b120cebefa",
+      "bytes": 8905910,
+      "class": "001",
+      "filename": "CAM_0001.JPG"
+    },
+    {
+      "source": "shows/22Buck/008/originals/22BUCK_00768.jpg",
+      "sha1": "5db37ff7d0d105056072f086dc6a50e8effd9bbd",
+      "bytes": 9028176,
+      "class": "001",
+      "filename": "CAM_0002.JPG"
+    },
+    {
+      "source": "shows/22Buck/008/originals/22BUCK_00766.jpg",
+      "sha1": "5b4ebb51de640d3f25e02016a0a1e59a696fe8b3",
+      "bytes": 9188445,
+      "class": "001",
+      "filename": "CAM_0003.JPG"
+    },
+    {
+      "source": "shows/22Buck/008/originals/22BUCK_00763.jpg",
+      "sha1": "c524d165c37f1d638e95b80afff3cbf8b4377987",
+      "bytes": 9256652,
+      "class": "001",
+      "filename": "CAM_0004.JPG"
+    },
+    {
+      "source": "shows/Redux24/001/originals/REDUX24_00344.jpg",
+      "sha1": "b20e0e9dc4bd29d24eb76d4308e9ce86f8a79742",
+      "bytes": 2928084,
+      "class": "002_A",
+      "filename": "CAM_0001.JPG"
+    },
+    {
+      "source": "shows/Redux24/001/originals/REDUX24_00278.jpg",
+      "sha1": "4f1e45b2089ccc50ae2075dbcc160ac03cdd44f3",
+      "bytes": 3142707,
+      "class": "002_A",
+      "filename": "CAM_0002.JPG"
+    },
+    {
+      "source": "shows/Redux24/001/originals/REDUX24_00340.jpg",
+      "sha1": "110d9b7370c9d2e8cfdeec5c618b1998c4f0c0c1",
+      "bytes": 3195594,
+      "class": "002_A",
+      "filename": "CAM_0003.JPG"
+    },
+    {
+      "source": "shows/Redux24/001/originals/REDUX24_00334.jpg",
+      "sha1": "f4f05f7b911b8017e9f299c9290bb2c02351ed40",
+      "bytes": 3535183,
+      "class": "002_A",
+      "filename": "CAM_0004.JPG"
+    }
+  ]
+}

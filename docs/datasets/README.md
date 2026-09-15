@@ -1,5 +1,16 @@
 # Local NAS test dataset
 
+## New-server rehearsal prepared September 15, 2026
+
+[remote_demo26.json](remote_demo26.json) selects eight additional distinct real
+JPEGs (46.9 MiB), four each in `001` and `002_A`. Verified copies are staged at
+`/Volumes/Public/proofgen-dev/rehearsals/REMOTEDEMO26`, outside the live import
+tree. They have **not** been imported or generated; the catalog still has 72
+photos. Proposed remote slug: `proofgen-rehearsal-26`. Follow the
+[new-server rehearsal](../NEW_SERVER_REHEARSAL.md) when the target is ready.
+
+## Existing imported datasets
+
 `nasdemo26.json` selects 24 distinct JPEG originals from the existing TrueNAS
 sample library. Eight files per class: larger horse-show camera originals in
 001 and 002, smaller camera originals in 003. Files span roughly 2.5–31.5 MB;
