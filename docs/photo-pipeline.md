@@ -93,14 +93,57 @@ flowchart TD
     Dispatch2 --> Web[GenerateWebImage]
     Dispatch2 --> Highres[GenerateHighresImage]
 
-    Thumbs --> Upload[UploadProofs<br>when class fully proofed]
-    Web --> Upload2[UploadWebImages<br>when class fully done]
-    Highres --> Upload3[UploadHighresImages<br>when class fully done]
+    Thumbs -->|"kind complete for class<br>AND proofgen.upload_proofs ON"| Deliver[DeliverClassOutputs]
+    Web -->|"kind complete for class<br>AND proofgen.upload_proofs ON"| Deliver
+    Highres -->|"kind complete for class<br>AND proofgen.upload_proofs ON"| Deliver
 
-    Upload --> Remote[(ferraraphoto.com<br>via rsync)]
-    Upload2 --> Remote
-    Upload3 --> Remote
+    Deliver --> Ensure[1. EnsureFerraraphotoShow<br>skipped for legacy + no token]
+    Ensure --> Transfer[2. UploadDerivedFiles<br>profile-aware transfer]
+    Transfer --> Push[3. PushPhotoMetadata<br>skipped for legacy + no token]
+
+    Push --> Remote[(Ferraraphoto delivery<br>rsync / profile disk + API)]
 ```
+
+### Automatic delivery
+
+When any of the three generation kinds finishes for the whole class, `PhotoService`
+queues **one** `DeliverClassOutputs` run for that class — but only when
+the saved `upload_proofs` setting (or `UPLOAD_PROOFS` fallback) is enabled.
+The saved switch is read fresh rather than using Horizon's boot-time config:
+
+- **OFF** prevents automatic delivery entirely. The operator's explicit Upload
+  buttons (class page, show page) are not gated and keep working.
+- Queued automatic jobs check the switch again before starting and skip
+  delivery if it is OFF. A transfer already running is allowed to finish.
+  Turning it back ON does not replay skipped jobs; use Upload for pending files.
+- `checkForUpload=false` (used by flows that must not trigger delivery, e.g.
+  repair/restore callers) bypasses the trigger regardless of the switch.
+
+`DeliverClassOutputs` (`app/Jobs/ShowClass/DeliverClassOutputs.php`) is the
+single delivery orchestration point, used by the automatic trigger and the
+explicit class/show upload actions alike:
+
+1. `EnsureFerraraphotoShow` — pins the storage profile and upserts show/classes
+   over the API. Skips for legacy-local storage with no API token.
+2. `UploadDerivedFiles` — profile-aware transfer. Legacy-local runs the
+   per-kind rsync jobs (`UploadProofs`/`UploadWebImages`/`UploadHighresImages`)
+   for kinds that still have unstamped photos; a pinned cloud/local profile
+   copies onto the profile disk using `Show.ferraraphoto_slug`.
+3. `PushPhotoMetadata` — pushes photo records over the API (same skip rule).
+
+The job runs on the dedicated `uploads` connection/queue with the configured
+tries/backoff. A failure in any step aborts the remaining steps (a failed
+transfer never advances metadata) and retries the whole run.
+
+The job is deliberately **not** `ShouldBeUnique`: the three generation kinds
+finish independently, so several deliveries for one class may legitimately be
+queued. The single uploads worker runs them serially. Automatic jobs transfer
+only kinds whose generation has finished for every photo in the class; a proofs
+completion cannot pick up web/highres files still being written. Explicit uploads
+can deliver partially generated classes and the proof-only action stays proof-only.
+Both transports skip already-stamped kinds; cloud retries preserve existing
+upload stamps and avoid re-copying those files. Metadata is still retried even
+when the preceding attempt completed its file transfers.
 
 ---
 
@@ -490,9 +533,10 @@ Alphabetical reference. File paths are absolute from repo root.
 | `App\Jobs\Photo\GenerateThumbnails` | `app/Jobs/Photo/GenerateThumbnails.php` | Derivative regen |
 | `App\Jobs\Photo\GenerateWebImage` | `app/Jobs/Photo/GenerateWebImage.php` | Derivative regen |
 | `App\Jobs\Photo\GenerateHighresImage` | `app/Jobs/Photo/GenerateHighresImage.php` | Derivative regen |
-| `App\Jobs\ShowClass\UploadProofs` | `app/Jobs/ShowClass/UploadProofs.php` | rsync proofs → ferraraphoto |
-| `App\Jobs\ShowClass\UploadWebImages` | `app/Jobs/ShowClass/UploadWebImages.php` | rsync web → ferraraphoto |
-| `App\Jobs\ShowClass\UploadHighresImages` | `app/Jobs/ShowClass/UploadHighresImages.php` | rsync highres → ferraraphoto |
+| `App\Jobs\ShowClass\UploadProofs` | `app/Jobs/ShowClass/UploadProofs.php` | rsync proofs → ferraraphoto (low-level wrapper, invoked by `UploadDerivedFiles` legacy path) |
+| `App\Jobs\ShowClass\UploadWebImages` | `app/Jobs/ShowClass/UploadWebImages.php` | rsync web → ferraraphoto (low-level wrapper, invoked by `UploadDerivedFiles` legacy path) |
+| `App\Jobs\ShowClass\UploadHighresImages` | `app/Jobs/ShowClass/UploadHighresImages.php` | rsync highres → ferraraphoto (low-level wrapper, invoked by `UploadDerivedFiles` legacy path) |
+| `App\Jobs\ShowClass\DeliverClassOutputs` | `app/Jobs/ShowClass/DeliverClassOutputs.php` | Unified per-class delivery run: EnsureFerraraphotoShow → UploadDerivedFiles → PushPhotoMetadata. Used by the automatic trigger and explicit upload actions |
 | `App\Livewire\AppStatusBar` | `app/Livewire/AppStatusBar.php` | Top status bar; surfaces issue count + graveyard alert |
 | `App\Livewire\ClassViewComponent` | `app/Livewire/ClassViewComponent.php` | Per-class UI; ingest discovery; per-photo actions; deletion routes through `SafeFileMover` |
 | `App\Livewire\GraveyardComponent` | `app/Livewire/GraveyardComponent.php` | `/graveyard` page |
@@ -605,4 +649,22 @@ Current constraints and dated resolutions from the resolver/audit/upload work ar
 - Quarantine replacement, audit projection/filtering, and class target verification resolve actual class records, including underscore names.
 - See [the final local review](reviews/2026-09-13-show-prep-finish.md) for the 48-photo NAS rehearsal and [follow-ups](SHOW_PREP_TODO.md) for remaining work.
 
-*Last updated: 2026-09-13. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
+### Resolved 2026-09-15
+
+- Automatic delivery was consolidated. Generation completion now queues one
+  `DeliverClassOutputs` run per class (EnsureFerraraphotoShow →
+  UploadDerivedFiles → PushPhotoMetadata) instead of dispatching the legacy
+  per-kind rsync jobs directly, so automatic delivery honors the show's pinned
+  storage profile, the Ferraraphoto slug and metadata ordering — the same chain
+  the explicit class/show upload actions always used.
+- The trigger reads the saved `upload_proofs` switch, falling back to `UPLOAD_PROOFS`.
+  OFF prevents automatic delivery; explicit operator uploads are not gated.
+  See "Automatic delivery" in §2 for the already-queued semantics.
+- Intentionally retained low-level wrappers: `UploadProofs`/`UploadWebImages`/
+  `UploadHighresImages` remain the rsync executors invoked (via `dispatchSync`)
+  by `UploadDerivedFiles::legacyUpload`; `UploadShowProofs`/`UploadShowWebImages`/
+  `UploadShowHighresImages` remain low-level legacy compatibility jobs. Show-page
+  upload actions use the shared delivery job, including proof-only uploads.
+  `UploadDerivedFiles` stays the profile-aware transfer step.
+
+*Last updated: 2026-09-15. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*

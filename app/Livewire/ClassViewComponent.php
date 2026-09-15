@@ -2,11 +2,9 @@
 
 namespace App\Livewire;
 
-use App\Jobs\Ferraraphoto\EnsureFerraraphotoShow;
 use App\Jobs\Photo\GenerateThumbnails;
-use App\Jobs\ShowClass\PushPhotoMetadata;
+use App\Jobs\ShowClass\DeliverClassOutputs;
 use App\Jobs\ShowClass\ResetClassPhotos;
-use App\Jobs\ShowClass\UploadDerivedFiles;
 use App\Models\Photo;
 use App\Models\PhotoIssue;
 use App\Models\Show;
@@ -22,7 +20,6 @@ use App\Services\SafeFileMover;
 use App\Services\StorageUsageService;
 use Exception;
 use Flux\Flux;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 
@@ -580,11 +577,9 @@ class ClassViewComponent extends Component
         if ($total_queued === 0) {
             $message = 'Nothing to upload.';
         } else {
-            Bus::chain([
-                new EnsureFerraraphotoShow($this->showModel->id),
-                new UploadDerivedFiles($this->showClass->id),
-                new PushPhotoMetadata($this->showClass->id),
-            ])->dispatch();
+            // Same delivery chain the automatic path uses: Ensure show/profile,
+            // transfer derived files, then push photo metadata.
+            DeliverClassOutputs::dispatch($this->showClass->id);
 
             $parts = [];
 

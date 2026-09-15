@@ -11,21 +11,23 @@
 - [Show-prep next steps](docs/SHOW_PREP_TODO.md) and
   [latest local validation](docs/reviews/2026-09-13-show-prep-finish.md).
 
-## Current state — September 13, 2026
+## Current state — September 15, 2026
 
-Local `main` contains the core upload, file-safety, hash-uniqueness, queue/UI, and
-image-output fixes. The latest implementation commit is `2aae180`.
-The isolated suite passed 486 tests, with 22 skips and 2,105 assertions.
+Local `main` contains the core upload, file-safety, hash-uniqueness, queue/UI,
+image-output and unified server-delivery fixes. See the
+[delivery review](docs/reviews/2026-09-15-server-delivery.md).
+The isolated suite passed 513 tests, with 22 skips and 2,208 assertions.
 NASDEMO26 has 24 completed sample photos; NAS_LOAD26 adds 48 completed photos
 across two classes. The latter's 192 generated JPEGs matched local delivery copies.
 A real 45 MP EXIF-rotated original rendered in all four Settings tabs. Long proof
 labels now fit both proof sizes. Existing proofs require regeneration to receive
 new output behavior; final watermarked proof quality is 95.
 
-The next operator check is a small-class rehearsal on Dad's MacBook with its
-actual storage and upload targets. Nothing in the local report establishes that
-machine's installation or Ferraraphoto's production deployment state. Recognition
-is deferred. Encoding, S3 migration, and updater research remain separate briefs.
+The next operator check is a small test show delivered to the actual Ferraraphoto
+server, including catalog/display and web/highres resolution. Dad's laptop rollout
+is deferred. Nothing in the local reports establishes Ferraraphoto's production
+deployment state. Recognition is deferred. Encoding, S3 migration, and updater
+research remain separate briefs.
 
 ## Stack and local paths
 
@@ -63,6 +65,9 @@ assumed; use tools actually available in the session.
 - Settings reports per-tab failures and allows retry. Its large-image memory
   allowance is request-local; it does not require increasing all Herd requests.
 - The legacy upload path uses rsync 3 and stamps only rsync-confirmed files.
+- Automatic/manual uploads share profile-aware delivery. The saved Uploads switch
+  gates automatic dispatch and job start; manual uploads bypass it. Automatic
+  transfers wait for class completion per image kind, avoiding unfinished files.
 
 ## Samples and tests
 

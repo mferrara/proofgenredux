@@ -28,8 +28,10 @@ class UploadDerivedFiles implements ShouldQueue
      */
     public ?int $timeout = null;
 
-    public function __construct(public string $classId)
-    {
+    public function __construct(
+        public string $classId,
+        public array $kinds = ['proofs', 'web', 'highres'],
+    ) {
         $this->timeout = (int) config('proofgen.uploads.derived_job_timeout');
         $this->onConnection((string) config('proofgen.uploads.connection'));
         $this->onQueue((string) config('proofgen.uploads.queue'));
@@ -76,54 +78,60 @@ class UploadDerivedFiles implements ShouldQueue
         $targetShow = $class->show->ferraraphoto_slug;
         $filename = $photo->proof_number.'.jpg';
 
-        $proofThmKey = $this->uploadIfExists(
-            $paths,
-            $sourceDisk,
-            $targetDisk,
-            $paths->getProofThumbnailPath($sourceShow, $class->name, $filename, (string) config('proofgen.thumbnails.small.suffix')),
-            $paths->getProofThumbnailPath($targetShow, $class->name, $filename, (string) config('proofgen.thumbnails.small.suffix')),
-        );
-        if ($proofThmKey) {
-            $patch['proof_thm_key'] = $proofThmKey;
+        if (in_array('proofs', $this->kinds, true) && $photo->proofs_uploaded_at === null) {
+            $proofThmKey = $this->uploadIfExists(
+                $paths,
+                $sourceDisk,
+                $targetDisk,
+                $paths->getProofThumbnailPath($sourceShow, $class->name, $filename, (string) config('proofgen.thumbnails.small.suffix')),
+                $paths->getProofThumbnailPath($targetShow, $class->name, $filename, (string) config('proofgen.thumbnails.small.suffix')),
+            );
+            if ($proofThmKey) {
+                $patch['proof_thm_key'] = $proofThmKey;
+            }
+
+            $proofStdKey = $this->uploadIfExists(
+                $paths,
+                $sourceDisk,
+                $targetDisk,
+                $paths->getProofThumbnailPath($sourceShow, $class->name, $filename, (string) config('proofgen.thumbnails.large.suffix')),
+                $paths->getProofThumbnailPath($targetShow, $class->name, $filename, (string) config('proofgen.thumbnails.large.suffix')),
+            );
+            if ($proofStdKey) {
+                $patch['proof_std_key'] = $proofStdKey;
+            }
+
+            if ($proofThmKey && $proofStdKey) {
+                $patch['proofs_uploaded_at'] = $uploadedAt;
+            }
         }
 
-        $proofStdKey = $this->uploadIfExists(
-            $paths,
-            $sourceDisk,
-            $targetDisk,
-            $paths->getProofThumbnailPath($sourceShow, $class->name, $filename, (string) config('proofgen.thumbnails.large.suffix')),
-            $paths->getProofThumbnailPath($targetShow, $class->name, $filename, (string) config('proofgen.thumbnails.large.suffix')),
-        );
-        if ($proofStdKey) {
-            $patch['proof_std_key'] = $proofStdKey;
+        if (in_array('web', $this->kinds, true) && $photo->web_image_uploaded_at === null) {
+            $webImageKey = $this->uploadIfExists(
+                $paths,
+                $sourceDisk,
+                $targetDisk,
+                $paths->getWebImagePath($sourceShow, $class->name, $filename, (string) config('proofgen.web_images.suffix')),
+                $paths->getWebImagePath($targetShow, $class->name, $filename, (string) config('proofgen.web_images.suffix')),
+            );
+            if ($webImageKey) {
+                $patch['web_image_key'] = $webImageKey;
+                $patch['web_image_uploaded_at'] = $uploadedAt;
+            }
         }
 
-        if ($proofThmKey && $proofStdKey) {
-            $patch['proofs_uploaded_at'] = $uploadedAt;
-        }
-
-        $webImageKey = $this->uploadIfExists(
-            $paths,
-            $sourceDisk,
-            $targetDisk,
-            $paths->getWebImagePath($sourceShow, $class->name, $filename, (string) config('proofgen.web_images.suffix')),
-            $paths->getWebImagePath($targetShow, $class->name, $filename, (string) config('proofgen.web_images.suffix')),
-        );
-        if ($webImageKey) {
-            $patch['web_image_key'] = $webImageKey;
-            $patch['web_image_uploaded_at'] = $uploadedAt;
-        }
-
-        $highResImageKey = $this->uploadIfExists(
-            $paths,
-            $sourceDisk,
-            $targetDisk,
-            $paths->getHighresImagePath($sourceShow, $class->name, $filename, (string) config('proofgen.highres_images.suffix')),
-            $paths->getHighresImagePath($targetShow, $class->name, $filename, (string) config('proofgen.highres_images.suffix')),
-        );
-        if ($highResImageKey) {
-            $patch['high_res_image_key'] = $highResImageKey;
-            $patch['highres_image_uploaded_at'] = $uploadedAt;
+        if (in_array('highres', $this->kinds, true) && $photo->highres_image_uploaded_at === null) {
+            $highResImageKey = $this->uploadIfExists(
+                $paths,
+                $sourceDisk,
+                $targetDisk,
+                $paths->getHighresImagePath($sourceShow, $class->name, $filename, (string) config('proofgen.highres_images.suffix')),
+                $paths->getHighresImagePath($targetShow, $class->name, $filename, (string) config('proofgen.highres_images.suffix')),
+            );
+            if ($highResImageKey) {
+                $patch['high_res_image_key'] = $highResImageKey;
+                $patch['highres_image_uploaded_at'] = $uploadedAt;
+            }
         }
 
         if ($patch !== []) {
@@ -162,15 +170,15 @@ class UploadDerivedFiles implements ShouldQueue
 
     private function legacyUpload(ShowClass $class): void
     {
-        if ($class->photosProofedNotUploaded()->exists()) {
+        if (in_array('proofs', $this->kinds, true) && $class->photosProofedNotUploaded()->exists()) {
             UploadProofs::dispatchSync($class->show_id, $class->name);
         }
 
-        if ($class->photosWebImagedNotUploaded()->exists()) {
+        if (in_array('web', $this->kinds, true) && $class->photosWebImagedNotUploaded()->exists()) {
             UploadWebImages::dispatchSync($class->show_id, $class->name);
         }
 
-        if ($class->photosHighresImagedNotUploaded()->exists()) {
+        if (in_array('highres', $this->kinds, true) && $class->photosHighresImagedNotUploaded()->exists()) {
             UploadHighresImages::dispatchSync($class->show_id, $class->name);
         }
     }

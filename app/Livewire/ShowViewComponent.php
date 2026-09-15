@@ -3,12 +3,9 @@
 namespace App\Livewire;
 
 use App\Helpers\DirectoryNameValidator;
-use App\Jobs\Ferraraphoto\EnsureFerraraphotoShow;
-use App\Jobs\Show\UploadShowProofs;
+use App\Jobs\ShowClass\DeliverClassOutputs;
 use App\Jobs\ShowClass\ImportClassPhotos;
-use App\Jobs\ShowClass\PushPhotoMetadata;
 use App\Jobs\ShowClass\ResetClassPhotos;
-use App\Jobs\ShowClass\UploadDerivedFiles;
 use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Models\ShowClass as ShowClassModel;
@@ -26,7 +23,6 @@ use App\Services\QueuedWorkStatus;
 use App\Services\Storage\StorageProfileHealthCheck;
 use App\Services\StorageUsageService;
 use Flux\Flux;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -436,7 +432,11 @@ class ShowViewComponent extends Component
             return;
         }
 
-        Bus::dispatch(new UploadShowProofs($this->show->id));
+        foreach ($this->show->classes as $showClass) {
+            if ($showClass->photosProofedNotUploaded()->exists()) {
+                DeliverClassOutputs::dispatch($showClass->id, kinds: ['proofs']);
+            }
+        }
         $this->setFlashMessage('Proof uploads queued for '.$this->show->id.'.');
     }
 
@@ -446,24 +446,23 @@ class ShowViewComponent extends Component
             return;
         }
 
-        $jobs = [new EnsureFerraraphotoShow($this->show->id)];
-
+        // Same per-class delivery job the automatic path uses: Ensure
+        // show/profile, transfer derived files, then push photo metadata.
+        $classes_queued = 0;
         foreach ($this->show->classes as $showClass) {
             if (! $this->classHasPendingUploads($showClass)) {
                 continue;
             }
 
-            $jobs[] = new UploadDerivedFiles($showClass->id);
-            $jobs[] = new PushPhotoMetadata($showClass->id);
+            DeliverClassOutputs::dispatch($showClass->id);
+            $classes_queued++;
         }
 
-        if (count($jobs) === 1) {
+        if ($classes_queued === 0) {
             $this->setFlashMessage('No uploads pending');
 
             return;
         }
-
-        Bus::chain($jobs)->dispatch();
 
         $this->setFlashMessage('Uploads queued for '.$this->show->id.'.');
     }

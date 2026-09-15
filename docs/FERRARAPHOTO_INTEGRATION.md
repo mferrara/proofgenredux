@@ -39,11 +39,24 @@ expectations before changing suffixes.
 
 Upload controls live on show/class pages; configuration is in Settings → Legacy
 SFTP and `/config/server`. Explicit combined class uploads send proofs, then web,
-then highres. Automatic generation can enqueue each kind as its class completes.
-Uploads run on the dedicated `uploads` connection/queue. Successful rsync output
-is the completion evidence; non-zero exits fail visibly and prevent subsequent
-metadata steps. See [the pipeline](photo-pipeline.md) and
-[worker checklist](SHOW_PREP_CHECKLIST.md) for budgets and timestamp semantics.
+then highres. Automatic generation can trigger delivery as each kind completes,
+and it uses the same chain as the explicit actions: `DeliverClassOutputs` runs
+`EnsureFerraraphotoShow` → `UploadDerivedFiles` → `PushPhotoMetadata` for the
+class, so automatic delivery honors the pinned storage profile, the
+`ferraraphoto_show_slug` layout and metadata ordering. It is gated by
+`proofgen.upload_proofs` (`UPLOAD_PROOFS`): OFF prevents automatic delivery
+while the operator's explicit Upload buttons keep working. The saved switch is
+read fresh when generation completes and when an automatic delivery job starts;
+queued automatic work skips when OFF, while an in-progress transfer finishes.
+Use Upload to deliver pending files after re-enabling the switch. Automatic jobs
+transfer only kinds finished for the whole class, avoiding files still being
+written. Already-stamped cloud outputs are not re-copied on subsequent runs.
+Uploads run on the dedicated `uploads` connection/queue. Successful
+rsync output is the completion evidence; non-zero exits fail visibly, stop the
+chain before metadata, and retry with the configured backoff. Legacy shows
+without an API token remain file-only (the API steps skip themselves). See
+[the pipeline](photo-pipeline.md) and [worker checklist](SHOW_PREP_CHECKLIST.md)
+for budgets and timestamp semantics.
 
 This development setup resolves all three destination roots into
 `/Volumes/Public/proofgen-dev/delivery`. Originals and outputs also live on the

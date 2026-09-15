@@ -23,7 +23,16 @@ CACHE_STORE=array
 QUEUE_CONNECTION=sync
 SESSION_DRIVER=array
 AUTO_DOWNLOAD_SAMPLE_IMAGES=false
+SMALL_THUMBNAIL_SUFFIX=_thm
+LARGE_THUMBNAIL_SUFFIX=_std
+WEB_SUFFIX=_web
+HIGHRES_SUFFIX=_highres
 ENV
+cat >> "$proofgen_test_checkout/.env" <<ENV
+FULLSIZE_HOME_DIR=$proofgen_test_checkout/storage/app/test-fullsize
+ARCHIVE_HOME_DIR=$proofgen_test_checkout/storage/app/test-archive
+ENV
+mkdir -p "$proofgen_test_checkout/storage/app/test-fullsize" "$proofgen_test_checkout/storage/app/test-archive"
 cd "$proofgen_test_checkout"
 ```
 

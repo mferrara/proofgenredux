@@ -5,9 +5,7 @@ namespace App\Services;
 use App\Jobs\Photo\GenerateHighresImage;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
-use App\Jobs\ShowClass\UploadHighresImages;
-use App\Jobs\ShowClass\UploadProofs;
-use App\Jobs\ShowClass\UploadWebImages;
+use App\Jobs\ShowClass\DeliverClassOutputs;
 use App\Models\Photo;
 use App\Models\Show;
 use App\Models\ShowClass;
@@ -260,11 +258,11 @@ class PhotoService
         $photo->save();
 
         if ($checkForUpload) {
-            // Check class, if no more images pending proofs we'll queue up the upload job
+            // Check class, if no more images pending proofs we'll queue up delivery
             $pendingProofs = $photo->showClass->photos()->whereNull('proofs_generated_at')->count();
 
             if ($pendingProofs === 0) {
-                UploadProofs::dispatch($photo->showClass->show->id, $photo->showClass->name);
+                $this->maybeQueueClassDelivery($photo);
             }
         }
 
@@ -296,11 +294,11 @@ class PhotoService
         $photo->save();
 
         if ($checkForUpload) {
-            // Check class, if no more images pending web images we'll queue up the upload job
+            // Check class, if no more images pending web images we'll queue up delivery
             $pendingWebImages = $photo->showClass->photos()->whereNull('web_image_generated_at')->count();
 
             if ($pendingWebImages === 0) {
-                UploadWebImages::dispatch($photo->showClass->show->id, $photo->showClass->name);
+                $this->maybeQueueClassDelivery($photo);
             }
         }
 
@@ -332,14 +330,22 @@ class PhotoService
         $photo->save();
 
         if ($checkForUpload) {
-            // Check class, if no more images pending highres images we'll queue up the upload job
+            // Check class, if no more images pending highres images we'll queue up delivery
             $pendingHighresImages = $photo->showClass->photos()->whereNull('highres_image_generated_at')->count();
 
             if ($pendingHighresImages === 0) {
-                UploadHighresImages::dispatch($photo->showClass->show->id, $photo->showClass->name);
+                $this->maybeQueueClassDelivery($photo);
             }
         }
 
         return $result;
+    }
+
+    /** Queue completed class outputs; explicit uploads bypass this switch. */
+    private function maybeQueueClassDelivery(Photo $photo): void
+    {
+        if (app(AutomaticUploadSettings::class)->enabled()) {
+            DeliverClassOutputs::dispatch($photo->show_class_id, automatic: true);
+        }
     }
 }
