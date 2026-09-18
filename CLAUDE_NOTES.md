@@ -81,6 +81,16 @@ now git-ignored and built per install; tests call `withoutVite()` in the base
 `git checkout -- public/build` before pulling v2.0.2 (its in-app updater does not),
 then `npm run build`.
 
+**v2.1.0–v2.2.0: feedback from installs.** `php artisan proofgen:report` files a
+redacted problem report (diagnostics attached, saved locally first, sent as an
+issue to the private repo `mferrara/proofgen-feedback`, duplicates become
+comments). `CLAUDE.md` / `AGENTS.md` tell any LLM session on an install to report
+instead of editing code there. v2.2.0 adds Sentry (`sentry/sentry-laravel`), off
+unless `SENTRY_LARAVEL_DSN` is set, with every event passed through the same
+redactor and tracing disabled. Guide: [docs/FEEDBACK.md](docs/FEEDBACK.md).
+v2.0.8 fixed the parallel-import folder race (`App\Services\SafeDirectory`) and
+returns a pool proof number when its import fails.
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.

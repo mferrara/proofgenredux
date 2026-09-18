@@ -170,7 +170,10 @@ session never sees or echoes it.
    machine>"` and `PROOFGEN_FEEDBACK_TOKEN=…` (he types the token himself). From
    then on, anything that looks like a defect during this upgrade is filed with
    `herd php artisan proofgen:report --llm …` — see `docs/FEEDBACK.md`.
-4. `herd php artisan config:clear`
+4. Automatic error reporting: ask the owner whether to add `SENTRY_LARAVEL_DSN=…`
+   (he types it). After `config:clear`, `herd php artisan sentry:test` should
+   report that the test event was sent.
+5. `herd php artisan config:clear`
 
 **CHECKPOINT 4.**
 

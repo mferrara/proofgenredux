@@ -73,6 +73,31 @@ repository `mferrara/proofgen-feedback` with **Issues: Read and write** and noth
 else. It cannot read this repository or any other. `PROOFGEN_FEEDBACK_REPO`
 overrides the destination.
 
+## Automatic error reporting (Sentry)
+
+Problem reports need someone to notice a problem. Unhandled exceptions and failed
+queue jobs are also sent to Sentry on their own, when `SENTRY_LARAVEL_DSN` is set
+in the install's `.env` (off otherwise; the DSN is never committed).
+
+- Every event passes through the same redaction as problem reports
+  (`App\Services\Feedback\SentryEventScrubber`): exception and log messages,
+  breadcrumbs, and extra context. Request bodies, cookies, and authorization
+  headers are dropped; `send_default_pii` is off; SQL bindings are not recorded.
+  Stack-frame file paths are sent as-is and can include the macOS account name.
+- Performance tracing and profiling are off.
+- Events are tagged with the release (the git tag) and the machine name
+  (`PROOFGEN_INSTALL_NAME`), so an error can be tied to a version and an install.
+- Expected, operator-facing stops are not sent: a changed or unconfirmed delivery
+  destination, and a show that does not exist on the website yet.
+- Timeouts are short (2 s connect, 4 s total) so bad show wifi cannot stall a job.
+
+Verify an install with `herd php artisan sentry:test`.
+
+Sentry answers "what crashed, where, how often". A problem report answers "what
+was the person trying to do, what did they see, and what would fix it". An LLM
+session on an install should still file a report for a crash it witnessed; the
+two will be about the same event from different angles.
+
 ## For the developer: triage
 
 At the start of a session in this repository:
