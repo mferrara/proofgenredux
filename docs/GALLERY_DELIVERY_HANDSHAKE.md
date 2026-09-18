@@ -78,6 +78,14 @@ Code: `app/Services/Delivery/` (`DeliveryTarget`, `DeliveryTargetResolver`,
 - **One fetch per class delivery**, in `DeliverClassOutputs` after the show is
   ensured and before any file moves. Never per image. Only for shows on the
   rsync (`legacy-local`) profile.
+- **Also on opening a show page and before every upload check** (the Check dry
+  run). Without a saved answer the only thing to fall back on is the local
+  settings, and on an install that was set up for an older server those are
+  wrong: a dry run against them compares with the wrong machine and clears
+  upload stamps. If the destination cannot be confirmed, the check is skipped
+  with the reason shown.
+- A local SFTP path counts only if it is absolute. Older installs saved `"0"` for
+  an unset highres path; that is treated as not configured.
 - **Everything else reads the saved answer with no network call**: pending
   upload dry runs, the rsync commands, and the show page's Ferraraphoto target
   panel (which shows the host, the three directories, and a "from website" or

@@ -134,6 +134,13 @@ class ShowViewComponent extends Component
     public function loadWebsiteShows(bool $fresh = false): void
     {
         app(WebsiteShows::class)->check($this->show->ferraraphoto_slug, $fresh);
+
+        // Also learn where the website wants this show's files, so the panel
+        // and the upload checks never work from stale local settings. A
+        // changed destination shows up in the panel; other failures surface
+        // when an upload check or delivery is attempted.
+        app(DeliveryTargetResolver::class)->tryRefresh($this->show);
+        $this->show->refresh();
     }
 
     public function checkFerraraphotoStatus(): void
@@ -431,6 +438,14 @@ class ShowViewComponent extends Component
     public function checkProofAndWebImageUploads(): void
     {
         if ($this->workIsBusy()) {
+            return;
+        }
+
+        // The dry run compares against the delivery destination and clears
+        // stale upload stamps, so it must not run against an unconfirmed one.
+        if ($problem = app(DeliveryTargetResolver::class)->tryRefresh($this->show)) {
+            $this->setFlashMessage('Upload check skipped: '.$problem);
+
             return;
         }
 

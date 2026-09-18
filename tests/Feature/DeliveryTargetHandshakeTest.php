@@ -497,6 +497,56 @@ class DeliveryTargetHandshakeTest extends TestCase
         ]);
     }
 
+    public function test_a_saved_junk_path_from_an_older_install_is_not_a_destination(): void
+    {
+        // v1 stored "0" for an unset highres path.
+        config(['proofgen.sftp.highres_images_path' => '0', 'proofgen.ferraraphoto.api_token' => null]);
+
+        $target = app(DeliveryTargetResolver::class)->current($this->makeShow());
+
+        expect($target->directory('highres_images'))->toBe('')
+            ->and($target->directory('proofs'))->toBe('/staging/proofs/26Test01');
+    }
+
+    public function test_opening_a_show_learns_the_websites_destination_before_any_delivery(): void
+    {
+        Storage::fake('fullsize');
+        Storage::fake('archive');
+        Storage::disk('fullsize')->makeDirectory('26Test01/001');
+        $this->makeShow();
+
+        Http::fake([
+            self::ORIGIN.'/api/v1/delivery-target*' => Http::response($this->handshake()),
+            '*' => Http::response(['data' => []]),
+        ]);
+
+        Livewire::test(ShowViewComponent::class, ['show_id' => '26Test01'])
+            ->assertSee('local settings')
+            ->assertSee('/staging/proofs/26Test01')
+            ->call('loadWebsiteShows')
+            ->assertSee('from website')
+            ->assertSee('/mnt/photo-storage/proofs/26Test01')
+            ->assertDontSee('/staging/proofs/26Test01');
+    }
+
+    public function test_an_upload_check_never_runs_against_an_unconfirmed_destination(): void
+    {
+        Storage::fake('fullsize');
+        Storage::fake('archive');
+        Storage::disk('fullsize')->makeDirectory('26Test01/001');
+        $this->makeShow();
+
+        $marker = $this->tempPath.'/rsync-was-run';
+        $this->bindRecordingRsync($marker);
+        $this->fakeHandshake(['error' => ['code' => 'delivery_target_unavailable', 'message' => 'No usable profile.']], 503);
+
+        Livewire::test(ShowViewComponent::class, ['show_id' => '26Test01'])
+            ->call('checkProofAndWebImageUploads')
+            ->assertSee('Upload check skipped');
+
+        expect(File::exists($marker))->toBeFalse();
+    }
+
     public function test_the_show_page_shows_the_stopped_destination_and_accepts_it(): void
     {
         Storage::fake('fullsize');

@@ -194,6 +194,35 @@ report it, change nothing. An empty local directory (for example
 `SFTP_HIGHRES_IMAGES_PATH` was never set on this machine) is not a problem once
 the website supplies the destination; it only matters against an older website.
 
+### Differences are expected on an install that was set up for an older server
+
+If the local settings point at a different server layout than the website
+reports (for example `/home/forge/www.ferraraphoto.com/public/proofs` locally
+versus `/mnt/photo-storage/proofs` from the website), that is not a failure: the
+website's answer is what gets used. Two things must then be true before any
+upload, and both are the owner's to do or approve:
+
+1. **This Mac's SSH key is accepted by the server the website names, and that
+   server is a known host.** Uploads run with `BatchMode=yes` and normal host-key
+   checking, so an unknown host or an unauthorized key fails immediately. Test it
+   read-only, using the key path from Settings / `.env` and the host and user from
+   the website's answer (do not print the host):
+
+   ```sh
+   ssh -i "<key path>" -o BatchMode=yes -o ConnectTimeout=15 "<user>@<host>" \
+     'ls -d /mnt/photo-storage/proofs /mnt/photo-storage/web_images /mnt/photo-storage/highres_images'
+   ```
+
+   "Host key verification failed" → the owner connects once interactively
+   (`ssh -i "<key path>" <user>@<host>`), checks the fingerprint with whoever runs
+   the server, and accepts it. "Permission denied" → the key is not authorized on
+   that server yet; the owner adds this Mac's **public** key there. Never copy a
+   private key around to fix this.
+2. **The saved Settings fallback is brought up to date** (Settings → Legacy SFTP:
+   host and the three paths) so that, if the website's endpoint were ever
+   unavailable on a fresh show, the fallback is not the old server. The owner
+   does this in the app.
+
 Then the owner (not the session) opens the app in the browser, starts the
 background workers from the page header, and the session confirms:
 

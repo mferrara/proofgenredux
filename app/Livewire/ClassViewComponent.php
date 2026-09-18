@@ -10,6 +10,7 @@ use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Proofgen\ShowClass;
 use App\Services\ClassProcessingStatus;
+use App\Services\Delivery\DeliveryTargetResolver;
 use App\Services\FerraraphotoTargetVerifier;
 use App\Services\PathResolver;
 use App\Services\PhotoMoveService;
@@ -195,6 +196,13 @@ class ClassViewComponent extends Component
     public function checkProofAndWebImageUploads(): void
     {
         if ($this->workIsBusy()) {
+            return;
+        }
+
+        // Same rule as the show page: never dry-run against an unconfirmed destination.
+        if ($problem = app(DeliveryTargetResolver::class)->tryRefresh($this->showClass->show)) {
+            $this->setFlashMessage('Upload check skipped: '.$problem);
+
             return;
         }
 

@@ -98,6 +98,33 @@ class DeliveryTargetResolver
     }
 
     /**
+     * Refresh for an operator-facing page or action, where a failure is shown
+     * rather than thrown. Returns the message to show, or null when the
+     * destination is confirmed (or the show is not delivered by rsync).
+     *
+     * Pages call this so the saved answer exists before the first delivery:
+     * until then {@see current()} can only offer the local settings, and a
+     * pending-upload dry run against stale local settings would compare with
+     * the wrong server.
+     */
+    public function tryRefresh(Show $show): ?string
+    {
+        $show->loadMissing('storageProfile');
+
+        if ($show->storageProfile !== null && ! $show->storageProfile->isLegacyLocal()) {
+            return null;
+        }
+
+        try {
+            $this->refresh($show);
+        } catch (DeliveryTargetException $exception) {
+            return $exception->getMessage();
+        }
+
+        return null;
+    }
+
+    /**
      * Operator accepted the destination recorded by a blocked refresh.
      */
     public function acceptPending(Show $show): DeliveryTarget
@@ -134,8 +161,11 @@ class DeliveryTargetResolver
 
         $directories = [];
         foreach ($bases as $kind => $base) {
+            // Only an absolute path is a destination. Older installs can hold
+            // junk here (a saved "0" where an unset value was stored), which
+            // would otherwise become a relative folder literally named "0".
             $base = trim((string) $base);
-            $directories[$kind] = $base === '' ? '' : rtrim($base, '/').'/'.$slug;
+            $directories[$kind] = str_starts_with($base, '/') ? rtrim($base, '/').'/'.$slug : '';
         }
 
         return new DeliveryTarget(
