@@ -6,6 +6,7 @@ use App\Models\Photo;
 use App\Services\PathResolver;
 use App\Services\PhotoArchiveService;
 use App\Services\SafeDirectory;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -103,7 +104,23 @@ class CardDumper
             }
 
             if ($archivePart !== null) {
-                $this->moveIntoPlace($archivePart, Storage::disk('archive')->path($archivePath));
+                $existingArchive = $importedOriginalIntact ? $this->archive->pathForPhoto($importedPhoto) : null;
+
+                if ($existingArchive !== null
+                    && Storage::disk('archive')->exists($existingArchive)
+                    && sha1_file(Storage::disk('archive')->path($existingArchive)) === $sha1) {
+                    // Already imported AND already archived: a third copy is clutter.
+                    @unlink($archivePart);
+                    $archivePath = $existingArchive;
+                } else {
+                    $this->moveIntoPlace($archivePart, Storage::disk('archive')->path($archivePath));
+
+                    // So the import can rename this copy instead of writing another.
+                    DB::table('card_files')->insert([
+                        'sha1' => $sha1, 'size' => $size, 'show_id' => $showId, 'class_folder' => $classFolder,
+                        'archive_path' => $archivePath, 'dumped_at' => now(),
+                    ]);
+                }
             }
 
             return [

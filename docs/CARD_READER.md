@@ -70,10 +70,18 @@ handed to a second worker after 90 s and would run twice). A backlog of import o
 generation jobs from earlier cards cannot make a card wait for a worker.
 **After updating, restart the background workers** so the new supervisor exists.
 
-Known and not yet done: the import still writes its own renamed archive copy, so
-each photo is on the archive drive twice and imports still compete with a running
-dump for that drive. Planned: have the import rename the card copy within the
-archive instead of writing again, and have generation yield while a dump runs.
+**One archive write per photo.** The Card Reader records each archive copy by
+content hash (`card_files`). When that photo is imported, `PhotoArchiveService`
+renames the card copy on the archive drive to its final proof-number path instead
+of writing the same bytes again - instant, and nothing extra on the drive - and
+then verifies it by read-back like any other archive copy. A photo the Card Reader
+never saw (copied into the class folder by hand) is written as before. A photo
+that is already imported and already archived gets no extra copy at all. After all
+of a card's photos are imported, its `_cards/...` folder holds only `manifest.json`,
+the record of what was dumped.
+
+Not yet done: generation still runs while a card is being dumped and competes for
+CPU; planned is for it to yield.
 
 ## macOS privacy
 

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Photo;
 use App\Models\ShowClass;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -55,6 +56,38 @@ class PhotoArchiveService
         return $this->pathResolver->normalizePath(
             $this->pathResolver->getArchivePath($show, $class).'/'.$filename
         );
+    }
+
+    /**
+     * Move the Card Reader's archive copy of this content to $archivePath.
+     * False (and nothing changed) when there is none, or it cannot be moved:
+     * the caller then writes the copy itself, as before.
+     */
+    private function claimCardCopy(string $sha1, int $size, string $archivePath): bool
+    {
+        try {
+            $copies = DB::table('card_files')->where('sha1', $sha1)->whereNull('claimed_at')->orderBy('id')->get();
+
+            foreach ($copies as $copy) {
+                $disk = Storage::disk('archive');
+
+                if (! $disk->exists($copy->archive_path) || $disk->size($copy->archive_path) !== $size) {
+                    continue;
+                }
+
+                $disk->move($copy->archive_path, $archivePath);
+                DB::table('card_files')->where('id', $copy->id)->update(['claimed_at' => now(), 'claimed_path' => $archivePath]);
+
+                return true;
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('Could not reuse the card copy on the archive drive; writing a new one.', [
+                'archive_path' => $archivePath,
+                'reason' => $exception->getMessage(),
+            ]);
+        }
+
+        return false;
     }
 
     public function pathForPhoto(Photo $photo, ?ShowClass $targetClass = null): string
@@ -119,7 +152,12 @@ class PhotoArchiveService
             $conflictPath = null;
         }
 
-        Storage::disk('archive')->put($archivePath, $contents);
+        // The Card Reader may already have put these exact bytes on the archive
+        // drive when the card was dumped. Renaming that file is instant and
+        // writes nothing; the read-back below verifies it like any other copy.
+        if (! $this->claimCardCopy($incomingSha1, $incomingSize, $archivePath)) {
+            Storage::disk('archive')->put($archivePath, $contents);
+        }
 
         if (! Storage::disk('archive')->exists($archivePath)) {
             throw new RuntimeException('Archive copy was not created at '.$archivePath);

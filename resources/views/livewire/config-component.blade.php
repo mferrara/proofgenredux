@@ -658,6 +658,41 @@
                         </label>
                     </div>
                 </flux:card>
+
+                {{-- Card access: why Herd has Full Disk Access, and whether it is working. --}}
+                <flux:card class="!p-5 md:col-span-2">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <flux:heading size="base">Card access</flux:heading>
+                            <flux:text class="mt-1 !text-sm">
+                                macOS only lets an app read camera cards (and other drives plugged in later) when it has permission.
+                                Proofgen runs inside <strong>Herd</strong>, so the permission belongs to Herd:
+                                System Settings → Privacy &amp; Security → Full Disk Access → Herd. That is the only reason Herd is on that list.
+                                After changing it, restart the background workers above. A Herd update can switch it off again.
+                            </flux:text>
+                        </div>
+                        <a href="x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles">
+                            <flux:button size="sm" variant="ghost" icon="arrow-top-right-on-square">Open the setting</flux:button>
+                        </a>
+                    </div>
+
+                    <div class="mt-4 space-y-2">
+                        @forelse ($cardAccess as $drive)
+                            <div class="flex items-center justify-between gap-3 text-sm">
+                                <span class="font-mono text-xs">{{ $drive['label'] }}</span>
+                                @if ($drive['readable'])
+                                    <flux:badge color="emerald" size="sm" icon="check">Proofgen can read it</flux:badge>
+                                @else
+                                    <flux:badge color="rose" size="sm" icon="lock-closed">Blocked by macOS — give Herd Full Disk Access</flux:badge>
+                                @endif
+                            </div>
+                        @empty
+                            <flux:text class="!text-sm text-zinc-500">
+                                No card or external drive is plugged in right now. Put a card in a reader and reload this page to check.
+                            </flux:text>
+                        @endforelse
+                    </div>
+                </flux:card>
             </div>
         </section>
 

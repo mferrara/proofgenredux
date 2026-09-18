@@ -5,6 +5,8 @@ namespace App\Livewire;
 use App\Helpers\EnhancementServiceFactory;
 use App\Models\Configuration;
 use App\Proofgen\Image;
+use App\Services\Cards\CardVolume;
+use App\Services\Cards\CardVolumeFinder;
 use App\Services\CoreImageDaemonService;
 use App\Services\FerraraphotoTargetVerifier;
 use App\Services\HorizonService;
@@ -1896,6 +1898,10 @@ class ConfigComponent extends Component
 
         return view('livewire.config-component', [
             'hasUnsavedChanges' => $this->hasUnsavedChanges(),
+            'cardAccess' => array_map(
+                fn (CardVolume $volume) => ['label' => $volume->label(), 'readable' => $volume->readable],
+                app(CardVolumeFinder::class)->all(),
+            ),
             'isHorizonRunning' => $this->isHorizonRunning,
             'horizonProcessInfo' => $horizonProcessInfo,
         ])->title('Settings - Proofgen');

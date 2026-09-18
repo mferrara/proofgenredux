@@ -16,6 +16,11 @@ code change. On an install:
   `herd php artisan proofgen:report --llm --filed-by "<who>" --severity <low|normal|high|blocking> --title "<one line>" --what "<what happened>" --expected "<what should have>" --suggestion "<idea>"`
   It collects diagnostics, redacts secrets in code, saves locally, and sends to the
   developer's private inbox. Tell the person what you filed.
+- **Helping the photographer run a show** ("handle the pending classes", "why aren't my proofs
+  online", "how does this work"): read [docs/OPERATING.md](docs/OPERATING.md) first. It has the
+  priorities (never lose a photo; proofs online fast), how the system works, and the three
+  commands: `herd php artisan proofgen:status <show>`, `proofgen:import <show> --all`,
+  `proofgen:upload <show> --all`.
 - Upgrading an old install follows [docs/UPGRADE_FROM_V1.md](docs/UPGRADE_FROM_V1.md).
 
 **Developing Proofgen** (this is the dev checkout): at the start of a session check

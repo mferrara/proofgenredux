@@ -7,7 +7,9 @@ use App\Services\Cards\CardDumper;
 use App\Services\Cards\CardScanner;
 use App\Services\Cards\CardVolume;
 use App\Services\Cards\CardVolumeFinder;
+use App\Services\PhotoArchiveService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -102,6 +104,26 @@ it('writes a verified copy to the class folder and the archive, then empties the
     // The card keeps what was never copied.
     expect(File::exists($this->root.'/card/DCIM/100EOSR5/_Z5A0001.JPG'))->toBeFalse()
         ->and(File::exists($this->root.'/card/DCIM/100EOSR5/_Z5A0001.CR3'))->toBeTrue();
+});
+
+it('lets the import rename the card copy on the archive instead of writing the photo a second time', function () {
+    ($this->dump)([]);
+
+    $cardCopy = collect(Storage::disk('archive')->allFiles('26AAC/_cards/005'))->first(fn ($f) => str_ends_with($f, '_Z5A0002.JPG'));
+    expect($cardCopy)->not->toBeNull();
+
+    // What ImportPhoto does for this photo once it has a proof number.
+    $stored = app(PhotoArchiveService::class)->storeContents('26AAC/005/26AAC_00002.jpg', 'second');
+
+    expect($stored['created'])->toBeTrue()
+        ->and(Storage::disk('archive')->get('26AAC/005/26AAC_00002.jpg'))->toBe('second')
+        // Moved, not copied: the card copy is gone and nothing was written twice.
+        ->and(Storage::disk('archive')->exists($cardCopy))->toBeFalse()
+        ->and(DB::table('card_files')->where('sha1', sha1('second'))->value('claimed_path'))->toBe('26AAC/005/26AAC_00002.jpg');
+
+    // A photo the Card Reader never saw is still written normally.
+    app(PhotoArchiveService::class)->storeContents('26AAC/005/26AAC_00009.jpg', 'from a plain folder import');
+    expect(Storage::disk('archive')->get('26AAC/005/26AAC_00009.jpg'))->toBe('from a plain folder import');
 });
 
 it('never empties a card when there is no working archive', function () {

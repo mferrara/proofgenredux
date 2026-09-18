@@ -142,6 +142,16 @@ install needs only API URL + token - is specified in flower brief **3866**
 on `26Test01` before it becomes the default; rsync stays as a fallback). Do not
 start the Proofgen side until Gallery's contract exists.
 
+**v2.5.0.** The import now renames the Card Reader's archive copy into place
+instead of writing the photo to the archive a second time (`card_files` table;
+one archive write per photo again). Settings has a **Card access** section that
+explains why Herd has Full Disk Access and shows whether each plugged-in drive is
+readable. New read-only `proofgen:status [show]` plus `proofgen:import` and
+`proofgen:upload` (same as the buttons; `App\Services\ShowWorkSummary`), and
+**[docs/OPERATING.md](docs/OPERATING.md)**: the guide an agent reads to help the
+photographer at a show - priorities, how the system works, "handle all pending
+classes", troubleshooting, what never to do. `CLAUDE.md`/`AGENTS.md` point to it.
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.
