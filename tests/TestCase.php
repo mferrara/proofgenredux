@@ -78,6 +78,10 @@ abstract class TestCase extends BaseTestCase
             // An un-faked outbound HTTP request is a test-isolation bug.
             // Tests that intentionally exercise HTTP call Http::fake() themselves.
             Http::preventStrayRequests();
+
+            // public/build is generated per install and not committed, so
+            // rendered pages must not need its manifest.
+            $this->withoutVite();
         }
     }
 

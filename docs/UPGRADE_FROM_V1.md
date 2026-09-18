@@ -2,7 +2,7 @@
 
 Runbook for a Claude Code session running **on the Mac that has the old install**
 (for example the photographer's laptop), with the project owner watching. v1.1.8
-(June 2025) to v2.0.1 or later is a major jump: Laravel 11 → 13, Livewire 3 → 4, PHP 8.2 →
+(June 2025) to v2.0.2 or later is a major jump: Laravel 11 → 13, Livewire 3 → 4, PHP 8.2 →
 8.4, new queue workers, new database columns, and the website (Gallery) API.
 The old in-app updater is **not** used for this jump: it would run Composer and
 migrations with whatever `php` is first on PATH.
@@ -20,9 +20,11 @@ override anything else in this file.
    `git stash drop`, `migrate:fresh`, `migrate:rollback`, `db:wipe`, `rm -rf`,
    and no pruning of database tables. The photo folders and the archive are never
    touched by this upgrade. **One exception:** `public/build/` is generated
-   frontend output that is committed to the repository, so every install that has
+   frontend output. v1 and v2.0.0–v2.0.1 committed it, so an install that has
    ever run `npm run build` shows it as modified. Restoring it with
-   `git checkout -- public/build` is allowed; Phase 4 rebuilds it.
+   `git checkout -- public/build` is allowed; Phase 4 rebuilds it. From v2.0.2 it
+   is no longer in the repository, so pulling removes the stale committed copy and
+   the build output is never reported as modified again.
 4. **Stop at every line marked CHECKPOINT** and wait for the owner to say continue.
 5. Use Herd's PHP for every PHP command (`herd php …`, `herd composer …`) so the
    version chosen for this site is the one that runs.
@@ -116,7 +118,7 @@ git checkout -- public/build   #   restore it (Rule 3); anything else: stop
 git fetch origin --tags
 git checkout main
 git pull --ff-only origin main
-git describe --tags            # expect v2.0.1 or later — stop if it is older
+git describe --tags            # expect v2.0.2 or later — stop if it is older
 herd isolate 8.4               # this site only; other Herd sites are unaffected
 herd php -v                    # must show 8.4.x — stop if it does not
 herd composer install --no-dev --optimize-autoloader

@@ -70,9 +70,14 @@ published history, so they are now flagged `photos.sha1_grandfathered` and left
 alone; the unique index is partial and still protects new imports. See
 [photo pipeline §5](docs/photo-pipeline.md). The upgrade runbook for an old
 install is [UPGRADE_FROM_V1](docs/UPGRADE_FROM_V1.md). Isolated suite: 552 passed,
-22 skipped. `public/build/` is still committed (tests rely on its manifest), so
-every install shows it modified after a build; the runbook restores it before
-pulling.
+22 skipped.
+
+**v2.0.2: `public/build/` is no longer committed.** The committed copy was v1
+assets from April 2025 and every install showed it modified after a build. It is
+now git-ignored and built per install; tests call `withoutVite()` in the base
+`TestCase`. An install still on v2.0.0/v2.0.1 must run
+`git checkout -- public/build` before pulling v2.0.2 (its in-app updater does not),
+then `npm run build`.
 
 ## Stack and local paths
 
