@@ -83,6 +83,23 @@ class FerraraphotoApiClient
         ]);
     }
 
+    /**
+     * Gallery's delivery-target handshake for one show slug. Null when this
+     * Gallery predates the endpoint (404); every other failure throws.
+     */
+    public function deliveryTarget(string $slug): ?array
+    {
+        try {
+            return $this->request('get', '/delivery-target', query: ['show_slug' => $slug]);
+        } catch (FerraraphotoApiException $exception) {
+            if ($exception->status === 404) {
+                return null;
+            }
+
+            throw $exception;
+        }
+    }
+
     public function profileHealth(string $profileId): array
     {
         return $this->request('get', '/storage-profiles/'.$this->segment($profileId).'/health');

@@ -1,8 +1,13 @@
 @php
     /** @var array|null $ferraraphoto_status From FerraraphotoTargetVerifier::verifyShow/Class */
     /** @var \App\Models\Show|null $show_for_slug Pass the Show model to render the slug-override row (only on show view) */
+    /** @var \App\Services\Delivery\DeliveryTarget|null $delivery_target Where uploads go right now (show view only) */
+    /** @var \App\Services\Delivery\DeliveryTarget|null $delivery_target_pending Destination Gallery reported that is waiting for acceptance */
     $checkAction ??= 'checkFerraraphotoStatus';
     $show_for_slug ??= null;
+    $delivery_target ??= null;
+    $delivery_target_pending ??= null;
+    $deliveryKinds = ['proofs' => 'Proofs', 'web_images' => 'Web', 'highres_images' => 'Highres'];
 @endphp
 
 <div class="rounded border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-700 dark:bg-zinc-800/50">
@@ -45,6 +50,61 @@
                         @endif
                     </div>
                     <flux:button size="xs" variant="ghost" icon="pencil-square" wire:click="startEditingFerraraphotoSlug" title="Override the ferraraphoto slug if it differs from the proofgen show id">Edit</flux:button>
+                </div>
+            @endif
+        </div>
+    @endif
+
+    @if ($delivery_target)
+        <div class="mt-2 mb-2 pb-2 border-b border-zinc-200 dark:border-zinc-700">
+            <div class="flex items-baseline gap-2">
+                <span class="text-zinc-500 dark:text-zinc-400 text-xs whitespace-nowrap">Uploads go to:</span>
+                @if ($delivery_target->usesSsh())
+                    <code class="font-mono text-xs text-zinc-700 dark:text-zinc-200 truncate">{{ $delivery_target->username }}{{ '@' }}{{ $delivery_target->host ?: '(no host)' }}</code>
+                @else
+                    <code class="font-mono text-xs text-zinc-700 dark:text-zinc-200">this Mac</code>
+                @endif
+                @if ($delivery_target->isFromGallery())
+                    <flux:badge color="emerald" size="sm" title="Destination provided by the website. Nothing to configure here.">from website</flux:badge>
+                @else
+                    <flux:badge color="zinc" size="sm" title="Using this computer's Legacy SFTP settings: the website did not provide a destination (older site version, no API token, or local driver).">local settings</flux:badge>
+                @endif
+            </div>
+            <dl class="mt-1 space-y-0.5">
+                @foreach ($deliveryKinds as $key => $label)
+                    <div class="flex items-baseline gap-2">
+                        <dt class="w-14 shrink-0 text-xs text-zinc-500 dark:text-zinc-400">{{ $label }}</dt>
+                        <dd class="font-mono text-xs text-zinc-700 dark:text-zinc-200 truncate" title="{{ $delivery_target->directory($key) }}">{{ $delivery_target->directory($key) ?: 'not configured' }}</dd>
+                    </div>
+                @endforeach
+            </dl>
+
+            @if ($delivery_target_pending)
+                <div class="mt-2 rounded border border-amber-300 bg-amber-50 p-2 dark:border-amber-600/60 dark:bg-amber-950/30">
+                    <div class="text-xs font-medium text-amber-800 dark:text-amber-200">
+                        Uploads are stopped: the destination changed after this show already uploaded files.
+                    </div>
+                    <dl class="mt-1 space-y-0.5">
+                        <div class="flex items-baseline gap-2">
+                            <dt class="w-14 shrink-0 text-xs text-amber-700 dark:text-amber-300">Host</dt>
+                            <dd class="font-mono text-xs text-amber-900 dark:text-amber-100 truncate">{{ $delivery_target_pending->usesSsh() ? $delivery_target_pending->username.'@'.$delivery_target_pending->host : 'this Mac' }}</dd>
+                        </div>
+                        @foreach ($deliveryKinds as $key => $label)
+                            <div class="flex items-baseline gap-2">
+                                <dt class="w-14 shrink-0 text-xs text-amber-700 dark:text-amber-300">{{ $label }}</dt>
+                                <dd class="font-mono text-xs text-amber-900 dark:text-amber-100 truncate" title="{{ $delivery_target_pending->directory($key) }}">{{ $delivery_target_pending->directory($key) ?: 'not configured' }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
+                    <div class="mt-2 flex items-center justify-between gap-2">
+                        <flux:text class="!text-xs text-amber-700 dark:text-amber-300">
+                            Accept only if the website really moved. Files already uploaded to the old destination are not moved.
+                        </flux:text>
+                        <flux:button size="xs" variant="primary" wire:click="acceptDeliveryTarget"
+                            wire:confirm="Send this show's uploads to the new destination from now on?">
+                            Accept new destination
+                        </flux:button>
+                    </div>
                 </div>
             @endif
         </div>

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Jobs\Photo\ImportPhoto;
 use App\Proofgen\Utility;
+use App\Services\Delivery\DeliveryTargetDisks;
+use App\Services\Delivery\DeliveryTargetResolver;
 use App\Services\PathResolver;
 use App\Services\Transport\RsyncCommandBuilder;
 use App\Services\Transport\UploadConfigurationException;
@@ -48,6 +50,8 @@ class Show extends Model
         'id' => 'string',
         'ferraraphoto_show_slug' => 'string',
         'storage_profile_id' => 'string',
+        'delivery_target' => 'array',
+        'delivery_target_pending' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -169,7 +173,9 @@ class Show extends Model
 
         // Local path uses the proofgen show id (matches the on-disk directory).
         // Remote subpath uses the ferraraphoto_slug accessor (honors operator override; falls back to id).
-        return RsyncCommandBuilder::build($local, config('proofgen.sftp.path'), $resolver->getShowRemoteProofsPath($this->ferraraphoto_slug), $dry_run === true);
+        $target = app(DeliveryTargetResolver::class)->current($this);
+
+        return RsyncCommandBuilder::build($local, $target->directory('proofs'), '', $dry_run === true, $target);
     }
 
     /**
@@ -180,7 +186,9 @@ class Show extends Model
         $resolver = app(PathResolver::class);
         $local = $resolver->getAbsolutePath($resolver->getShowWebImagesPath($this->id), config('proofgen.fullsize_home_dir')).'/';
 
-        return RsyncCommandBuilder::build($local, config('proofgen.sftp.web_images_path'), $resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug), $dry_run === true);
+        $target = app(DeliveryTargetResolver::class)->current($this);
+
+        return RsyncCommandBuilder::build($local, $target->directory('web_images'), '', $dry_run === true, $target);
     }
 
     /**
@@ -191,7 +199,9 @@ class Show extends Model
         $resolver = app(PathResolver::class);
         $local = $resolver->getAbsolutePath($resolver->getShowHighresImagesPath($this->id), config('proofgen.fullsize_home_dir')).'/';
 
-        return RsyncCommandBuilder::build($local, config('proofgen.sftp.highres_images_path'), $resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug), $dry_run === true);
+        $target = app(DeliveryTargetResolver::class)->current($this);
+
+        return RsyncCommandBuilder::build($local, $target->directory('highres_images'), '', $dry_run === true, $target);
     }
 
     /**
@@ -281,53 +291,35 @@ class Show extends Model
     {
         $resolver = app(PathResolver::class);
 
-        [$localBase, $remoteBase, $remoteSubdir, $disk, $remoteDir] = match ($syncType) {
-            'proofs' => [
-                $resolver->getShowProofsPath($this->id),
-                config('proofgen.sftp.path'),
-                $resolver->getShowRemoteProofsPath($this->ferraraphoto_slug),
-                'remote_proofs',
-                '/'.$resolver->getShowRemoteProofsPath($this->ferraraphoto_slug),
-            ],
-            'web_images' => [
-                $resolver->getShowWebImagesPath($this->id),
-                config('proofgen.sftp.web_images_path'),
-                $resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug),
-                'remote_web_images',
-                '/'.$resolver->getShowRemoteWebImagesPath($this->ferraraphoto_slug),
-            ],
-            'highres_images' => [
-                $resolver->getShowHighresImagesPath($this->id),
-                config('proofgen.sftp.highres_images_path'),
-                $resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug),
-                'remote_highres_images',
-                '/'.$resolver->getShowRemoteHighresImagesPath($this->ferraraphoto_slug),
-            ],
+        $localBase = match ($syncType) {
+            'proofs' => $resolver->getShowProofsPath($this->id),
+            'web_images' => $resolver->getShowWebImagesPath($this->id),
+            'highres_images' => $resolver->getShowHighresImagesPath($this->id),
             default => throw new \InvalidArgumentException("Unknown sync type: {$syncType}"),
         };
 
-        $configKey = $this->syncTypeConfigKey($syncType);
-        $remoteBase = trim((string) $remoteBase);
+        // Local path uses the proofgen show id; the target directory is
+        // already scoped to the remote (ferraraphoto) show slug.
+        $target = app(DeliveryTargetResolver::class)->current($this);
+        $remoteShowDir = $target->directory($syncType);
 
-        if ($remoteBase === '') {
+        if ($remoteShowDir === '') {
             // Real uploads must fail loudly before any Storage/rsync access.
             // Read-only pending checks may still report "nothing pending".
             Log::error('SFTP '.$syncType.' path not configured - cannot upload show '.$this->id);
 
             if (! $dryRun) {
-                throw UploadConfigurationException::missingDestination($syncType, $configKey, 'show '.$this->id);
+                throw UploadConfigurationException::missingDestination($syncType, $this->syncTypeConfigKey($syncType), 'show '.$this->id);
             }
 
             return new UploadSyncResult($syncType, $dryRun, [], [], []);
         }
 
-        if (! Storage::disk($disk)->exists($remoteDir)) {
-            Storage::disk($disk)->makeDirectory($remoteDir);
-        }
+        app(DeliveryTargetDisks::class)->ensureDirectory($target, $syncType);
 
         $local = $resolver->getAbsolutePath($localBase, config('proofgen.fullsize_home_dir')).'/';
 
-        return app(UploadSyncService::class)->sync($syncType, $local, $remoteBase, (string) $remoteSubdir, $dryRun);
+        return app(UploadSyncService::class)->sync($syncType, $local, $remoteShowDir, '', $dryRun, $target);
     }
 
     public function getImagesPendingImport(): array

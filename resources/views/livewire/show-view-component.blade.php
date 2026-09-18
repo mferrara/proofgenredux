@@ -70,7 +70,7 @@
 
         <div class="mb-8 grid gap-4 md:grid-cols-2">
             @include('livewire.partials.storage-usage-panel', ['storage_usage' => $storage_usage])
-            @include('livewire.partials.ferraraphoto-status-panel', ['ferraraphoto_status' => $ferraraphoto_status, 'show_for_slug' => $show])
+            @include('livewire.partials.ferraraphoto-status-panel', ['ferraraphoto_status' => $ferraraphoto_status, 'show_for_slug' => $show, 'delivery_target' => $delivery_target, 'delivery_target_pending' => $delivery_target_pending])
         </div>
 
         @if($migration_panel_visible)

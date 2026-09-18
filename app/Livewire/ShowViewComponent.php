@@ -13,6 +13,7 @@ use App\Models\StorageProfile;
 use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\ClassRenameService;
+use App\Services\Delivery\DeliveryTargetResolver;
 use App\Services\FerraraphotoTargetVerifier;
 use App\Services\Migration\CopyShowToCloud;
 use App\Services\Migration\MigrationInventoryService;
@@ -104,6 +105,24 @@ class ShowViewComponent extends Component
         } catch (\Throwable $e) {
             $this->setFlashMessage('Could not refresh storage usage: '.$e->getMessage());
         }
+    }
+
+    /**
+     * Operator accepts the destination Gallery reported after a delivery was
+     * stopped because it differed from the one this show already uploaded to.
+     */
+    public function acceptDeliveryTarget(): void
+    {
+        app(DeliveryTargetResolver::class)->acceptPending($this->show);
+        $this->show->refresh();
+        $this->ferraraphotoStatus = null;
+
+        Flux::toast(
+            text: 'New delivery destination accepted. Use Check under Uploads to find files missing there, then upload again.',
+            heading: 'Destination accepted',
+            variant: 'success',
+            position: 'top right',
+        );
     }
 
     public function checkFerraraphotoStatus(): void
@@ -312,6 +331,8 @@ class ShowViewComponent extends Component
             'storage_usage' => app(StorageUsageService::class)->cachedShowUsage($this->show),
             'queued_work' => $queuedWork,
             'ferraraphoto_status' => $this->ferraraphotoStatus,
+            'delivery_target' => app(DeliveryTargetResolver::class)->current($this->show),
+            'delivery_target_pending' => app(DeliveryTargetResolver::class)->pending($this->show),
             'storage_profile' => $storageProfile,
             'active_storage_profile' => $activeStorageProfile,
             'storage_profile_health' => $storageProfileHealth,

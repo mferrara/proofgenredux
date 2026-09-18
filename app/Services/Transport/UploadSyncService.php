@@ -2,6 +2,7 @@
 
 namespace App\Services\Transport;
 
+use App\Services\Delivery\DeliveryTarget;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -30,6 +31,7 @@ class UploadSyncService
         string $remoteBase,
         string $remoteSubdir,
         bool $dryRun = false,
+        ?DeliveryTarget $target = null,
     ): UploadSyncResult {
         // No local source directory means there is nothing to transfer. Skipping
         // the rsync invocation keeps routine "nothing to upload yet" checks from
@@ -45,7 +47,7 @@ class UploadSyncService
 
         $suffixes = $this->suffixesFor($syncType);
 
-        $argv = RsyncCommandBuilder::argv($localRoot, $remoteBase, $remoteSubdir, $dryRun);
+        $argv = RsyncCommandBuilder::argv($localRoot, $remoteBase, $remoteSubdir, $dryRun, $target);
 
         $result = $this->runner->run($argv);
 

@@ -7,6 +7,8 @@ use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\GenerateWebImage;
 use App\Jobs\Photo\ImportPhoto;
 use App\Proofgen\Utility;
+use App\Services\Delivery\DeliveryTargetDisks;
+use App\Services\Delivery\DeliveryTargetResolver;
 use App\Services\PathResolver;
 use App\Services\PhotoArchiveService;
 use App\Services\Transport\RsyncCommandBuilder;
@@ -627,21 +629,27 @@ class ShowClass extends Model
     {
         $local = app(PathResolver::class)->getAbsolutePath($this->web_images_path, config('proofgen.fullsize_home_dir').'/').'/';
 
-        return RsyncCommandBuilder::build($local, config('proofgen.sftp.web_images_path'), $this->remote_web_images_path, $dry_run === true);
+        $target = app(DeliveryTargetResolver::class)->current($this->show);
+
+        return RsyncCommandBuilder::build($local, $target->directory('web_images'), $this->name, $dry_run === true, $target);
     }
 
     public function rsyncProofsCommand($dry_run = false): string
     {
         $local = app(PathResolver::class)->getAbsolutePath($this->proofs_path, config('proofgen.fullsize_home_dir').'/').'/';
 
-        return RsyncCommandBuilder::build($local, config('proofgen.sftp.path'), $this->remote_proofs_path, $dry_run === true);
+        $target = app(DeliveryTargetResolver::class)->current($this->show);
+
+        return RsyncCommandBuilder::build($local, $target->directory('proofs'), $this->name, $dry_run === true, $target);
     }
 
     public function rsyncHighresImagesCommand($dry_run = false): string
     {
         $local = app(PathResolver::class)->getAbsolutePath($this->highres_images_path, config('proofgen.fullsize_home_dir').'/').'/';
 
-        return RsyncCommandBuilder::build($local, config('proofgen.sftp.highres_images_path'), $this->remote_highres_images_path, $dry_run === true);
+        $target = app(DeliveryTargetResolver::class)->current($this->show);
+
+        return RsyncCommandBuilder::build($local, $target->directory('highres_images'), $this->name, $dry_run === true, $target);
     }
 
     /**
@@ -931,34 +939,20 @@ class ShowClass extends Model
      */
     private function runClassSync(string $syncType, bool $dryRun): UploadSyncResult
     {
-        [$localBase, $remoteBase, $remoteSubdir, $disk, $remoteDir] = match ($syncType) {
-            'proofs' => [
-                $this->proofs_path,
-                config('proofgen.sftp.path'),
-                $this->remote_proofs_path,
-                'remote_proofs',
-                '/'.$this->remote_proofs_path,
-            ],
-            'web_images' => [
-                $this->web_images_path,
-                config('proofgen.sftp.web_images_path'),
-                $this->remote_web_images_path,
-                'remote_web_images',
-                '/'.$this->remote_web_images_path,
-            ],
-            'highres_images' => [
-                $this->highres_images_path,
-                config('proofgen.sftp.highres_images_path'),
-                $this->remote_highres_images_path,
-                'remote_highres_images',
-                '/'.$this->remote_highres_images_path,
-            ],
+        $localBase = match ($syncType) {
+            'proofs' => $this->proofs_path,
+            'web_images' => $this->web_images_path,
+            'highres_images' => $this->highres_images_path,
             default => throw new \InvalidArgumentException("Unknown sync type: {$syncType}"),
         };
 
-        $remoteBase = trim((string) $remoteBase);
+        // Gallery's handshake result when this show has one, otherwise the
+        // local SFTP settings. Either way the directory is already scoped to
+        // the remote show slug; only the class folder is appended.
+        $target = app(DeliveryTargetResolver::class)->current($this->show);
+        $remoteShowDir = $target->directory($syncType);
 
-        if ($remoteBase === '') {
+        if ($remoteShowDir === '') {
             Log::error('SFTP '.$syncType.' path not configured - cannot upload '.$this->id);
 
             if (! $dryRun) {
@@ -972,12 +966,10 @@ class ShowClass extends Model
             return new UploadSyncResult($syncType, $dryRun, [], [], []);
         }
 
-        if (! Storage::disk($disk)->exists($remoteDir)) {
-            Storage::disk($disk)->makeDirectory($remoteDir);
-        }
+        app(DeliveryTargetDisks::class)->ensureDirectory($target, $syncType, $this->name);
 
         $local = app(PathResolver::class)->getAbsolutePath($localBase, config('proofgen.fullsize_home_dir').'/').'/';
 
-        return app(UploadSyncService::class)->sync($syncType, $local, $remoteBase, (string) $remoteSubdir, $dryRun);
+        return app(UploadSyncService::class)->sync($syncType, $local, $remoteShowDir, $this->name, $dryRun, $target);
     }
 }

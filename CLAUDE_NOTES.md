@@ -32,10 +32,21 @@ now targets that server. The original 72 photos were not reuploaded.
 
 The smoke exposed two local fixes: use the already-seeded legacy storage profile
 without registering it, and cast SFTP environment ports to integers. Focused
-isolated validation: 25 tests, 76 assertions. See the
-[proposed Gallery handshake contract](docs/GALLERY_DELIVERY_HANDSHAKE.md) for
-next-session coordination; no handshake implementation has begun. Dad's laptop,
-recognition, encoding, S3 migration, and updater research remain deferred/separate.
+isolated validation: 25 tests, 76 assertions. Dad's laptop, recognition,
+encoding, S3 migration, and updater research remain deferred/separate.
+
+**Gallery-owned delivery destination (same day, flower briefs 3832/3833).**
+Proofgen now asks Gallery where a show's rsync delivery goes
+(`GET /api/v1/delivery-target`) once per class delivery and saves the answer on
+the show (`app/Services/Delivery/`, `shows.delivery_target`). Gallery's endpoint
+is being built separately; until it exists Proofgen gets a 404 and uses the local
+SFTP settings exactly as before. Errors never fall back to local settings, and a
+destination that changes after a show uploaded files stops delivery until the
+operator accepts it on the show page. Contract, fallback rule, and what is still
+open (show picker, Settings cleanup, repeat beta smoke) are in
+[the handshake doc](docs/GALLERY_DELIVERY_HANDSHAKE.md). Isolated validation:
+full suite 536 passed, 22 skipped. Adds two nullable columns on `shows`; the
+in-app updater runs the migration, a manual checkout needs `php artisan migrate`.
 
 ## Stack and local paths
 

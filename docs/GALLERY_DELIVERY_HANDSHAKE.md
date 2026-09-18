@@ -1,102 +1,121 @@
-# Proposed Gallery delivery handshake
+# Gallery delivery handshake
 
-Proposal for coordination, September 18, 2026. Not implemented on either side
-by this Proofgen session. Keep this first version focused on existing rsync/SSH
-filesystem delivery; S3 delivery can extend the transport contract later.
+Gallery (the website) owns where a show's files are delivered. Proofgen asks
+before each class delivery instead of carrying its own copy of the server's
+host and paths. Contract owner: flower brief 3832 (Gallery side); Proofgen
+consumer: brief 3833.
+
+Status, September 18, 2026: **Proofgen side implemented** and tested against a
+faked endpoint. The Gallery endpoint is being built separately; until it ships,
+Proofgen gets a 404 and keeps using its local SFTP settings, exactly as before.
+
+This first version covers the existing rsync/SSH filesystem delivery only. S3
+delivery can extend `transport` / `destinations` later.
 
 ## Endpoint
 
 `GET /api/v1/delivery-target?show_slug=26Test01`
 
-Use the existing Proofgen bearer authentication and `{ "data": ... }` envelope.
-Read-only: no show creation, profile registration, filesystem writes, or health
-probe side effects. Return HTTP 200 for an existing show **or** a valid new slug.
-For an existing show, resolve its pinned profile. For a new slug, resolve Gallery's
-active writable default profile. Never silently replace an existing show's pin
-with the current default. Reject invalid slugs (422) or unavailable/unconfigured
-upload targets (503) using the existing error envelope.
-
-Example (target_revision below is illustrative, not an actual fingerprint):
+Existing Proofgen bearer authentication and `{ "data": ... }` / error envelopes.
+Read-only: no show creation, profile registration, or filesystem access. HTTP
+200 for an existing show **or** a valid new slug. Existing show → its pinned
+profile; new slug → Gallery's default writable profile, creating nothing. Never
+swap an existing show's pinned profile for the current default. Invalid slug →
+422. No usable profile → 503.
 
 ```json
 {
   "data": {
     "schema_version": 1,
-    "target_revision": "sha256:<hash-of-effective-delivery-settings>",
-    "show": {
-      "slug": "26Test01",
-      "exists": true,
-      "storage_profile_id": "legacy-local"
-    },
-    "storage_profile": {
-      "id": "legacy-local",
-      "label": "Server filesystem",
-      "driver": "local",
-      "fingerprint": "legacy-local-v1",
-      "writable": true
-    },
-    "transport": {
-      "driver": "rsync_ssh",
-      "host": "<origin host>",
-      "port": 22,
-      "username": "forge"
-    },
+    "show": { "slug": "26Test01", "exists": true, "storage_profile_id": "legacy-local" },
+    "storage_profile": { "id": "legacy-local", "label": "Server filesystem", "driver": "local" },
+    "transport": { "driver": "rsync_ssh", "host": "<origin host>", "port": 22, "username": "forge" },
     "layout": "proofgen-v1",
     "destinations": {
-      "proofs": {
-        "directory": "/mnt/photo-storage/proofs/26Test01",
-        "key_prefix": "proofs/26Test01/"
-      },
-      "web_images": {
-        "directory": "/mnt/photo-storage/web_images/26Test01",
-        "key_prefix": "web_images/26Test01/"
-      },
-      "highres_images": {
-        "directory": "/mnt/photo-storage/highres_images/26Test01",
-        "key_prefix": "highres_images/26Test01/"
-      }
+      "proofs":         { "directory": "/mnt/photo-storage/proofs/26Test01",         "key_prefix": "proofs/26Test01/" },
+      "web_images":     { "directory": "/mnt/photo-storage/web_images/26Test01",     "key_prefix": "web_images/26Test01/" },
+      "highres_images": { "directory": "/mnt/photo-storage/highres_images/26Test01", "key_prefix": "highres_images/26Test01/" }
     }
   }
 }
 ```
 
-## Meaning and behavior
+Dropped from the original proposal: `target_revision`, the per-profile
+`fingerprint`, and `writable`. Proofgen compares the destination values it
+cares about itself, and a Gallery-side flag cannot prove Proofgen's SSH user can
+write - rsync succeeding is the truth.
 
-- Gallery owns the profile, connection destination, and directories. Return the
-  SSH-addressable absolute paths that correspond to its configured media roots.
-  Configure the upload hostname explicitly; do not derive it from the HTTPS host
-  (beta is behind Cloudflare). Profile driver `local` means Gallery's filesystem;
-  Proofgen reaches it through `rsync_ssh`.
-- Each directory is already scoped to the **remote show slug**. Proofgen appends
-  the class number and output filename, without adding the show slug again.
-- `proofgen-v1` means `<class_number>/<proof_number>_<suffix>.jpg`, with `thm` and
-  `std` under proofs, `web` under web_images, and `highres` under highres_images.
-  Class numbers remain strings, including leading zeros and underscores.
-- `key_prefix` is the metadata namespace, not an absolute filesystem path.
-  Example: `/mnt/photo-storage/web_images/26Test01/001/26TEST01_00001_web.jpg`
-  corresponds to `web_images/26Test01/001/26TEST01_00001_web.jpg`.
-- `storage_profile.fingerprint` is the existing profile identity, including the
-  literal built-in `legacy-local-v1`; it does not describe current upload roots.
-  `target_revision` separately changes when effective profile/transport/layout/
-  destination settings change. It must be stable across repeated reads and
-  exclude timestamps and `show.exists` (creation alone does not change a target).
-- Return no SSH private key, bearer token, password, or bucket secret. Proofgen
-  retains its local credentials and existing SSH host-key verification.
+## Meaning
 
-Proofgen should cache this response **per API origin and remote show slug**, pin
-the returned profile, and create the show using that profile ID. This replaces
-choosing a new show's remote profile from Proofgen's own global default. Existing
-show readback already includes storage_profile_id; the handshake adds the actual
-transport and destination contract needed to use it.
+- Each `directory` is an SSH-addressable absolute path **already scoped to the
+  remote show slug**. Proofgen appends the class folder and filename and never
+  adds the slug again.
+- `transport` comes from explicit Gallery configuration, never from the request
+  host (beta/production sit behind Cloudflare; SSH must reach the origin). When
+  Gallery has none configured it omits `transport`, and Proofgen reaches
+  Gallery's directories with its own local host/port/user.
+- `proofgen-v1` means `<class_number>/<proof_number>_<suffix>.jpg`: `thm` and
+  `std` under proofs, `web` under web_images, `highres` under highres_images.
+  Class numbers stay strings, including leading zeros and underscores.
+- `key_prefix` is the metadata namespace, not a filesystem path. Proofgen does
+  not use it for rsync delivery today.
+- No SSH private key, token, password, or bucket secret is ever returned. The
+  private key stays on the Proofgen laptop (`SFTP_PATHTOPRIVATEKEY`).
 
-Fetch on setup and before each class delivery, not per image. Compare with the
-saved target; a changed profile/host/path must be shown to the operator before
-switching an existing show's destination. Do not silently fall back to global
-upload paths if the handshake fails. Keep the last cached response for display.
-An unavailable/writable=false target stops before rsync.
+## What Proofgen does with it
 
-Minimal initial acceptance checks: existing pinned show; new slug using Gallery's
-default; leading-zero/underscore class paths; non-default remote show slug;
-changed destination detection; missing/unwritable configuration; an unsupported
-schema/layout/transport; no credentials in responses. Repeat the same two-photo
-smoke after both implementations are ready, without creating more shows.
+Code: `app/Services/Delivery/` (`DeliveryTarget`, `DeliveryTargetResolver`,
+`DeliveryTargetDisks`, `DeliveryTargetException`).
+
+- **One fetch per class delivery**, in `DeliverClassOutputs` after the show is
+  ensured and before any file moves. Never per image. Only for shows on the
+  rsync (`legacy-local`) profile.
+- **Everything else reads the saved answer with no network call**: pending
+  upload dry runs, the rsync commands, and the show page's Ferraraphoto target
+  panel (which shows the host, the three directories, and a "from website" or
+  "local settings" badge). The exists/mkdir check before rsync is built from the
+  same target as the rsync command, so they cannot point at different places.
+- **Saved per show** in `shows.delivery_target`, including the API origin it
+  came from.
+
+### Fallback rule
+
+| Situation | Behavior |
+| --- | --- |
+| 404 (older Gallery without the endpoint) | local SFTP settings |
+| No API token, or `TRANSPORT_DRIVER=local` | local SFTP settings, no request made |
+| 200 without `transport` | Gallery's directories, local host/port/user |
+| 503, other 5xx, network error | stop before rsync; the job retries on its normal backoff |
+| 401/403/422, or unknown `schema_version` / `layout` / `transport.driver`, non-`local` profile driver, missing or relative directory | stop before rsync; fails immediately, no retries |
+
+Proofgen never falls back to local settings on an error. Uploading to a stale
+destination "succeeds" and the website shows broken images - the silent failure
+this handshake exists to remove.
+
+### Destination changes
+
+A new answer is compared with the show's saved one on host, port, user, the
+three directories, and the profile id. The API origin is ignored: beta and
+production share a filesystem, so the same destination from another origin is
+not a change.
+
+- Show has **no uploads yet** → the new destination is adopted silently.
+- Show **already uploaded files** → delivery stops without retrying, the new
+  answer is kept in `shows.delivery_target_pending`, and the show page shows
+  both destinations with an **Accept new destination** button. Files already
+  uploaded to the old destination are not moved; after accepting, use **Check**
+  under Uploads to find what is missing at the new one.
+- The first handshake for a show that only ever used local settings adopts
+  Gallery's answer and logs a warning if it differs from the local settings.
+
+## Not done yet
+
+- Show picker backed by `GET /api/v1/shows` (waits for that Gallery endpoint),
+  and shrinking Settings → Legacy SFTP to the key path plus a collapsed fallback
+  group.
+- The legacy string builders in `app/Proofgen/Show*.php`, the rclone migration
+  command builder, and the Legacy SFTP connection page still read local settings.
+- Choosing a new show's storage profile from the handshake (only one rsync
+  profile exists today).
+- After Gallery ships the endpoint: repeat the two-photo `26Test01` smoke
+  against beta, without creating more shows.

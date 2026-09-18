@@ -5,6 +5,8 @@ namespace App\Jobs\ShowClass;
 use App\Jobs\Ferraraphoto\EnsureFerraraphotoShow;
 use App\Models\ShowClass;
 use App\Services\AutomaticUploadSettings;
+use App\Services\Delivery\DeliveryTargetException;
+use App\Services\Delivery\DeliveryTargetResolver;
 use App\Services\Ferraraphoto\FerraraphotoApiClient;
 use App\Services\PathResolver;
 use App\Services\Storage\ShowProfileBinder;
@@ -90,14 +92,32 @@ class DeliverClassOutputs implements ShouldQueue
             app(ShowProfileBinder::class),
         );
 
-        // 2. Transfer the derived files (legacy rsync or pinned-profile copies).
+        // 2. Confirm with Gallery where this show's rsync delivery goes, once
+        //    per run. A changed or unusable destination stops here: retrying
+        //    cannot fix it, so it fails without burning the backoff schedule.
+        $class->load('show.storageProfile');
+        if ($class->show->storageProfile?->isLegacyLocal()) {
+            try {
+                app(DeliveryTargetResolver::class)->refresh($class->show);
+            } catch (DeliveryTargetException $exception) {
+                if (! $exception->retryable && $this->job) {
+                    $this->fail($exception);
+
+                    return;
+                }
+
+                throw $exception;
+            }
+        }
+
+        // 3. Transfer the derived files (legacy rsync or pinned-profile copies).
         //    Throws on failure so the metadata push below is never reached.
         (new UploadDerivedFiles($this->classId, $kinds))->handle(
             app(StorageProfileResolver::class),
             app(PathResolver::class),
         );
 
-        // 3. Push photo metadata. Same legacy-local/no-token skip rule as step 1.
+        // 4. Push photo metadata. Same legacy-local/no-token skip rule as step 1.
         (new PushPhotoMetadata($this->classId))->handle(app(FerraraphotoApiClient::class));
 
         Log::info('Delivered derived outputs for '.$this->classId.'.');

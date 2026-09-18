@@ -4,6 +4,10 @@ namespace App\Services;
 
 use App\Models\Show;
 use App\Models\ShowClass;
+use App\Services\Delivery\DeliveryTarget;
+use App\Services\Delivery\DeliveryTargetDisks;
+use App\Services\Delivery\DeliveryTargetResolver;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -63,19 +67,13 @@ class FerraraphotoTargetVerifier
      */
     public function verifyShow(Show|string $show): array
     {
-        // When given a Show model use its ferraraphoto_slug accessor (which honors
-        // the operator override). When given a bare string (operator-typed lookup
-        // from the connector panel) use the string as-is.
-        $slug = $show instanceof Show ? $show->ferraraphoto_slug : $show;
-        $proofsPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteProofsPath($slug));
-        $webPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteWebImagesPath($slug));
-        $highresPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteHighresImagesPath($slug));
+        // A Show model resolves its own delivery target (Gallery's handshake
+        // when saved, else local settings; both honor the slug override). A
+        // bare string (operator-typed lookup from the connector panel) has no
+        // saved target, so it checks the local settings with the string as-is.
+        $model = $show instanceof Show ? $show : (new Show)->forceFill(['id' => $show]);
 
-        return $this->summarize([
-            'proofs' => $this->checkDisk('remote_proofs', $proofsPath),
-            'web_images' => $this->checkDisk('remote_web_images', $webPath),
-            'highres_images' => $this->checkDisk('remote_highres_images', $highresPath),
-        ]);
+        return $this->summarize($this->checkTarget($model));
     }
 
     /**
@@ -101,25 +99,37 @@ class FerraraphotoTargetVerifier
             ]);
         }
 
-        // Honor the show's ferraraphoto_slug override; falls back to show_id when null.
-        $slug = $model->show?->ferraraphoto_slug ?? $model->show_id;
-        $className = $model->name;
+        // The show's delivery target honors both Gallery's handshake and the
+        // ferraraphoto_slug override.
+        $showModel = $model->show ?? (new Show)->forceFill(['id' => $model->show_id]);
 
-        $proofsPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteProofsPath($slug, $className));
-        $webPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteWebImagesPath($slug, $className));
-        $highresPath = $this->pathResolver->normalizePath($this->pathResolver->getRemoteHighresImagesPath($slug, $className));
-
-        return $this->summarize([
-            'proofs' => $this->checkDisk('remote_proofs', $proofsPath),
-            'web_images' => $this->checkDisk('remote_web_images', $webPath),
-            'highres_images' => $this->checkDisk('remote_highres_images', $highresPath),
-        ]);
+        return $this->summarize($this->checkTarget($showModel, $model->name));
     }
 
-    private function checkDisk(string $disk, string $path): array
+    /**
+     * @return array<string, array{exists: bool, path: string, error: ?string}>
+     */
+    private function checkTarget(Show $show, string $classFolder = ''): array
+    {
+        $target = app(DeliveryTargetResolver::class)->current($show);
+        $entries = [];
+
+        foreach (DeliveryTarget::KINDS as $kind) {
+            try {
+                [$disk, $path] = app(DeliveryTargetDisks::class)->locate($target, $kind, $classFolder);
+                $entries[$kind] = $this->checkDisk($disk, $path);
+            } catch (Throwable $e) {
+                $entries[$kind] = ['exists' => false, 'path' => '', 'error' => $e->getMessage()];
+            }
+        }
+
+        return $entries;
+    }
+
+    private function checkDisk(Filesystem $disk, string $path): array
     {
         try {
-            $exists = Storage::disk($disk)->exists($path);
+            $exists = $disk->exists($path);
 
             return ['exists' => $exists, 'path' => $path, 'error' => null];
         } catch (Throwable $e) {
