@@ -410,4 +410,18 @@ class Show extends Model
 
         return $proof_number;
     }
+
+    /**
+     * Put back a proof number whose import failed before any photo took it, so
+     * the retry (or the next photo) uses it instead of leaving a gap in the
+     * sequence. Numbers are issued lowest-first, so it goes back to the front.
+     */
+    public function returnProofNumber(string $proofNumber): void
+    {
+        if (Photo::where('proof_number', $proofNumber)->exists()) {
+            return;
+        }
+
+        Redis::client()->lpush('available_proof_numbers_'.$this->id, $proofNumber);
+    }
 }

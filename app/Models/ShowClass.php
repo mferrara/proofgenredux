@@ -11,6 +11,7 @@ use App\Services\Delivery\DeliveryTargetDisks;
 use App\Services\Delivery\DeliveryTargetResolver;
 use App\Services\PathResolver;
 use App\Services\PhotoArchiveService;
+use App\Services\SafeDirectory;
 use App\Services\Transport\RsyncCommandBuilder;
 use App\Services\Transport\UploadConfigurationException;
 use App\Services\Transport\UploadSyncResult;
@@ -660,7 +661,7 @@ class ShowClass extends Model
     public function localProofFiles(): array /* \League\Flysystem\FileAttributes[] */
     {
         if (! Storage::disk('fullsize')->exists($this->proofs_path)) {
-            Storage::disk('fullsize')->makeDirectory($this->proofs_path);
+            SafeDirectory::ensure(Storage::disk('fullsize'), $this->proofs_path);
         }
 
         $photos = Utility::getContentsOfPath($this->proofs_path);
@@ -776,7 +777,7 @@ class ShowClass extends Model
     public function localWebImageFiles(): array /* \League\Flysystem\FileAttributes[] */
     {
         if (! Storage::disk('fullsize')->exists($this->web_images_path)) {
-            Storage::disk('fullsize')->makeDirectory($this->web_images_path);
+            SafeDirectory::ensure(Storage::disk('fullsize'), $this->web_images_path);
         }
 
         $photos = Utility::getContentsOfPath($this->web_images_path);

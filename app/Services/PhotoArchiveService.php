@@ -75,9 +75,8 @@ class PhotoArchiveService
         $this->assertConfiguredRootAvailable();
 
         $directory = $this->directoryFor($archivePath);
-        if ($directory !== '') {
-            Storage::disk('archive')->makeDirectory($directory);
-        }
+        // Several import workers reach a brand-new class at the same moment.
+        SafeDirectory::ensure(Storage::disk('archive'), $directory);
 
         $probePath = trim($directory.'/.proofgen-archive-write-test-'.uniqid('', true), '/');
         Storage::disk('archive')->put($probePath, 'ok');
@@ -408,7 +407,7 @@ class PhotoArchiveService
         $extension = pathinfo($filename, PATHINFO_EXTENSION);
         $name = pathinfo($filename, PATHINFO_FILENAME);
         $conflictDirectory = trim($directory.'/'.self::CONFLICT_DIRECTORY, '/');
-        Storage::disk('archive')->makeDirectory($conflictDirectory);
+        SafeDirectory::ensure(Storage::disk('archive'), $conflictDirectory);
 
         $suffix = Carbon::now()->format('Ymd_His').'_'.$existingSha1;
         $candidate = trim($conflictDirectory.'/'.$name.'_'.$suffix.($extension ? '.'.$extension : ''), '/');

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Photo;
 use App\Models\Show;
+use App\Models\ShowClass;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +46,28 @@ class ShowNextProofNumberTest extends TestCase
         Redis::shouldReceive('client')->once()->andReturn($client);
 
         $this->assertSame('SHOW1_00123', $this->show->getNextProofNumber());
+    }
+
+    public function test_a_number_from_a_failed_import_goes_back_to_the_front_of_the_pool(): void
+    {
+        $client = Mockery::mock();
+        $client->shouldReceive('lpush')->once()->with('available_proof_numbers_SHOW1', 'SHOW1_00002')->andReturn(1);
+        Redis::shouldReceive('client')->once()->andReturn($client);
+
+        $this->show->returnProofNumber('SHOW1_00002');
+    }
+
+    public function test_a_number_that_a_photo_already_holds_is_never_put_back(): void
+    {
+        ShowClass::withoutEvents(fn () => ShowClass::create(['id' => 'SHOW1_101', 'show_id' => 'SHOW1', 'name' => '101']));
+        Photo::withoutEvents(fn () => Photo::create([
+            'id' => 'SHOW1_101_SHOW1_00002', 'show_class_id' => 'SHOW1_101',
+            'proof_number' => 'SHOW1_00002', 'file_type' => 'jpg', 'sha1' => sha1('taken'),
+        ]));
+
+        Redis::shouldReceive('client')->never();
+
+        $this->show->returnProofNumber('SHOW1_00002');
     }
 
     public function test_empty_pool_is_refilled_from_the_originals_before_popping(): void

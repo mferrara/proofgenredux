@@ -6,6 +6,7 @@ use App\Helpers\EnhancementServiceFactory;
 use App\Models\Photo;
 use App\Services\PathResolver;
 use App\Services\PhotoArchiveService;
+use App\Services\SafeDirectory;
 use App\Services\SafeFileMover;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -242,7 +243,7 @@ class Image
 
         // Confirm the $web_dest_path exists, if not, create it
         if (! Storage::disk('fullsize')->exists($web_dest_path)) {
-            Storage::disk('fullsize')->makeDirectory($web_dest_path);
+            SafeDirectory::ensure(Storage::disk('fullsize'), $web_dest_path);
         }
 
         $base_path = config('proofgen.fullsize_home_dir');
@@ -312,7 +313,7 @@ class Image
 
         // Confirm the $highres_dest_path exists, if not, create it
         if (! Storage::disk('fullsize')->exists($highres_dest_path)) {
-            Storage::disk('fullsize')->makeDirectory($highres_dest_path);
+            SafeDirectory::ensure(Storage::disk('fullsize'), $highres_dest_path);
         }
 
         $base_path = config('proofgen.fullsize_home_dir');
@@ -499,7 +500,7 @@ class Image
 
         // Confirm the $proofs_dest_path exists, if not, create it
         if (! Storage::disk('fullsize')->exists($proofs_dest_path)) {
-            Storage::disk('fullsize')->makeDirectory($proofs_dest_path);
+            SafeDirectory::ensure(Storage::disk('fullsize'), $proofs_dest_path);
         }
 
         // Confirm the $full_size_image_path exists, if not, throw an exception

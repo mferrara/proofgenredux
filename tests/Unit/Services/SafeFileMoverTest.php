@@ -67,7 +67,8 @@ class SafeFileMoverTest extends TestCase
         $disk = Storage::disk('fullsize');
         $disk->put('SHOW/001/input.jpg', 'preserved original');
         $proxy = \Mockery::mock($disk);
-        $proxy->shouldReceive('makeDirectory')->once()->andThrow(UnableToCreateDirectory::atLocation('blocked'));
+        // Retried (another worker may still be creating the parents) before giving up.
+        $proxy->shouldReceive('makeDirectory')->times(3)->andThrow(UnableToCreateDirectory::atLocation('blocked'));
         Storage::set('fullsize', $proxy);
         try {
             app(SafeFileMover::class)->quarantineImport('fullsize', 'SHOW/001/input.jpg', 'SHOW', '001');

@@ -14,6 +14,7 @@ use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
+use Throwable;
 
 class PhotoService
 {
@@ -95,15 +96,28 @@ class PhotoService
         }
 
         // Genuinely new file: allocate proof number only now.
-        $finalProofNumber = $proofNumberOverride
-            ?? $plan->intendedProofNumber
-            ?? Show::find($show)?->getNextProofNumber();
+        $finalProofNumber = $proofNumberOverride ?? $plan->intendedProofNumber;
+        $showModel = null;
+
+        if ($finalProofNumber === null) {
+            $showModel = Show::find($show);
+            $finalProofNumber = $showModel?->getNextProofNumber();
+        }
 
         if ($finalProofNumber === null) {
             throw new Exception("Unable to determine proof number for import: {$imagePath}");
         }
 
-        return $this->runImport($imagePath, $finalProofNumber, $debug, $dispatchJobs, plan: $plan);
+        try {
+            return $this->runImport($imagePath, $finalProofNumber, $debug, $dispatchJobs, plan: $plan);
+        } catch (Throwable $exception) {
+            // A number taken from the pool for an import that then failed would
+            // otherwise be lost: a gap in the sequence, and the retried photo
+            // numbered out of shooting order.
+            $showModel?->returnProofNumber($finalProofNumber);
+
+            throw $exception;
+        }
     }
 
     private function runImport(string $imagePath, string $finalProofNumber, bool $debug, bool $dispatchJobs, ?PhotoImportPlan $plan): array
@@ -172,9 +186,7 @@ class PhotoService
             }
 
             $directory = dirname($originalRelativePath);
-            if ($directory !== '' && $directory !== '.' && $directory !== '/') {
-                $storage->makeDirectory($directory);
-            }
+            SafeDirectory::ensure($storage, $directory);
 
             $storage->put($originalRelativePath, $incoming);
             $written = $storage->get($originalRelativePath);
