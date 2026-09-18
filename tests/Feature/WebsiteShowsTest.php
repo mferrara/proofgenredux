@@ -136,6 +136,8 @@ it('flags a show that is not on the website and lets the operator pick the match
         GALLERY.'/api/v1/shows/TEST' => Http::response(['error' => ['code' => 'not_found', 'message' => 'Show not found.']], 404),
         GALLERY.'/api/v1/shows?*' => Http::response(['data' => [websiteShow('26AAC', 'Arizona Classic')]]),
         GALLERY.'/api/v1/shows' => Http::response(['data' => [websiteShow('26AAC', 'Arizona Classic')]]),
+        // Opening a show also asks where its files go; not what this test is about.
+        GALLERY.'/api/v1/delivery-target*' => Http::response(['error' => ['code' => 'not_found', 'message' => 'Not found.']], 404),
     ]);
 
     Livewire::test(ShowViewComponent::class, ['show_id' => 'TEST'])
