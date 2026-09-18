@@ -62,7 +62,7 @@ class UploadProofs implements ShouldQueue
         // customer can't find their photo," so we log loudly.
         $status = app(FerraraphotoTargetVerifier::class)->verifyClassThrottled($showClass);
         if (! $status['proofs']['exists'] && ! $status['proofs']['error']) {
-            Log::warning('UploadProofs: remote proofs directory does not exist yet for '.$this->show.'/'.$this->class.' — rsync will create it, but ferraraphoto admin may need to "Import Classes" before the public site can serve it.');
+            Log::debug('UploadProofs: remote proofs directory does not exist yet for '.$this->show.'/'.$this->class.' — rsync will create it, but ferraraphoto admin may need to "Import Classes" before the public site can serve it.');
         }
 
         $uploaded = $showClass->proofUploads();

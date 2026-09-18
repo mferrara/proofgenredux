@@ -58,7 +58,7 @@ class UploadWebImages implements ShouldQueue
 
         $status = app(FerraraphotoTargetVerifier::class)->verifyClassThrottled($showClass);
         if (! $status['web_images']['exists'] && ! $status['web_images']['error']) {
-            Log::warning('UploadWebImages: remote web_images directory does not exist yet for '.$this->show.'/'.$this->class.' — rsync will create it.');
+            Log::debug('UploadWebImages: remote web_images directory does not exist yet for '.$this->show.'/'.$this->class.' — rsync will create it.');
         }
 
         $web_uploaded = $showClass->webImageUploads();

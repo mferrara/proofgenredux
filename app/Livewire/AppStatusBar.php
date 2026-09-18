@@ -6,6 +6,7 @@ use App\Models\PhotoIssue;
 use App\Services\GraveyardService;
 use App\Services\HorizonService;
 use App\Services\WorkerActivityService;
+use App\Services\WorkingFolderHealth;
 use Flux\Flux;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -197,6 +198,7 @@ class AppStatusBar extends Component
             'activity' => app(WorkerActivityService::class)->snapshot(),
             'autoRestartEnabled' => config('proofgen.auto_restart_horizon', false),
             'graveyardAlert' => $this->gravyardAlert(),
+            'workingFolderProblem' => app(WorkingFolderHealth::class)->problem(),
             'openIssuesCount' => $this->openIssuesCount(),
         ]);
     }

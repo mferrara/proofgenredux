@@ -8,6 +8,7 @@ use App\Models\Show;
 use App\Models\ShowClass;
 use App\Services\HorizonService;
 use App\Services\VersionService;
+use App\Services\WorkingFolderHealth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 use Throwable;
@@ -51,6 +52,7 @@ class DiagnosticsCollector
             ]),
             'storage' => $this->probe(fn () => [
                 'working_folder_present' => is_dir((string) config('proofgen.fullsize_home_dir')),
+                'working_folder_icloud_problem' => app(WorkingFolderHealth::class)->problem()['reason'] ?? null,
                 'archive_enabled' => (bool) config('proofgen.archive_enabled'),
                 'archive_folder_present' => is_dir((string) config('proofgen.archive_home_dir')),
             ]),

@@ -91,6 +91,18 @@ redactor and tracing disabled. Guide: [docs/FEEDBACK.md](docs/FEEDBACK.md).
 v2.0.8 fixed the parallel-import folder race (`App\Services\SafeDirectory`) and
 returns a pool proof number when its import fails.
 
+**v2.2.1: first batch of reports from the photographer's install (proofgen-feedback
+#2–#8).** Proof watermark text is now rendered by glyph coverage on a truecolor
+canvas: the old palette canvas gave text a dark outline that grew as the
+background was made more transparent; the text itself is exactly as bright as
+before. Automatic delivery runs that have nothing left to upload stop before any
+website or SSH work (each generation kind announces completion, so a class used
+to get up to three full runs). A red status-bar warning appears when the working
+folder is managed by iCloud or holds evicted files (`App\Services\WorkingFolderHealth`).
+A migration clears the junk `"0"` SFTP path a 2025 migration saved. The normal
+"remote directory does not exist yet" line is DEBUG, not WARNING. The upgrade
+runbook reports effective settings (saved rows override `.env`) and gates on iCloud.
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.

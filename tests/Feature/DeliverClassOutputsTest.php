@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\ShowClass\DeliverClassOutputs;
+use App\Models\Configuration;
 use App\Models\Photo;
 use App\Models\Show;
 use App\Models\ShowClass;
@@ -103,6 +104,32 @@ class DeliverClassOutputsTest extends TestCase
             ->and(Storage::disk('remote_proofs')->get('SHOW1/101/SHOW1_00001'.$largeSuffix.'.jpg'))->toBe('std bytes')
             ->and(Storage::disk('remote_web_images')->get('SHOW1/101/SHOW1_00001'.$webSuffix.'.jpg'))->toBe('web bytes')
             ->and(Storage::disk('remote_highres_images')->get('SHOW1/101/SHOW1_00001'.$highresSuffix.'.jpg'))->toBe('highres bytes');
+
+        $this->tearDownLocalRsyncUploads();
+    }
+
+    public function test_a_repeat_automatic_run_with_nothing_left_to_upload_does_no_network_work(): void
+    {
+        $this->setUpLocalRsyncUploads();
+        config(['proofgen.ferraraphoto.api_token' => 'test-token']);
+        Configuration::setConfig('upload_proofs', 'true', 'boolean');
+        $this->seedLegacyLocalProfile();
+        $photo = $this->seedFullyGeneratedPhoto();
+        Photo::withoutEvents(fn () => $photo->update([
+            'proofs_uploaded_at' => now(),
+            'web_image_uploaded_at' => now(),
+            'highres_image_uploaded_at' => now(),
+        ]));
+
+        $marker = $this->tempPath.'/rsync-was-run';
+        $this->bindFakeRsync("#!/bin/sh\ntouch ".escapeshellarg($marker)."\nexit 0\n");
+
+        // Each generation kind announces its own completion, so a class gets up
+        // to three automatic runs. Http::preventStrayRequests() is active: any
+        // website call from this one would throw.
+        (new DeliverClassOutputs('SHOW1_101', automatic: true))->handle();
+
+        expect(File::exists($marker))->toBeFalse();
 
         $this->tearDownLocalRsyncUploads();
     }

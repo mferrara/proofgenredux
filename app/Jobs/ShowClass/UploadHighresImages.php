@@ -58,7 +58,7 @@ class UploadHighresImages implements ShouldQueue
 
         $status = app(FerraraphotoTargetVerifier::class)->verifyClassThrottled($showClass);
         if (! $status['highres_images']['exists'] && ! $status['highres_images']['error']) {
-            Log::warning('UploadHighresImages: remote highres_images directory does not exist yet for '.$this->show.'/'.$this->class.' — rsync will create it.');
+            Log::debug('UploadHighresImages: remote highres_images directory does not exist yet for '.$this->show.'/'.$this->class.' — rsync will create it.');
         }
 
         $highres_uploaded = $showClass->highresImageUploads();

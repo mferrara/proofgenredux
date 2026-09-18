@@ -672,17 +672,62 @@ function imagettfJustifytext(string $text, string $font = 'CENTURY.TTF', int $ju
         [$left, $top, $textWidth, $textHeight] = $measure($fontSize);
     }
 
-    $image = imagecreate(max(1, $W), max(1, $H));
-    // First palette entry supplies the existing translucent background style.
-    imagecolorallocatealpha($image, ...$bgcolor);
-    $foreground = imagecolorallocatealpha($image, ...$color);
+    // Truecolor, with the text's edges computed here rather than by GD.
+    //
+    // The old palette canvas made GD anti-alias by snapping edge pixels to a
+    // handful of palette entries whose colour was interpolated but whose alpha
+    // was not: mostly-background edge pixels came out near-black at almost the
+    // text's opacity - a dark outline along straight stems and jagged curves,
+    // worse the more transparent the background was set. Simply blending text
+    // onto a truecolor background fixes the edges but greys the text out,
+    // because it then sits on top of the dark band instead of replacing it.
+    //
+    // So: measure glyph coverage on a mask, then interpolate BOTH colour and
+    // opacity between background and text by that coverage. Full-coverage
+    // pixels are exactly the configured text colour, empty ones exactly the
+    // configured background, and the edge is a smooth ramp between them.
+    $width = max(1, $W);
+    $height = max(1, $H);
     $x = match ($justify) {
         0 => $paddingX + $X,
         1 => $W - $paddingX - $textWidth,
         default => (int) floor(($W - $textWidth) / 2),
     };
     $y = (int) floor(($H - $textHeight) / 2) + $Y;
-    imagettftext($image, $fontSize, 0, $x - $left, $y - $top, $foreground, $font, $text);
+
+    $mask = imagecreatetruecolor($width, $height);
+    imagefilledrectangle($mask, 0, 0, $width - 1, $height - 1, imagecolorallocate($mask, 0, 0, 0));
+    imagettftext($mask, $fontSize, 0, $x - $left, $y - $top, imagecolorallocate($mask, 255, 255, 255), $font, $text);
+
+    // One output colour per coverage level, in premultiplied space so a faint
+    // edge pixel does not inherit the full brightness of either end.
+    [$fgR, $fgG, $fgB, $fgA] = $color;
+    [$bgR, $bgG, $bgB, $bgA] = $bgcolor;
+    $fgOpacity = 1 - $fgA / 127;
+    $bgOpacity = 1 - $bgA / 127;
+    $ramp = [];
+    for ($level = 0; $level <= 255; $level++) {
+        $coverage = $level / 255;
+        $opacity = (1 - $coverage) * $bgOpacity + $coverage * $fgOpacity;
+        $channel = static fn (int $bg, int $fg): int => $opacity <= 0.0 ? $fg
+            : (int) round(((1 - $coverage) * $bgOpacity * $bg + $coverage * $fgOpacity * $fg) / $opacity);
+        $ramp[$level] = ((int) round(127 * (1 - $opacity)) << 24)
+            | ($channel($bgR, $fgR) << 16) | ($channel($bgG, $fgG) << 8) | $channel($bgB, $fgB);
+    }
+
+    $image = imagecreatetruecolor($width, $height);
+    imagesavealpha($image, true);
+    imagealphablending($image, false);
+    imagefilledrectangle($image, 0, 0, $width - 1, $height - 1, $ramp[0]);
+
+    for ($row = 0; $row < $height; $row++) {
+        for ($column = 0; $column < $width; $column++) {
+            $level = (imagecolorat($mask, $column, $row) >> 16) & 0xFF;
+            if ($level !== 0) {
+                imagesetpixel($image, $column, $row, $ramp[$level]);
+            }
+        }
+    }
 
     return $image;
 }

@@ -40,6 +40,24 @@ Report all of this in one block:
   run inside this folder; `herd composer --version`; `node -v`; `npm -v`;
   `swift --version`; `redis-cli ping`; first line of `/opt/homebrew/bin/rsync --version`
   (or `/usr/local/bin/rsync`) and of `/usr/bin/rsync --version`.
+- **Saved Settings override `.env`.** The app reads `configurations` rows first, so
+  `.env` alone can be wrong (an install reported its archive drive as present from
+  `.env` while the saved setting pointed at an unplugged drive). Report the
+  **effective** values the app uses, and every saved row that overrides `.env`:
+
+  ```sh
+  herd php artisan tinker --execute='
+  foreach (["fullsize_home_dir","archive_home_dir","archive_enabled","upload_proofs","sftp.driver","sftp.port","sftp.username","sftp.path","sftp.web_images_path","sftp.highres_images_path","ferraraphoto.base_url"] as $k) {
+      echo str_pad($k, 28).json_encode(config("proofgen.".$k))."\n";
+  }
+  foreach (["sftp.host","sftp.private_key","ferraraphoto.api_token"] as $k) {
+      echo str_pad($k, 28).(filled(config("proofgen.".$k)) ? "set" : "not set")."\n";
+  }'
+  ```
+
+  (Before the v2 code is in place this command may not exist in that form; then
+  list `SELECT key, length(value) FROM configurations` and say which keys also
+  appear in `.env`.) Phase 2's folder checks use these effective paths.
 - From `.env`, the **values** of: `APP_ENV`, `APP_URL`, `DB_CONNECTION`, `DB_DATABASE`,
   `QUEUE_CONNECTION`, `CACHE_STORE`, `FULLSIZE_HOME_DIR`, `ARCHIVE_HOME_DIR`,
   `TRANSPORT_DRIVER`, `SFTP_PORT`, `SFTP_USERNAME`, `SFTP_PROOFSPATH`,
@@ -85,6 +103,22 @@ Do not continue unless every one of these is true. If one is not, say which and 
   If not, ask before running `brew install rsync`.
 - `swift --version` works (Xcode command-line tools).
 - At least 5 GB free on the main disk.
+- **The working folder is not managed by iCloud.** With "Desktop & Documents
+  Folders" and "Optimize Mac Storage" on, macOS evicts files under `~/Documents`
+  and `~/Desktop` to iCloud: names stay, contents are downloaded on demand. That
+  is slow, fails offline, competes with proof uploads for show wifi, and explains
+  image "Unable to decode input" failures. Check the effective working folder:
+
+  ```sh
+  ls -d ~/Library/Mobile\ Documents/com~apple~CloudDocs/Documents 2>/dev/null   # exists = iCloud manages Documents
+  find "<effective fullsize_home_dir>" -flags +dataless -print -quit              # prints a file = contents evicted
+  ```
+
+  If the working folder is under `~/Documents` or `~/Desktop` while iCloud manages
+  them, or anything is dataless: stop and tell the owner. The fix is the owner's
+  call (move the working folder somewhere like `~/ProofgenShows`, update the
+  setting and `.env`, and let evicted files download first); do not move photo
+  folders yourself.
 
 ## Phase 3 — Stop workers and back up
 

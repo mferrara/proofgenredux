@@ -81,6 +81,21 @@ class DeliverClassOutputs implements ShouldQueue
             ];
             $kinds = array_values(array_filter($kinds, fn (string $kind) => ! $class->photos()->whereNull($columns[$kind])->exists()
             ));
+
+            // Every generation kind announces its own completion, so one class
+            // produces up to three automatic runs. When an earlier run already
+            // uploaded everything that is ready, the later ones stop here rather
+            // than repeat the website handshake, the SSH sessions, and the
+            // metadata push for nothing.
+            $uploadedColumns = [
+                'proofs' => 'proofs_uploaded_at',
+                'web' => 'web_image_uploaded_at',
+                'highres' => 'highres_image_uploaded_at',
+            ];
+            $kinds = array_values(array_filter($kinds, fn (string $kind) => $class->photos()
+                ->whereNotNull($columns[$kind])
+                ->whereNull($uploadedColumns[$kind])
+                ->exists()));
         }
         if ($kinds === [] || ! $class->photos()->exists()) {
             return;
