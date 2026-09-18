@@ -80,7 +80,10 @@ class FilenameActionRenderingTest extends TestCase
         Show::withoutEvents(fn () => Show::create(['id' => 'SHOW1', 'name' => 'SHOW1']));
 
         // A valid class folder with a pending image so the Import button renders.
-        Storage::disk('fullsize')->put("SHOW1/O'Brien_Class/IMG_0001.jpg", 'pending');
+        // (Quotes are no longer possible in a VALID name: the website rejects
+        // them, so such a folder is offered a rename instead of an import.)
+        Storage::disk('fullsize')->put('SHOW1/OBrien_Class/IMG_0001.jpg', 'pending');
+        Storage::disk('fullsize')->makeDirectory("SHOW1/O'Brien_Class");
         // An invalid folder (double quote) so the inline rename x-data renders.
         Storage::disk('fullsize')->makeDirectory('SHOW1/legacy"folder\'name');
 
@@ -88,10 +91,9 @@ class FilenameActionRenderingTest extends TestCase
             ->assertSuccessful()
             ->html();
 
-        $this->assertContains(
-            "O'Brien_Class",
-            $this->decodedStringArgumentsIn($html, 'wire:click', 'processPendingClassImages')
-        );
+        $importable = $this->decodedStringArgumentsIn($html, 'wire:click', 'processPendingClassImages');
+        $this->assertContains('OBrien_Class', $importable);
+        $this->assertNotContains("O'Brien_Class", $importable);
 
         $this->assertContains(
             $this->tempPath.'/fullsize/SHOW1',

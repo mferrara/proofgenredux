@@ -31,6 +31,8 @@ class UploadDerivedFiles implements ShouldQueue
     public function __construct(
         public string $classId,
         public array $kinds = ['proofs', 'web', 'highres'],
+        /** Web/highres photos per run; null = the whole class at once. */
+        public ?int $batchSize = null,
     ) {
         $this->timeout = (int) config('proofgen.uploads.derived_job_timeout');
         $this->onConnection((string) config('proofgen.uploads.connection'));
@@ -175,11 +177,11 @@ class UploadDerivedFiles implements ShouldQueue
         }
 
         if (in_array('web', $this->kinds, true) && $class->photosWebImagedNotUploaded()->exists()) {
-            UploadWebImages::dispatchSync($class->show_id, $class->name);
+            UploadWebImages::dispatchSync($class->show_id, $class->name, $this->batchSize);
         }
 
         if (in_array('highres', $this->kinds, true) && $class->photosHighresImagedNotUploaded()->exists()) {
-            UploadHighresImages::dispatchSync($class->show_id, $class->name);
+            UploadHighresImages::dispatchSync($class->show_id, $class->name, $this->batchSize);
         }
     }
 }

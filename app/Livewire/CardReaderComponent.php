@@ -26,9 +26,6 @@ use Livewire\Component;
  */
 class CardReaderComponent extends Component
 {
-    /** The website accepts class names shaped like this (Gallery ShowClass::NUMBER_PATTERN). */
-    private const WEBSITE_CLASS_PATTERN = '/^(?!.*\.\.)[A-Za-z0-9](?:[A-Za-z0-9._-]{0,30}[A-Za-z0-9])?\z/';
-
     public string $show_id = '';
 
     public ?string $mountPoint = null;
@@ -148,8 +145,8 @@ class CardReaderComponent extends Component
     {
         $name = trim($this->newClassName);
 
-        if (! DirectoryNameValidator::isValid($name) || preg_match(self::WEBSITE_CLASS_PATTERN, $name) !== 1) {
-            $this->addError('newClassName', 'Use letters, numbers, dots, hyphens or underscores (no spaces), starting and ending with a letter or number, 32 characters at most.');
+        if (! DirectoryNameValidator::isValid($name)) {
+            $this->addError('newClassName', DirectoryNameValidator::getValidationError($name).' Try: '.DirectoryNameValidator::suggestValidName($name));
 
             return;
         }

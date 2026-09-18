@@ -587,7 +587,7 @@ class ClassViewComponent extends Component
         } else {
             // Same delivery chain the automatic path uses: Ensure show/profile,
             // transfer derived files, then push photo metadata.
-            DeliverClassOutputs::dispatch($this->showClass->id);
+            DeliverClassOutputs::dispatchByPriority($this->showClass->id);
 
             $parts = [];
 

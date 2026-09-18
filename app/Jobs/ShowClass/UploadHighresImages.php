@@ -30,7 +30,10 @@ class UploadHighresImages implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(string $show, string $class)
+    /**
+     * @param  int|null  $limit  Upload at most this many photos in this run; null = the whole class.
+     */
+    public function __construct(string $show, string $class, public ?int $limit = null)
     {
         $this->show = $show;
         $this->class = $class;
@@ -61,7 +64,7 @@ class UploadHighresImages implements ShouldQueue
             Log::debug('UploadHighresImages: remote highres_images directory does not exist yet for '.$this->show.'/'.$this->class.' — rsync will create it.');
         }
 
-        $highres_uploaded = $showClass->highresImageUploads();
+        $highres_uploaded = $showClass->highresImageUploads($this->limit);
         if (count($highres_uploaded)) {
             Log::info('Uploaded '.count($highres_uploaded).' highres images for '.$this->show.' '.$this->class);
         } else {

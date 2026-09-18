@@ -30,7 +30,10 @@ class UploadWebImages implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(string $show, string $class)
+    /**
+     * @param  int|null  $limit  Upload at most this many photos in this run; null = the whole class.
+     */
+    public function __construct(string $show, string $class, public ?int $limit = null)
     {
         $this->show = $show;
         $this->class = $class;
@@ -61,7 +64,7 @@ class UploadWebImages implements ShouldQueue
             Log::debug('UploadWebImages: remote web_images directory does not exist yet for '.$this->show.'/'.$this->class.' — rsync will create it.');
         }
 
-        $web_uploaded = $showClass->webImageUploads();
+        $web_uploaded = $showClass->webImageUploads($this->limit);
         if (count($web_uploaded)) {
             Log::info('Uploaded '.count($web_uploaded).' web images for '.$this->show.' '.$this->class);
         } else {

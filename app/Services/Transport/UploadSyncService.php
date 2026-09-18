@@ -32,6 +32,7 @@ class UploadSyncService
         string $remoteSubdir,
         bool $dryRun = false,
         ?DeliveryTarget $target = null,
+        ?array $onlyFiles = null,
     ): UploadSyncResult {
         // No local source directory means there is nothing to transfer. Skipping
         // the rsync invocation keeps routine "nothing to upload yet" checks from
@@ -47,9 +48,24 @@ class UploadSyncService
 
         $suffixes = $this->suffixesFor($syncType);
 
-        $argv = RsyncCommandBuilder::argv($localRoot, $remoteBase, $remoteSubdir, $dryRun, $target);
+        $filesFrom = null;
+        if ($onlyFiles !== null) {
+            if ($onlyFiles === []) {
+                return new UploadSyncResult($syncType, $dryRun, [], [], []);
+            }
+            $filesFrom = tempnam(sys_get_temp_dir(), 'proofgen-rsync-');
+            file_put_contents($filesFrom, implode("\n", $onlyFiles)."\n");
+        }
 
-        $result = $this->runner->run($argv);
+        $argv = RsyncCommandBuilder::argv($localRoot, $remoteBase, $remoteSubdir, $dryRun, $target, $filesFrom);
+
+        try {
+            $result = $this->runner->run($argv);
+        } finally {
+            if ($filesFrom !== null) {
+                @unlink($filesFrom);
+            }
+        }
 
         // The manifest comes from rsync's own file list. A pre-run or post-run
         // directory walk is not upload evidence: rsync may never have seen a

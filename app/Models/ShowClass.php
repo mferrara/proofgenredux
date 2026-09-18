@@ -850,18 +850,24 @@ class ShowClass extends Model
      * stamped. A non-zero rsync exit throws before any timestamp is touched,
      * so retries reconcile stamps instead of leaving a partial state behind.
      */
-    public function webImageUploads(): array
+    /**
+     * @param  int|null  $limit  Upload at most this many photos (a batch); null = the whole class.
+     */
+    public function webImageUploads(?int $limit = null): array
     {
-        $result = $this->runClassSync('web_images', false);
+        $result = $this->runClassSync('web_images', false, $limit);
 
         $this->applyClassSyncEvidence($this, 'web_images', $result->syncedFiles, [], $result->transferredFiles, false);
 
         return $this->classSyncPaths('web_images', $result->syncedFiles);
     }
 
-    public function highresImageUploads(): array
+    /**
+     * @param  int|null  $limit  Upload at most this many photos (a batch); null = the whole class.
+     */
+    public function highresImageUploads(?int $limit = null): array
     {
-        $result = $this->runClassSync('highres_images', false);
+        $result = $this->runClassSync('highres_images', false, $limit);
 
         $this->applyClassSyncEvidence($this, 'highres_images', $result->syncedFiles, [], $result->transferredFiles, false);
 
@@ -938,7 +944,7 @@ class ShowClass extends Model
      * an unconfigured optional kind (e.g. highres) is legitimately "nothing
      * pending" for the UI.
      */
-    private function runClassSync(string $syncType, bool $dryRun): UploadSyncResult
+    private function runClassSync(string $syncType, bool $dryRun, ?int $limit = null): UploadSyncResult
     {
         $localBase = match ($syncType) {
             'proofs' => $this->proofs_path,
@@ -971,6 +977,40 @@ class ShowClass extends Model
 
         $local = app(PathResolver::class)->getAbsolutePath($localBase, config('proofgen.fullsize_home_dir').'/').'/';
 
-        return app(UploadSyncService::class)->sync($syncType, $local, $remoteShowDir, $this->name, $dryRun, $target);
+        return app(UploadSyncService::class)->sync($syncType, $local, $remoteShowDir, $this->name, $dryRun, $target, $this->batchFiles($syncType, $local, $limit));
+    }
+
+    /**
+     * The files of the next $limit photos still waiting to upload, lowest proof
+     * number first. Null (no limit) lets rsync walk the whole class folder.
+     *
+     * @return array<int, string>|null
+     */
+    private function batchFiles(string $syncType, string $localDirectory, ?int $limit): ?array
+    {
+        if ($limit === null) {
+            return null;
+        }
+
+        $generated = ['proofs' => 'proofs_generated_at', 'web_images' => 'web_image_generated_at', 'highres_images' => 'highres_image_generated_at'][$syncType];
+        $files = [];
+
+        $waiting = $this->photos()
+            ->whereNotNull($generated)
+            ->whereNull($this->syncTypeUploadColumn($syncType))
+            ->orderBy('proof_number')
+            ->limit(max(1, $limit))
+            ->get();
+
+        foreach ($waiting as $photo) {
+            foreach ($this->expectedBasenamesForPhoto($photo, $syncType) as $basename) {
+                // rsync fails the whole batch on a listed file that is missing.
+                if (is_file($localDirectory.$basename)) {
+                    $files[] = $basename;
+                }
+            }
+        }
+
+        return $files;
     }
 }

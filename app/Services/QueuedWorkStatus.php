@@ -55,7 +55,9 @@ class QueuedWorkStatus
             config("queue.connections.{$default}.queue", 'default'),
             'default', 'imports', 'processing', 'thumbnails',
         ]));
-        $queues[] = [config('proofgen.uploads.connection', 'uploads'), config('proofgen.uploads.queue', 'uploads')];
+        foreach (['queue', 'web_queue', 'highres_queue'] as $uploadQueue) {
+            $queues[] = [config('proofgen.uploads.connection', 'uploads'), config('proofgen.uploads.'.$uploadQueue)];
+        }
 
         foreach (array_unique($queues, SORT_REGULAR) as [$connection, $name]) {
             if (config("queue.connections.{$connection}.driver") === 'sync') {

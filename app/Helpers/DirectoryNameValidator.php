@@ -2,8 +2,19 @@
 
 namespace App\Helpers;
 
+use Illuminate\Support\Str;
+
 class DirectoryNameValidator
 {
+    /**
+     * What the website accepts as a class number, minus spaces (which Proofgen
+     * never allowed): letters, digits, dot, underscore and hyphen; starting and
+     * ending with a letter or digit; no ".."; 32 characters at most.
+     */
+    public const WEBSITE_PATTERN = '/^(?!.*\.\.)[A-Za-z0-9](?:[A-Za-z0-9._-]{0,30}[A-Za-z0-9])?\z/';
+
+    public const MAX_LENGTH = 32;
+
     /**
      * Check if a directory name is valid for use as a class folder
      */
@@ -38,7 +49,10 @@ class DirectoryNameValidator
             return false;
         }
 
-        return true;
+        // The website stores the folder name as the class number and rejects
+        // anything else. A folder it would reject could be imported and proofed
+        // here but never uploaded - and used to block the whole show's uploads.
+        return preg_match(self::WEBSITE_PATTERN, $directoryName) === 1;
     }
 
     /**
@@ -70,6 +84,22 @@ class DirectoryNameValidator
             return 'Directory name is a reserved system name.';
         }
 
+        if (strlen($directoryName) > self::MAX_LENGTH) {
+            return 'Directory name is longer than '.self::MAX_LENGTH.' characters; the website will not accept it.';
+        }
+
+        if (preg_match('/[^A-Za-z0-9._-]/', $directoryName, $match) === 1) {
+            return "Directory name contains '{$match[0]}'. Use only letters, numbers, dots, hyphens and underscores; the website will not accept anything else.";
+        }
+
+        if (str_contains($directoryName, '..')) {
+            return 'Directory name cannot contain two dots in a row.';
+        }
+
+        if (preg_match(self::WEBSITE_PATTERN, $directoryName) !== 1) {
+            return 'Directory name must start and end with a letter or number; the website will not accept it otherwise.';
+        }
+
         return null;
     }
 
@@ -95,6 +125,18 @@ class DirectoryNameValidator
             'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
         ])) {
             $validName = $validName.'_class';
+        }
+
+        // Make it something the website accepts too: plain ASCII, separators
+        // only in the middle, no repeats, 32 characters at most.
+        $validName = Str::ascii(str_replace('&', ' and ', $validName));
+        $validName = (string) preg_replace('/\s+/', '_', trim($validName));
+        $validName = (string) preg_replace('/[^A-Za-z0-9._-]+/', '-', $validName);
+        $validName = (string) preg_replace('/([._-])[._-]+/', '$1', $validName);
+        $validName = trim(substr(trim($validName, '._-'), 0, self::MAX_LENGTH), '._-');
+
+        if ($validName === '' || ! self::isValid($validName)) {
+            $validName = 'class';
         }
 
         return $validName;

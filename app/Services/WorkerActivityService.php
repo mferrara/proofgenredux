@@ -12,9 +12,14 @@ class WorkerActivityService
     {
         $waiting = $active = $delayed = 0;
         try {
-            foreach (['default', 'processing', 'imports', 'thumbnails', 'uploads'] as $name) {
-                $queue = Queue::connection($name === 'uploads' ? config('proofgen.uploads.connection', 'uploads') : config('queue.default'));
-                $queueName = $name === 'uploads' ? config('proofgen.uploads.queue', 'uploads') : $name;
+            $queues = array_map(fn (string $name) => [config('queue.default'), $name], ['default', 'processing', 'imports', 'thumbnails']);
+            foreach (['queue', 'web_queue', 'highres_queue'] as $uploadQueue) {
+                $queues[] = [config('proofgen.uploads.connection', 'uploads'), config('proofgen.uploads.'.$uploadQueue)];
+            }
+            $queues[] = ['cards', 'cards'];
+
+            foreach ($queues as [$connection, $queueName]) {
+                $queue = Queue::connection($connection);
                 $waiting += $queue->pendingSize($queueName);
                 $active += $queue->reservedSize($queueName);
                 $delayed += $queue->delayedSize($queueName);

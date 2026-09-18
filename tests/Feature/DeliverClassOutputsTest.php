@@ -11,6 +11,8 @@ use App\Models\StorageProfile;
 use App\Services\QueuedWorkStatus;
 use App\Services\Transport\RsyncFailedException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -130,6 +132,68 @@ class DeliverClassOutputsTest extends TestCase
         (new DeliverClassOutputs('SHOW1_101', automatic: true))->handle();
 
         expect(File::exists($marker))->toBeFalse();
+
+        $this->tearDownLocalRsyncUploads();
+    }
+
+    public function test_web_images_go_up_in_batches_and_the_rest_goes_to_the_back_of_the_queue(): void
+    {
+        $this->setUpLocalRsyncUploads();
+        config(['proofgen.ferraraphoto.api_token' => null, 'proofgen.uploads.batch_size' => 2]);
+        $this->seedLegacyLocalProfile();
+        foreach (['SHOW1_00001', 'SHOW1_00002', 'SHOW1_00003'] as $proofNumber) {
+            $this->seedPhotoWithWebImage($proofNumber);
+        }
+
+        Bus::fake([DeliverClassOutputs::class]);
+
+        (new DeliverClassOutputs('SHOW1_101', false, ['web']))->handle();
+
+        $uploaded = Photo::where('show_class_id', 'SHOW1_101')->whereNotNull('web_image_uploaded_at')->pluck('proof_number')->all();
+        expect($uploaded)->toBe(['SHOW1_00001', 'SHOW1_00002'])
+            ->and(Storage::disk('remote_web_images')->exists('SHOW1/101/SHOW1_00003'.config('proofgen.web_images.suffix').'.jpg'))->toBeFalse();
+
+        // The remainder waits its turn behind any proofs that arrived meanwhile.
+        Bus::assertDispatched(fn (DeliverClassOutputs $job) => $job->kinds === ['web'] && $job->queue === config('proofgen.uploads.web_queue'));
+
+        $this->tearDownLocalRsyncUploads();
+    }
+
+    public function test_highres_waits_when_the_connection_is_slow_and_tries_again_later(): void
+    {
+        $this->setUpLocalRsyncUploads();
+        config(['proofgen.ferraraphoto.api_token' => null, 'proofgen.uploads.highres_min_kbps' => 1000]);
+        $this->seedLegacyLocalProfile();
+        $photo = $this->seedPhotoWithHighresImage('SHOW1_00001');
+        Cache::put('uploads.throughput', ['kbps' => 240, 'at' => now()->timestamp], 3600);
+
+        Bus::fake([DeliverClassOutputs::class]);
+
+        (new DeliverClassOutputs('SHOW1_101', false, ['highres']))->handle();
+
+        expect($photo->fresh()->highres_image_uploaded_at)->toBeNull();
+        Bus::assertDispatched(fn (DeliverClassOutputs $job) => $job->kinds === ['highres'] && $job->delay !== null);
+
+        // An old measurement is not trusted: the next attempt uploads and measures again.
+        Cache::put('uploads.throughput', ['kbps' => 240, 'at' => now()->subHour()->timestamp], 3600);
+        (new DeliverClassOutputs('SHOW1_101', false, ['highres']))->handle();
+
+        expect($photo->fresh()->highres_image_uploaded_at)->not->toBeNull();
+
+        $this->tearDownLocalRsyncUploads();
+    }
+
+    public function test_proofs_are_never_held_back_by_a_slow_connection(): void
+    {
+        $this->setUpLocalRsyncUploads();
+        config(['proofgen.ferraraphoto.api_token' => null]);
+        $this->seedLegacyLocalProfile();
+        $photo = $this->seedPhotoWithProofs('SHOW1_00001');
+        Cache::put('uploads.throughput', ['kbps' => 10, 'at' => now()->timestamp], 3600);
+
+        (new DeliverClassOutputs('SHOW1_101', false, ['proofs']))->handle();
+
+        expect($photo->fresh()->proofs_uploaded_at)->not->toBeNull();
 
         $this->tearDownLocalRsyncUploads();
     }

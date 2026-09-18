@@ -90,6 +90,30 @@ class UploadQueueConfigurationTest extends TestCase
         );
     }
 
+    public function test_proofs_are_taken_first_and_have_a_worker_to_themselves(): void
+    {
+        $uploads = (require base_path('config/proofgen.php'))['uploads'];
+        $plan = new ProvisioningPlan('test-master', config('horizon.environments'), config('horizon.defaults'));
+
+        foreach (['local', 'production'] as $environment) {
+            // One worker walks the queues strictly in priority order...
+            $general = $plan->optionsFor($environment, 'supervisor-uploads');
+            $this->assertSame($uploads['queue'].','.$uploads['web_queue'].','.$uploads['highres_queue'], $general->queue);
+            $this->assertFalse($general->balancing(), 'Balancing would give each queue its own worker and lose the priority order.');
+
+            // ...and one takes nothing but proofs, so they never wait behind a highres transfer.
+            $proofs = $plan->optionsFor($environment, 'supervisor-uploads-proofs');
+            $this->assertNotNull($proofs);
+            $this->assertSame($uploads['queue'], $proofs->queue);
+            $this->assertSame(1, $proofs->maxProcesses);
+
+            // Card dumps have their own worker and a recovery window longer than the job.
+            $cards = $plan->optionsFor($environment, 'supervisor-cards');
+            $this->assertSame('cards', $cards->connection);
+            $this->assertGreaterThan($cards->timeout, config('queue.connections.cards.retry_after'));
+        }
+    }
+
     public function test_horizon_provisions_a_single_upload_worker_in_local_and_production(): void
     {
         $proofgen = require base_path('config/proofgen.php');
@@ -101,7 +125,7 @@ class UploadQueueConfigurationTest extends TestCase
 
             $this->assertNotNull($options, "supervisor-uploads missing for the {$environment} environment.");
             $this->assertSame($proofgen['uploads']['connection'], $options->connection);
-            $this->assertSame($proofgen['uploads']['queue'], $options->queue);
+            $this->assertStringStartsWith($proofgen['uploads']['queue'].',', $options->queue);
             $this->assertSame(1, $options->maxProcesses);
             $this->assertSame(1, $options->minProcesses);
             $this->assertSame(5, $options->maxTries);

@@ -325,7 +325,11 @@ class AutomaticDeliveryTest extends TestCase
         Livewire::test(ShowViewComponent::class, ['show_id' => 'SHOW1'])
             ->call('uploadPendingProofsAndWebImages');
 
-        Bus::assertDispatched(DeliverClassOutputs::class, 1);
-        Bus::assertDispatched(fn (DeliverClassOutputs $job) => $job->classId === 'SHOW1_101');
+        // One delivery per kind, each on its own queue, so proofs of every
+        // class go up before any class's web or highres images.
+        Bus::assertDispatched(DeliverClassOutputs::class, 3);
+        Bus::assertDispatched(fn (DeliverClassOutputs $job) => $job->classId === 'SHOW1_101' && $job->kinds === ['proofs'] && $job->queue === config('proofgen.uploads.queue'));
+        Bus::assertDispatched(fn (DeliverClassOutputs $job) => $job->kinds === ['web'] && $job->queue === config('proofgen.uploads.web_queue'));
+        Bus::assertDispatched(fn (DeliverClassOutputs $job) => $job->kinds === ['highres'] && $job->queue === config('proofgen.uploads.highres_queue'));
     }
 }

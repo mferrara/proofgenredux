@@ -676,3 +676,37 @@ Current constraints and dated resolutions from the resolver/audit/upload work ar
   `UploadDerivedFiles` stays the profile-aware transfer step.
 
 *Last updated: 2026-09-15. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
+
+## Upload priority (v2.4.0)
+
+Proofs are what customers order from, so they always go first.
+
+- **Three queues** on the `uploads` connection: `uploads` (proofs), `uploads-web`,
+  `uploads-highres`. A delivery is dispatched **per kind**
+  (`DeliverClassOutputs::dispatchByPriority()`, and one per kind as each
+  generation kind finishes); a single all-kinds job would send a class's highres
+  before the next class's proofs.
+- **Two workers.** `supervisor-uploads` (`balance => false`) takes the queues
+  strictly in order: proofs, web, highres. `supervisor-uploads-proofs` takes
+  nothing but proofs, so two proof uploads run at once and proofs never wait
+  behind a web or highres transfer that is already in flight.
+- **Batches.** Web and highres go up `proofgen.uploads.batch_size` photos at a
+  time (default 12, `UPLOAD_BATCH_SIZE`), lowest proof number first, via
+  `rsync --files-from`. After a batch the job puts the rest of the class at the
+  back of its queue, so the worker looks for proofs (and other classes) before
+  continuing. A batch that uploads nothing does not re-queue itself. Proofs are
+  small and still go up a class at a time.
+- **Slow connections.** Web/highres batches feed a rolling uplink estimate
+  (proofs are too small to measure with). When it is below
+  `proofgen.uploads.highres_min_kbps` (default 1000, `UPLOAD_HIGHRES_MIN_KBPS`;
+  0 disables), a highres delivery puts itself back for
+  `highres_retry_seconds` (300) instead of competing for the pipe. A measurement
+  older than that is ignored, so the next attempt uploads one batch and measures
+  again. Proofs and web images are never held back.
+- Each per-kind delivery still ensures the show, confirms the destination with
+  the website, and pushes metadata; an automatic run with nothing left to upload
+  stops before any of that.
+- **After updating, restart the background workers**: the new queues and the
+  proofs-only worker do not exist until Horizon restarts. Jobs queued by an older
+  version sit on `uploads` and are simply treated as proofs-priority.
+

@@ -117,6 +117,20 @@ run on the install, and Herd needs Full Disk Access there (research, unconfirmed
 NOT built yet: tiered uploads (proofs first, highres yielding and bandwidth-aware),
 and the import reusing the card's archive copy instead of writing its own.
 
+**v2.4.0: proofs first, and class names the website will accept.** Uploads are
+dispatched per kind onto three queues; one worker takes them strictly in order
+(proofs, web, highres) and a second takes only proofs. Web/highres go up in
+batches of 12 that re-queue the remainder, and highres postpones itself when the
+measured uplink is under 1000 kbps ([photo pipeline, "Upload priority"](docs/photo-pipeline.md)).
+`DirectoryNameValidator` now enforces the website's class-number rule (letters,
+digits, `.`, `_`, `-`; starts and ends alphanumeric; 32 max) with specific errors
+and slug suggestions; existing folders that fail it show as invalid with a rename,
+and renaming one that already has photos goes through the full class rename rather
+than a bare folder move. Workers must be restarted after updating. Still to do:
+the import reusing the Card Reader's archive copy (each photo is on the archive
+drive twice until then), generation yielding during a card dump, and a "Card
+access" line in Settings.
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.

@@ -262,10 +262,27 @@ return [
             'timeout' => 7200,
             'nice' => 0,
         ],
-        'supervisor-uploads' => [
+        // Takes ONLY proofs. With the general upload worker below that is two
+        // proof uploads at once, and proofs never wait behind web or highres.
+        'supervisor-uploads-proofs' => [
             'connection' => $proofgen['uploads']['connection'],
             'queue' => [$proofgen['uploads']['queue']],
-            'balance' => 'simple',
+            'balance' => false,
+            'minProcesses' => 1,
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 5,
+            'timeout' => $proofgen['uploads']['derived_job_timeout'],
+            'nice' => 0,
+        ],
+        // `balance => false` makes this one worker take the queues strictly in
+        // this order: proofs, then web, then highres.
+        'supervisor-uploads' => [
+            'connection' => $proofgen['uploads']['connection'],
+            'queue' => [$proofgen['uploads']['queue'], $proofgen['uploads']['web_queue'], $proofgen['uploads']['highres_queue']],
+            'balance' => false,
             'minProcesses' => 1,
             'maxProcesses' => 1,
             'maxTime' => 0,

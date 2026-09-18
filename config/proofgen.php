@@ -162,5 +162,20 @@ return [
         // attempt. Upload failures are usually remote/transient, so back off
         // instead of hammering the SFTP target.
         'backoff' => [60, 300, 900, 1800],
+
+        // Proofs are what customers order from, so they always go first. `queue`
+        // above is the proofs queue; web and highres have their own, taken only
+        // when no proofs are waiting. A second worker takes nothing but proofs,
+        // so a highres transfer already in flight never delays them.
+        'web_queue' => 'uploads-web',
+        'highres_queue' => 'uploads-highres',
+        // Web/highres go up this many photos at a time, so the worker comes back
+        // to look for new proofs often instead of after a whole class.
+        'batch_size' => (int) (getenv('UPLOAD_BATCH_SIZE') ?: 12),
+        // When recent web/highres uploads averaged less than this (kilobits per
+        // second), highres waits and tries again later: on bad show wifi it only
+        // gets in the way. 0 turns this off.
+        'highres_min_kbps' => (int) (getenv('UPLOAD_HIGHRES_MIN_KBPS') ?: 1000),
+        'highres_retry_seconds' => 300,
     ],
 ];

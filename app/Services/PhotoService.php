@@ -274,7 +274,7 @@ class PhotoService
             $pendingProofs = $photo->showClass->photos()->whereNull('proofs_generated_at')->count();
 
             if ($pendingProofs === 0) {
-                $this->maybeQueueClassDelivery($photo);
+                $this->maybeQueueClassDelivery($photo, 'proofs');
             }
         }
 
@@ -310,7 +310,7 @@ class PhotoService
             $pendingWebImages = $photo->showClass->photos()->whereNull('web_image_generated_at')->count();
 
             if ($pendingWebImages === 0) {
-                $this->maybeQueueClassDelivery($photo);
+                $this->maybeQueueClassDelivery($photo, 'web');
             }
         }
 
@@ -346,7 +346,7 @@ class PhotoService
             $pendingHighresImages = $photo->showClass->photos()->whereNull('highres_image_generated_at')->count();
 
             if ($pendingHighresImages === 0) {
-                $this->maybeQueueClassDelivery($photo);
+                $this->maybeQueueClassDelivery($photo, 'highres');
             }
         }
 
@@ -354,10 +354,15 @@ class PhotoService
     }
 
     /** Queue completed class outputs; explicit uploads bypass this switch. */
-    private function maybeQueueClassDelivery(Photo $photo): void
+    /**
+     * Each kind announces its own completion and is delivered on its own queue,
+     * so a class's proofs go up as soon as they exist and never wait for (or
+     * behind) its web and highres images.
+     */
+    private function maybeQueueClassDelivery(Photo $photo, string $kind): void
     {
         if (app(AutomaticUploadSettings::class)->enabled()) {
-            DeliverClassOutputs::dispatch($photo->show_class_id, automatic: true);
+            DeliverClassOutputs::dispatch($photo->show_class_id, true, [$kind]);
         }
     }
 }

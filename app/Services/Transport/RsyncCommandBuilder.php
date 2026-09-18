@@ -58,9 +58,15 @@ class RsyncCommandBuilder
      * @param  DeliveryTarget|null  $target  Resolved transport (driver/host/port/user); null reads proofgen.sftp.* as before
      * @return array<int, string>
      */
-    public static function argv(string $localSource, string $remoteBase, string $remoteSubdir, bool $dryRun = false, ?DeliveryTarget $target = null): array
+    public static function argv(string $localSource, string $remoteBase, string $remoteSubdir, bool $dryRun = false, ?DeliveryTarget $target = null, ?string $filesFrom = null): array
     {
         $argv = ['rsync', '-avz', '-ii', '--out-format='.self::OUT_FORMAT];
+
+        // Only these files (one relative path per line): used to send a class in
+        // small batches so the upload worker can yield to proofs between them.
+        if ($filesFrom !== null) {
+            $argv[] = '--files-from='.$filesFrom;
+        }
 
         if ($dryRun) {
             $argv[] = '--dry-run';

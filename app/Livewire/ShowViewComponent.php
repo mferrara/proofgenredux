@@ -507,7 +507,7 @@ class ShowViewComponent extends Component
                 continue;
             }
 
-            DeliverClassOutputs::dispatch($showClass->id);
+            DeliverClassOutputs::dispatchByPriority($showClass->id);
             $classes_queued++;
         }
 
@@ -674,6 +674,16 @@ class ShowViewComponent extends Component
 
     public function renameClassDirectory(string $old_name, string $new_name): void
     {
+        // A folder whose name only became "invalid" under a stricter rule can
+        // already hold imported photos. Moving just the folder would orphan
+        // them; the full rename carries the records, originals, outputs and
+        // archive copies along.
+        if (ShowClassModel::where('id', $this->show->id.'_'.$old_name)->whereHas('photos')->exists()) {
+            $this->renameImportedClass($old_name, $new_name);
+
+            return;
+        }
+
         // Validate the new name
         if (! DirectoryNameValidator::isValid($new_name)) {
             $error = DirectoryNameValidator::getValidationError($new_name);

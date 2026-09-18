@@ -17,6 +17,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -47,7 +48,37 @@ class DeliverClassOutputs implements ShouldQueue
     ) {
         $this->timeout = (int) config('proofgen.uploads.derived_job_timeout');
         $this->onConnection((string) config('proofgen.uploads.connection'));
-        $this->onQueue((string) config('proofgen.uploads.queue'));
+        $this->onQueue(self::queueFor($kinds));
+    }
+
+    /**
+     * Proofs first, always: anything that includes proofs goes on the proofs
+     * queue; web-only and highres-only deliveries wait on their own queues,
+     * which the upload worker reaches only when no proofs are waiting.
+     *
+     * @param  array<int, string>  $kinds
+     */
+    public static function queueFor(array $kinds): string
+    {
+        return match (true) {
+            $kinds === ['highres'] => (string) config('proofgen.uploads.highres_queue'),
+            $kinds === ['web'] => (string) config('proofgen.uploads.web_queue'),
+            default => (string) config('proofgen.uploads.queue'),
+        };
+    }
+
+    /**
+     * One delivery per kind, each on its own queue. This is how every caller
+     * should start a delivery: a single all-kinds job would make a class's
+     * highres go up before the next class's proofs.
+     *
+     * @param  array<int, string>  $kinds
+     */
+    public static function dispatchByPriority(string $classId, bool $automatic = false, array $kinds = ['proofs', 'web', 'highres']): void
+    {
+        foreach ($kinds as $kind) {
+            self::dispatch($classId, $automatic, [$kind]);
+        }
     }
 
     /**
@@ -131,14 +162,88 @@ class DeliverClassOutputs implements ShouldQueue
 
         // 3. Transfer the derived files (legacy rsync or pinned-profile copies).
         //    Throws on failure so the metadata push below is never reached.
-        (new UploadDerivedFiles($this->classId, $kinds))->handle(
+        $bulk = $kinds === ['web'] || $kinds === ['highres'];
+
+        if ($kinds === ['highres'] && $this->waitForBetterBandwidth()) {
+            return;
+        }
+
+        $waitingBefore = $bulk ? $this->waitingToUpload($class, $kinds[0]) : 0;
+        $startedAt = microtime(true);
+
+        (new UploadDerivedFiles($this->classId, $kinds, $bulk ? (int) config('proofgen.uploads.batch_size') : null))->handle(
             app(StorageProfileResolver::class),
             app(PathResolver::class),
         );
 
+        $waitingAfter = $bulk ? $this->waitingToUpload($class, $kinds[0]) : 0;
+        if ($bulk) {
+            $this->recordThroughput($class, $kinds[0], $waitingBefore - $waitingAfter, microtime(true) - $startedAt);
+        }
+
         // 4. Push photo metadata. Same legacy-local/no-token skip rule as step 1.
         (new PushPhotoMetadata($this->classId))->handle(app(FerraraphotoApiClient::class));
 
-        Log::info('Delivered derived outputs for '.$this->classId.'.');
+        Log::info('Delivered derived outputs for '.$this->classId.'.', ['kinds' => $kinds]);
+
+        // More of this class is waiting: go to the back of the same queue, so
+        // the worker looks for proofs (and other classes) before continuing.
+        // A batch that uploaded nothing must not loop forever.
+        if ($bulk && $waitingAfter > 0 && $waitingAfter < $waitingBefore) {
+            self::dispatch($this->classId, $this->automatic, $kinds);
+        }
+    }
+
+    private function waitingToUpload(ShowClass $class, string $kind): int
+    {
+        [$generated, $uploaded] = [
+            'web' => ['web_image_generated_at', 'web_image_uploaded_at'],
+            'highres' => ['highres_image_generated_at', 'highres_image_uploaded_at'],
+        ][$kind];
+
+        return $class->photos()->whereNotNull($generated)->whereNull($uploaded)->count();
+    }
+
+    /**
+     * A rolling estimate of the uplink, measured only on web/highres batches:
+     * proofs are so small that per-file overhead hides the real speed.
+     */
+    private function recordThroughput(ShowClass $class, string $kind, int $photos, float $seconds): void
+    {
+        if ($photos <= 0 || $seconds <= 0.5) {
+            return;
+        }
+
+        $directory = rtrim((string) config('proofgen.fullsize_home_dir'), '/').'/'.($kind === 'web' ? $class->web_images_path : $class->highres_images_path);
+        $sample = glob($directory.'/*.jpg') ?: [];
+        $averageBytes = $sample === [] ? 0 : array_sum(array_map('filesize', array_slice($sample, 0, 20))) / min(20, count($sample));
+        $kbps = ($photos * $averageBytes * 8 / 1000) / $seconds;
+
+        if ($kbps > 0) {
+            $previous = Cache::get('uploads.throughput');
+            $smoothed = is_array($previous) ? 0.6 * $previous['kbps'] + 0.4 * $kbps : $kbps;
+            Cache::put('uploads.throughput', ['kbps' => $smoothed, 'at' => now()->timestamp], 3600);
+        }
+    }
+
+    /**
+     * On a bad connection highres only gets in the way of what people are
+     * waiting for. Put it back and try later; an old measurement is ignored,
+     * so the next attempt runs a batch and measures again.
+     */
+    private function waitForBetterBandwidth(): bool
+    {
+        $minimum = (int) config('proofgen.uploads.highres_min_kbps');
+        $measured = Cache::get('uploads.throughput');
+        $retry = (int) config('proofgen.uploads.highres_retry_seconds');
+
+        if ($minimum <= 0 || ! is_array($measured) || $measured['at'] < now()->timestamp - $retry || $measured['kbps'] >= $minimum) {
+            return false;
+        }
+
+        Log::info('Highres upload for '.$this->classId.' postponed: the connection is slow ('.round($measured['kbps']).' kbps).');
+        self::dispatch($this->classId, $this->automatic, $this->kinds)->delay($retry);
+
+        return true;
     }
 }
