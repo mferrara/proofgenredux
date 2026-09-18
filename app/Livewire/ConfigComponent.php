@@ -844,6 +844,42 @@ class ConfigComponent extends Component
         }
     }
 
+    /**
+     * True while any edited value differs from what is saved.
+     *
+     * The save bar cannot rely on `wire:dirty` alone: this page polls worker
+     * status every few seconds, and any request also carries the typed values
+     * to the server. After that Livewire no longer sees the fields as dirty and
+     * would hide the bar although nothing has been saved.
+     */
+    public function hasUnsavedChanges(): bool
+    {
+        foreach ($this->configurationsByCategory as $configs) {
+            foreach ($configs as $config) {
+                if (! array_key_exists($config->id, $this->configValues)) {
+                    continue;
+                }
+
+                $saved = Configuration::castValue($config->value, $config->type);
+
+                if ($this->comparableValue($saved) !== $this->comparableValue($this->configValues[$config->id])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function comparableValue(mixed $value): string
+    {
+        return match (true) {
+            is_bool($value) => $value ? '1' : '0',
+            is_array($value) => (string) json_encode($value),
+            default => (string) $value,
+        };
+    }
+
     public function cancel()
     {
         // Reload configurations to discard changes
@@ -1859,6 +1895,7 @@ class ConfigComponent extends Component
         }
 
         return view('livewire.config-component', [
+            'hasUnsavedChanges' => $this->hasUnsavedChanges(),
             'isHorizonRunning' => $this->isHorizonRunning,
             'horizonProcessInfo' => $horizonProcessInfo,
         ])->title('Settings - Proofgen');

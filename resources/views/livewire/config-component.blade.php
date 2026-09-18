@@ -661,11 +661,14 @@
             </div>
         </section>
 
-        {{-- Floating save bar (only when dirty) --}}
+        {{-- Floating save bar. `wire:dirty` reveals it the instant something is
+             typed; $hasUnsavedChanges keeps it up after a background request
+             (the worker-status poll) has carried the typed values to the server,
+             which is when Livewire stops calling the fields dirty. --}}
         <div wire:dirty.class.remove="translate-y-full opacity-0 pointer-events-none"
              wire:target="configValues"
              class="fixed bottom-0 left-0 right-0 z-30 transition-all duration-300
-                    translate-y-full opacity-0 pointer-events-none">
+                    {{ $hasUnsavedChanges ? '' : 'translate-y-full opacity-0 pointer-events-none' }}">
             <div class="mx-auto max-w-3xl m-4 rounded-xl
                         bg-white/95 dark:bg-zinc-900/95 backdrop-blur
                         border border-zinc-200 dark:border-white/10
