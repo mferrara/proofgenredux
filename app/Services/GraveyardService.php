@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class GraveyardService
 {
@@ -132,10 +134,21 @@ class GraveyardService
      */
     private function dataFiles(string $disk): iterable
     {
-        $storage = Storage::disk($disk);
         $root = $this->graveyardRoot();
 
-        if (! $storage->exists($root)) {
+        // The archive usually lives on an external drive. When it is not
+        // plugged in, building the disk throws (its root cannot be created);
+        // that must read as "nothing there right now", not take down every
+        // page through the status bar.
+        try {
+            $storage = Storage::disk($disk);
+
+            if (! $storage->exists($root)) {
+                return;
+            }
+        } catch (Throwable $exception) {
+            Log::debug('Graveyard disk unavailable; skipping.', ['disk' => $disk, 'reason' => $exception->getMessage()]);
+
             return;
         }
 
@@ -172,14 +185,14 @@ class GraveyardService
         if (is_string($raw) && trim($raw) !== '') {
             try {
                 return Carbon::parse($raw);
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 // fall through to mtime
             }
         }
 
         try {
             return Carbon::createFromTimestamp($storage->lastModified($path));
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return null;
         }
     }

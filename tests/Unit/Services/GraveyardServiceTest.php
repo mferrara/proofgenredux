@@ -80,6 +80,24 @@ class GraveyardServiceTest extends TestCase
         $this->assertSame(0, $summary['archive']['aged_file_count']);
     }
 
+    public function test_an_unplugged_archive_drive_reads_as_empty_instead_of_failing_every_page(): void
+    {
+        // A root under a regular file can never be created, like a path on a
+        // volume that is not mounted.
+        File::put($this->tempPath.'/not-a-volume', '');
+        config(['filesystems.disks.archive' => [
+            'driver' => 'local',
+            'root' => $this->tempPath.'/not-a-volume/shows_backup',
+            'throw' => true,
+        ]]);
+        Storage::forgetDisk('archive');
+
+        $summary = app(GraveyardService::class)->summary();
+
+        $this->assertSame(0, $summary['archive']['file_count']);
+        $this->assertSame([], app(GraveyardService::class)->listEntries('archive'));
+    }
+
     public function test_summary_uses_configured_aged_days(): void
     {
         config(['proofgen.graveyard.aged_days' => 7]);
