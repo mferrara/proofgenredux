@@ -44,6 +44,7 @@
                     </flux:badge>
                 </a>
             @endif
+            <livewire:card-reader-component :show_id="$show_id" :key="'card-reader-'.$show_id" />
             <flux:button
                 size="sm"
                 variant="ghost"

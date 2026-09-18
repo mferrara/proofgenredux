@@ -247,6 +247,21 @@ return [
         // Single long-running worker for upload jobs. The connection carries
         // the long retry_after derived in config/proofgen.php, so a slow rsync
         // is never handed to a second worker mid-transfer.
+        // Card dumps get their own worker: a backlog of import or generation
+        // jobs from earlier cards must never make the next card wait.
+        'supervisor-cards' => [
+            'connection' => 'cards',
+            'queue' => ['cards'],
+            'balance' => 'simple',
+            'minProcesses' => 1,
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 1,
+            'timeout' => 7200,
+            'nice' => 0,
+        ],
         'supervisor-uploads' => [
             'connection' => $proofgen['uploads']['connection'],
             'queue' => [$proofgen['uploads']['queue']],

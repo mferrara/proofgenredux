@@ -113,6 +113,14 @@ return [
         'api_token' => getenv('FERRARAPHOTO_API_TOKEN'),
     ],
 
+    'cards' => [
+        // Pause between photos (minutes) that starts a new class when a card
+        // is split automatically. Adjustable in the Card Reader window.
+        'gap_minutes' => (int) (getenv('CARD_GAP_MINUTES') ?: 5),
+        // Testing only: offer mounted disk images as card sources.
+        'allow_disk_images' => getenv('CARD_ALLOW_DISK_IMAGES') === 'TRUE',
+    ],
+
     // Reports filed from an install (php artisan proofgen:report). They go to a
     // PRIVATE GitHub repo as issues; the token needs only "Issues: write" on it.
     'feedback' => [

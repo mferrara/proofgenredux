@@ -62,6 +62,7 @@ abstract class TestCase extends BaseTestCase
             // Pin named upload dispatches before providers or database setup can
             // enqueue work; QUEUE_CONNECTION=sync only covers the default.
             $app['config']->set('queue.connections.uploads.driver', 'sync');
+            $app['config']->set('queue.connections.cards.driver', 'sync');
         });
         $app->make(Kernel::class)->bootstrap();
 

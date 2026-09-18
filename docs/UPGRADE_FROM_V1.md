@@ -103,6 +103,9 @@ Do not continue unless every one of these is true. If one is not, say which and 
   If not, ask before running `brew install rsync`.
 - `swift --version` works (Xcode command-line tools).
 - At least 5 GB free on the main disk.
+- For the Card Reader: **Herd has Full Disk Access** (System Settings → Privacy &
+  Security → Full Disk Access). Without it the app and its workers cannot read
+  camera cards in USB readers. The owner grants this; report whether it is on.
 - **The working folder is not managed by iCloud.** With "Desktop & Documents
   Folders" and "Optimize Mac Storage" on, macOS evicts files under `~/Documents`
   and `~/Desktop` to iCloud: names stay, contents are downloaded on demand. That

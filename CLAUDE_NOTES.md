@@ -103,6 +103,20 @@ A migration clears the junk `"0"` SFTP path a 2025 migration saved. The normal
 "remote directory does not exist yet" line is DEBUG, not WARNING. The upgrade
 runbook reports effective settings (saved rows override `.env`) and gates on iCloud.
 
+**v2.2.2–v2.3.0.** v2.2.2: a class name the website rejects no longer blocks the
+uploads of every other class in the show (it blocked 26AAC live), and API
+validation errors name the request and fields. v2.3.0: **Card Reader** on the show
+page ([docs/CARD_READER.md](docs/CARD_READER.md), flower brief 3862): pick any
+storage device (the reader is remembered), one class or pause-based splitting with
+thumbnails, each file read once and written to the class folder and archive in
+the same pass, read-back verified, then optional import / empty-the-card / eject.
+Emptying is off by default, impossible without a working archive, and bound to
+the scanned card. Own `cards` queue connection and supervisor - workers must be
+restarted after updating. Proven end to end here on a FAT32 disk image; not yet
+run on the install, and Herd needs Full Disk Access there (research, unconfirmed).
+NOT built yet: tiered uploads (proofs first, highres yielding and bandwidth-aware),
+and the import reusing the card's archive copy instead of writing its own.
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.

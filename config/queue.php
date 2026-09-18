@@ -91,6 +91,18 @@ return [
             'after_commit' => false,
         ],
 
+        // A card dump runs for minutes. On the default `redis` connection it
+        // would be handed to a second worker after 90 seconds and run twice.
+        // retry_after must stay above DumpCard's timeout.
+        'cards' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'cards',
+            'retry_after' => 7500,
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
     ],
 
     /*
