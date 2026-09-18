@@ -117,7 +117,7 @@ git status --short             # if only public/build/ is modified:
 git checkout -- public/build   #   restore it (Rule 3); anything else: stop
 git fetch origin --tags
 git checkout main
-git pull --ff-only origin main
+git pull --ff-only --tags origin main
 git describe --tags            # expect v2.0.2 or later — stop if it is older
 herd isolate 8.4               # this site only; other Herd sites are unaffected
 herd php -v                    # must show 8.4.x — stop if it does not

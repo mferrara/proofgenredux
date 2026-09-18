@@ -9,6 +9,14 @@ use Intervention\Image\ImageManager;
 
 class CoreImageDaemonService extends ImageEnhancementService
 {
+    /**
+     * The daemon outlives the PHP process that starts it. Without this it
+     * inherits that process's extra file descriptors (the pipe of
+     * `artisan … | tail`, or an output capture around the in-app updater) and
+     * holds them open for as long as it runs, so the reader never sees EOF.
+     */
+    private const DETACH_PREFIX = 'exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-; ';
+
     protected ImageManager $manager;
 
     protected bool $coreImageAvailable;
@@ -171,7 +179,7 @@ class CoreImageDaemonService extends ImageEnhancementService
             if (file_exists($compiledDaemonPath) && is_executable($compiledDaemonPath)) {
                 // Use compiled binary for better performance and to ensure changes are applied
                 $command = sprintf(
-                    'nohup %s --daemon --base-path %s > %s 2>&1 & echo $!',
+                    self::DETACH_PREFIX.'nohup %s --daemon --base-path %s > %s 2>&1 < /dev/null & echo $!',
                     escapeshellarg($compiledDaemonPath),
                     escapeshellarg(base_path()),
                     escapeshellarg(storage_path('logs/core-image-daemon.log'))
@@ -179,7 +187,7 @@ class CoreImageDaemonService extends ImageEnhancementService
             } elseif (file_exists($swiftDaemonPath)) {
                 // Fall back to Swift script
                 $command = sprintf(
-                    'nohup swift %s --daemon --base-path %s > %s 2>&1 & echo $!',
+                    self::DETACH_PREFIX.'nohup swift %s --daemon --base-path %s > %s 2>&1 < /dev/null & echo $!',
                     escapeshellarg($swiftDaemonPath),
                     escapeshellarg(base_path()),
                     escapeshellarg(storage_path('logs/core-image-daemon.log'))
