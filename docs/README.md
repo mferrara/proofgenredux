@@ -14,6 +14,7 @@ Reviewed against Proofgen source at `2aae180`, September 13, 2026.
 | [Core Image enhancement](core-image-enhancement.md) | Supported adjustments, fallback, encoding and native operation |
 | [Image enhancement entry point](image-enhancement.md) | Settings usage; redirects to the maintained technical guide |
 | [Ferraraphoto integration](FERRARAPHOTO_INTEGRATION.md) | Verified local delivery versus existing API/storage code |
+| [Upgrading a v1.x install](UPGRADE_FROM_V1.md) | Runbook for a Claude Code session on the old machine: survey, gates, backup, update, connect to the website, verify, rollback |
 | [New-server rehearsal](NEW_SERVER_REHEARSAL.md) | Parked local setup, eight staged photos, target settings and mock-show acceptance checks |
 | [Local datasets](datasets/README.md) | NAS roots and reproducible sample manifests |
 | [Show-prep checklist](SHOW_PREP_CHECKLIST.md) | Worker/install checks and Dad-Mac rehearsal |
