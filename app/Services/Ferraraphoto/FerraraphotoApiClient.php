@@ -75,6 +75,29 @@ class FerraraphotoApiClient
         }
     }
 
+    /**
+     * Shows that exist on the website, newest first. Null when this Gallery
+     * predates the endpoint (404) - shows are then still created through
+     * {@see upsertShow()} as before.
+     *
+     * @return array<int, array<string, mixed>>|null
+     */
+    public function listShows(?string $search = null, int $limit = 100): ?array
+    {
+        try {
+            return array_values($this->request('get', '/shows', query: array_filter([
+                'q' => $search,
+                'limit' => $limit,
+            ], fn ($value) => $value !== null && $value !== '')));
+        } catch (FerraraphotoApiException $exception) {
+            if ($exception->status === 404) {
+                return null;
+            }
+
+            throw $exception;
+        }
+    }
+
     public function readDeliveries(string $slug, int $page = 1, int $perPage = 100): array
     {
         return $this->request('get', '/shows/'.$this->segment($slug).'/deliveries', query: [

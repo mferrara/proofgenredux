@@ -5,9 +5,13 @@ before each class delivery instead of carrying its own copy of the server's
 host and paths. Contract owner: flower brief 3832 (Gallery side); Proofgen
 consumer: brief 3833.
 
-Status, September 18, 2026: **Proofgen side implemented** and tested against a
-faked endpoint. The Gallery endpoint is being built separately; until it ships,
-Proofgen gets a 404 and keeps using its local SFTP settings, exactly as before.
+Status, September 18, 2026: **both sides implemented.** Gallery's endpoints are
+live on beta (gallery commit 21868fa; its authoritative contract doc is
+`docs/PROOFGEN_DELIVERY_TARGET.md` in the gallery repo). Proofgen's side is on
+branch `delivery-target-handshake`, tested against faked responses and checked
+read-only against beta: the live `26Test01` answer parses and equals the current
+local settings. A full upload smoke through the new path has not been run yet.
+Against an older Gallery, Proofgen gets a 404 and behaves exactly as before.
 
 This first version covers the existing rsync/SSH filesystem delivery only. S3
 delivery can extend `transport` / `destinations` later.
@@ -52,8 +56,11 @@ write - rsync succeeding is the truth.
   adds the slug again.
 - `transport` comes from explicit Gallery configuration, never from the request
   host (beta/production sit behind Cloudflare; SSH must reach the origin). When
-  Gallery has none configured it omits `transport`, and Proofgen reaches
-  Gallery's directories with its own local host/port/user.
+  Gallery has none configured it returns `"transport": null` (key present), and
+  Proofgen reaches Gallery's directories with its own local host/port/user.
+- A show pinned to a non-`legacy-local` profile gets `"transport": null` **and**
+  `"destinations": null`: that show is not delivered by rsync. Proofgen stops
+  rather than guessing.
 - `proofgen-v1` means `<class_number>/<proof_number>_<suffix>.jpg`: `thm` and
   `std` under proofs, `web` under web_images, `highres` under highres_images.
   Class numbers stay strings, including leading zeros and underscores.
@@ -84,13 +91,18 @@ Code: `app/Services/Delivery/` (`DeliveryTarget`, `DeliveryTargetResolver`,
 | --- | --- |
 | 404 (older Gallery without the endpoint) | local SFTP settings |
 | No API token, or `TRANSPORT_DRIVER=local` | local SFTP settings, no request made |
-| 200 without `transport` | Gallery's directories, local host/port/user |
-| 503, other 5xx, network error | stop before rsync; the job retries on its normal backoff |
-| 401/403/422, or unknown `schema_version` / `layout` / `transport.driver`, non-`local` profile driver, missing or relative directory | stop before rsync; fails immediately, no retries |
+| 200 with `transport: null` (or absent) | Gallery's directories, local host/port/user |
+| 503, other 5xx, network error - show **has** a saved Gallery answer for this API origin | log a warning and deliver to that saved answer |
+| 503, other 5xx, network error - nothing saved | stop before rsync; the job retries on its normal backoff |
+| 401/403/422, or unknown `schema_version` / `layout` / `transport.driver`, non-`local` profile driver, null/missing/relative directory | stop before rsync; fails immediately, no retries, even with a saved answer |
 
-Proofgen never falls back to local settings on an error. Uploading to a stale
-destination "succeeds" and the website shows broken images - the silent failure
-this handshake exists to remove.
+Proofgen never falls back to **local settings** on an error. Uploading to a
+stale destination "succeeds" and the website shows broken images - the silent
+failure this handshake exists to remove. The outage rule is different: it reuses
+what Gallery itself last said for this show, so a deploy or a slow response
+mid-show does not switch destinations. Note the rest of a delivery still talks
+to the API (show/class sync before rsync, photo metadata after), so during an
+outage those steps retry on the normal backoff as they always have.
 
 ### Destination changes
 
@@ -108,14 +120,37 @@ not a change.
 - The first handshake for a show that only ever used local settings adopts
   Gallery's answer and logs a warning if it differs from the local settings.
 
+## Shows are created on the website
+
+`GET /api/v1/shows?limit=&q=` → `{ data: [{ slug, name, start_date, end_date,
+storage_profile_id, class_count, photo_count, hidden }] }`, newest first
+(default limit 100, max 500). Code: `app/Services/Ferraraphoto/WebsiteShows.php`.
+
+- **Proofgen never creates a show once this list answers.** Before syncing,
+  `EnsureFerraraphotoShow` reads the show; if it is missing and the list endpoint
+  exists, delivery fails immediately with "create it on the website first" and
+  no `POST /shows` is sent. A `409 show_creation_disabled` from `POST /shows`
+  (Gallery's `api_show_creation` setting turned off) gets the same message.
+  Existing shows keep syncing. On an older Gallery (list → 404) Proofgen creates
+  shows through the API exactly as before.
+- **Create Show** (home page) offers the website's shows that have no local
+  folder yet, with a link to the website's New show page. Typing a name is still
+  possible ("Not listed yet?") so work can start offline; uploads wait until a
+  show with that exact name exists on the website.
+- **Show page → Ferraraphoto target**: an "on website" / "not on website" badge,
+  and the slug override is a picker of website shows instead of free text.
+  Re-check refreshes it after creating the show on the website.
+- The list is fetched on page load (`wire:init`) and by Re-check, cached five
+  minutes; page polling only reads the cache. With no token, an older Gallery,
+  or Gallery unreachable, everything falls back to the free-typed behavior.
+
 ## Not done yet
 
-- Show picker backed by `GET /api/v1/shows` (waits for that Gallery endpoint),
-  and shrinking Settings → Legacy SFTP to the key path plus a collapsed fallback
+- A full two-photo `26Test01` upload smoke through the handshake path against
+  beta (needs this install's database migrated first).
+- Shrinking Settings → Legacy SFTP to the key path plus a collapsed fallback
   group.
 - The legacy string builders in `app/Proofgen/Show*.php`, the rclone migration
   command builder, and the Legacy SFTP connection page still read local settings.
 - Choosing a new show's storage profile from the handshake (only one rsync
   profile exists today).
-- After Gallery ships the endpoint: repeat the two-photo `26Test01` smoke
-  against beta, without creating more shows.

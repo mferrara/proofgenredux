@@ -1,4 +1,4 @@
-<div class="px-6 lg:px-10 py-6 max-w-4xl mx-auto">
+<div class="px-6 lg:px-10 py-6 max-w-4xl mx-auto" wire:init="loadWebsiteShows">
     <div class="mb-6 flex items-end justify-between gap-4">
         <div>
             <flux:heading size="xl" level="1" class="!text-3xl !font-semibold tracking-tight">Shows</flux:heading>
@@ -40,12 +40,44 @@
         x-on:shown="setTimeout(() => document.querySelector('#create-show-input').focus(), 100)"
     >
         <div class="space-y-6">
+            @php
+                $websiteShowList = ($website_shows['status'] ?? null) === \App\Services\Ferraraphoto\WebsiteShows::AVAILABLE
+                    ? collect($website_shows['shows'])->reject(fn ($websiteShow) => isset($shows[$websiteShow['slug']]))->values()
+                    : null;
+            @endphp
+
             <flux:heading size="lg">Create new show</flux:heading>
-            <flux:text>Enter a folder name for the new show. This creates a directory in the base folder.</flux:text>
+            @if ($websiteShowList !== null)
+                <flux:text>
+                    Shows must be created on the website first
+                    (<a href="{{ $website_new_show_url }}" target="_blank" rel="noopener" class="underline">New show on the website</a>).
+                    Pick it here and Proofgen creates the matching folder.
+                </flux:text>
+            @else
+                <flux:text>Enter a folder name for the new show. This creates a directory in the base folder.</flux:text>
+            @endif
 
             <form wire:submit="createShow" class="space-y-4" x-on:keydown.enter.prevent="$event.target.form?.requestSubmit()">
+                @if ($websiteShowList !== null)
+                    <flux:field>
+                        <flux:label>Show on the website</flux:label>
+                        <flux:select variant="listbox" searchable wire:model.live="newShowName"
+                            placeholder="{{ $websiteShowList->isEmpty() ? 'Every website show already has a folder here' : 'Choose a show…' }}">
+                            @foreach ($websiteShowList as $websiteShow)
+                                <flux:select.option value="{{ $websiteShow['slug'] }}">
+                                    {{ $websiteShow['slug'] }}@if (filled($websiteShow['name'] ?? null) && $websiteShow['name'] !== $websiteShow['slug']) — {{ $websiteShow['name'] }}@endif
+                                </flux:select.option>
+                            @endforeach
+                        </flux:select>
+                    </flux:field>
+                @endif
+
                 <flux:field>
-                    <flux:label>Show name</flux:label>
+                    @if ($websiteShowList !== null)
+                        <flux:label>Not listed yet? Type the name</flux:label>
+                    @else
+                        <flux:label>Show name</flux:label>
+                    @endif
                     <flux:input
                         id="create-show-input"
                         wire:model.live="newShowName"
@@ -56,7 +88,12 @@
                         title="Show name can only contain letters, numbers, underscores and hyphens"
                         required
                     />
-                    <flux:description>Letters, numbers, underscores, and hyphens only — no spaces.</flux:description>
+                    <flux:description>
+                        Letters, numbers, underscores, and hyphens only — no spaces.
+                        @if ($websiteShowList !== null)
+                            You can import and proof right away, but uploads wait until a show with exactly this name exists on the website.
+                        @endif
+                    </flux:description>
                 </flux:field>
 
                 <div class="flex justify-end gap-2 pt-2">

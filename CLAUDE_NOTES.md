@@ -35,18 +35,23 @@ without registering it, and cast SFTP environment ports to integers. Focused
 isolated validation: 25 tests, 76 assertions. Dad's laptop, recognition,
 encoding, S3 migration, and updater research remain deferred/separate.
 
-**Gallery-owned delivery destination (same day, flower briefs 3832/3833).**
-Proofgen now asks Gallery where a show's rsync delivery goes
-(`GET /api/v1/delivery-target`) once per class delivery and saves the answer on
-the show (`app/Services/Delivery/`, `shows.delivery_target`). Gallery's endpoint
-is being built separately; until it exists Proofgen gets a 404 and uses the local
-SFTP settings exactly as before. Errors never fall back to local settings, and a
+**Gallery-owned delivery destination and show list (same day, flower briefs
+3832/3833, branch `delivery-target-handshake`).** Proofgen asks Gallery where a
+show's rsync delivery goes (`GET /api/v1/delivery-target`) once per class
+delivery and saves the answer on the show (`app/Services/Delivery/`,
+`shows.delivery_target`). Errors never fall back to local SFTP settings; a
+Gallery outage reuses the answer Gallery already gave for that show; a
 destination that changes after a show uploaded files stops delivery until the
-operator accepts it on the show page. Contract, fallback rule, and what is still
-open (show picker, Settings cleanup, repeat beta smoke) are in
-[the handshake doc](docs/GALLERY_DELIVERY_HANDSHAKE.md). Isolated validation:
-full suite 536 passed, 22 skipped. Adds two nullable columns on `shows`; the
-in-app updater runs the migration, a manual checkout needs `php artisan migrate`.
+operator accepts it on the show page. Shows are created on the website: once
+`GET /api/v1/shows` answers, Proofgen never POSTs a new show, Create Show and
+the slug override become pickers (`app/Services/Ferraraphoto/WebsiteShows.php`),
+and a missing show fails with "create it on the website first". Against an older
+Gallery (404 on either endpoint) everything behaves as before. Both endpoints
+are live on beta and were checked read-only; a real upload smoke through the new
+path is still to do. Details: [the handshake doc](docs/GALLERY_DELIVERY_HANDSHAKE.md).
+Isolated validation: full suite 549 passed, 22 skipped. Adds two nullable columns
+on `shows`; the in-app updater runs the migration, a manual checkout needs
+`php artisan migrate`.
 
 ## Stack and local paths
 

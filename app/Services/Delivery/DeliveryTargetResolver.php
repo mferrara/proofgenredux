@@ -22,7 +22,9 @@ use Illuminate\Support\Facades\Log;
  *    accepts it.
  *
  * Fallback rule: a missing endpoint (404) or missing token falls back to local
- * settings. Every other failure stops the delivery.
+ * settings. A Gallery outage (5xx, network) delivers to the answer Gallery
+ * already gave for this show, and stops only when there is none. An answer
+ * that cannot be used (401/403/422, unknown contract) always stops.
  */
 class DeliveryTargetResolver
 {
@@ -38,15 +40,7 @@ class DeliveryTargetResolver
             return $this->local($show);
         }
 
-        $saved = $this->saved($show);
-
-        // A baseline recorded against another API origin says nothing about
-        // this one until the next refresh confirms it.
-        if ($saved !== null && $saved->isFromGallery() && $saved->apiOrigin === $this->apiOrigin()) {
-            return $saved;
-        }
-
-        return $this->local($show);
+        return $this->savedForCurrentOrigin($show) ?? $this->local($show);
     }
 
     /**
@@ -54,7 +48,27 @@ class DeliveryTargetResolver
      */
     public function refresh(Show $show): DeliveryTarget
     {
-        $next = $this->handshakeApplies() ? $this->fetch($show) : $this->local($show);
+        try {
+            $next = $this->handshakeApplies() ? $this->fetch($show) : $this->local($show);
+        } catch (DeliveryTargetException $exception) {
+            $confirmed = $this->savedForCurrentOrigin($show);
+
+            // A brief Gallery outage (deploy, 502, timeout) must not stall a
+            // show that Gallery already answered for: deliver to that answer.
+            // Answers Gallery did give but that cannot be used still stop.
+            if (! $exception->retryable || $confirmed === null) {
+                throw $exception;
+            }
+
+            Log::warning('Gallery did not confirm the delivery destination; using the last answer it gave for this show.', [
+                'show_id' => $show->id,
+                'reason' => $exception->getMessage(),
+                'fetched_at' => $confirmed->fetchedAt,
+            ]);
+
+            return $confirmed;
+        }
+
         $previous = $this->saved($show);
 
         if ($previous !== null && $previous->differsFrom($next) && $this->hasUploads($show)) {
@@ -233,6 +247,19 @@ class DeliveryTargetResolver
             fetchedAt: now()->toIso8601String(),
             showSlug: $show->ferraraphoto_slug,
         );
+    }
+
+    /**
+     * A baseline recorded against another API origin says nothing about this
+     * one until a refresh confirms it.
+     */
+    private function savedForCurrentOrigin(Show $show): ?DeliveryTarget
+    {
+        $saved = $this->saved($show);
+
+        return $saved !== null && $saved->isFromGallery() && $saved->apiOrigin === $this->apiOrigin()
+            ? $saved
+            : null;
     }
 
     private function saved(Show $show): ?DeliveryTarget

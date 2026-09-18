@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Show;
 use App\Models\StorageProfile;
 use App\Proofgen\Utility;
+use App\Services\Ferraraphoto\WebsiteShows;
 use App\Services\StorageUsageService;
 use Flux\Flux;
 use Livewire\Component;
@@ -46,6 +47,15 @@ class HomeComponent extends Component
         $this->showMiscStorage = true;
     }
 
+    /**
+     * `wire:init`: fetch the website's show list for the Create Show picker.
+     * Renders only read the cached result.
+     */
+    public function loadWebsiteShows(bool $fresh = false): void
+    {
+        app(WebsiteShows::class)->load($fresh);
+    }
+
     public function render()
     {
         $this->working_full_path = $this->fullsize_base_path.'/'.$this->working_path;
@@ -84,6 +94,8 @@ class HomeComponent extends Component
             ->with('top_level_directories', $top_level_directories)
             ->with('misc_storage', $miscStorage)
             ->with('migration_progress', $this->migrationProgress())
+            ->with('website_shows', app(WebsiteShows::class)->peek())
+            ->with('website_new_show_url', app(WebsiteShows::class)->newShowUrl())
             ->title('Proofgen Home');
     }
 

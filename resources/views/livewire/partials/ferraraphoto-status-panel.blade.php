@@ -7,6 +7,12 @@
     $show_for_slug ??= null;
     $delivery_target ??= null;
     $delivery_target_pending ??= null;
+    /** @var array|null $website_shows Cached WebsiteShows result; null until the panel's wire:init has looked */
+    /** @var bool|null $website_show_exists Whether the effective slug exists on the website (null = unknown) */
+    $website_shows ??= null;
+    $website_show_exists ??= null;
+    $website_new_show_url ??= null;
+    $websiteShowList = ($website_shows['status'] ?? null) === \App\Services\Ferraraphoto\WebsiteShows::AVAILABLE ? $website_shows['shows'] : null;
     $deliveryKinds = ['proofs' => 'Proofs', 'web_images' => 'Web', 'highres_images' => 'Highres'];
 @endphp
 
@@ -24,16 +30,29 @@
             $effectiveSlug = $show_for_slug->ferraraphoto_slug;
             $hasOverride = ! empty($show_for_slug->ferraraphoto_show_slug);
         @endphp
-        <div class="mt-2 mb-2 pb-2 border-b border-zinc-200 dark:border-zinc-700">
+        <div class="mt-2 mb-2 pb-2 border-b border-zinc-200 dark:border-zinc-700" wire:init="loadWebsiteShows">
             @if ($editingFerraraphotoSlug ?? false)
                 <div class="flex items-stretch gap-2">
-                    <flux:input
-                        type="text"
-                        wire:model.defer="ferraraphotoSlugDraft"
-                        placeholder="{{ $show_for_slug->id }}"
-                        class="font-mono !text-sm flex-1"
-                        size="sm"
-                    />
+                    @if ($websiteShowList !== null)
+                        {{-- Shows are created on the website: pick one instead of typing a slug. --}}
+                        <flux:select variant="listbox" searchable size="sm" class="flex-1"
+                            wire:model="ferraraphotoSlugDraft" placeholder="Choose the show on the website…">
+                            <flux:select.option value="">Same as this show ({{ $show_for_slug->id }})</flux:select.option>
+                            @foreach ($websiteShowList as $websiteShow)
+                                <flux:select.option value="{{ $websiteShow['slug'] }}">
+                                    {{ $websiteShow['slug'] }}@if (filled($websiteShow['name'] ?? null) && $websiteShow['name'] !== $websiteShow['slug']) — {{ $websiteShow['name'] }}@endif
+                                </flux:select.option>
+                            @endforeach
+                        </flux:select>
+                    @else
+                        <flux:input
+                            type="text"
+                            wire:model.defer="ferraraphotoSlugDraft"
+                            placeholder="{{ $show_for_slug->id }}"
+                            class="font-mono !text-sm flex-1"
+                            size="sm"
+                        />
+                    @endif
                     <flux:button size="xs" variant="primary" wire:click="saveFerraraphotoSlug">Save</flux:button>
                     <flux:button size="xs" variant="ghost" wire:click="cancelEditingFerraraphotoSlug">Cancel</flux:button>
                 </div>
@@ -48,9 +67,25 @@
                         @if ($hasOverride)
                             <flux:badge color="amber" size="sm">override</flux:badge>
                         @endif
+                        @if ($website_show_exists === true)
+                            <flux:badge color="emerald" size="sm">on website</flux:badge>
+                        @elseif ($website_show_exists === false)
+                            <flux:badge color="rose" size="sm">not on website</flux:badge>
+                        @endif
                     </div>
                     <flux:button size="xs" variant="ghost" icon="pencil-square" wire:click="startEditingFerraraphotoSlug" title="Override the ferraraphoto slug if it differs from the proofgen show id">Edit</flux:button>
                 </div>
+            @endif
+
+            @if ($website_show_exists === false)
+                <flux:text class="!text-xs mt-2 text-rose-600 dark:text-rose-400">
+                    Shows must be created on the website. Uploads for this show will not start until
+                    <code class="font-mono">{{ $effectiveSlug }}</code> exists there
+                    @if ($website_new_show_url)
+                        — <a href="{{ $website_new_show_url }}" target="_blank" rel="noopener" class="underline">create it on the website</a>,
+                    @endif
+                    or pick the matching show with Edit, then Re-check.
+                </flux:text>
             @endif
         </div>
     @endif

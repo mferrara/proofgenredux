@@ -37,7 +37,12 @@ it('uses the seeded legacy profile and registers custom profiles before syncing 
         app(ShowProfileBinder::class),
     );
 
-    $paths = Http::recorded()->map(fn ($pair) => parse_url($pair[0]->url(), PHP_URL_PATH))->all();
+    // Writes only: the job first reads the show to learn whether it exists.
+    $paths = Http::recorded()
+        ->filter(fn ($pair) => $pair[0]->method() === 'POST')
+        ->map(fn ($pair) => parse_url($pair[0]->url(), PHP_URL_PATH))
+        ->values()
+        ->all();
     expect($paths)->toBe($legacy
         ? ['/api/v1/shows', '/api/v1/shows/TEST/classes']
         : ['/api/v1/storage-profiles', '/api/v1/shows', '/api/v1/shows/TEST/classes']);

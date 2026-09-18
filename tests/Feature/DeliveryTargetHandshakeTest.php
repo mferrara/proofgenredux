@@ -244,6 +244,81 @@ class DeliveryTargetHandshakeTest extends TestCase
         expect($show->fresh()->delivery_target)->toBeNull();
     }
 
+    public function test_a_gallery_outage_delivers_to_the_answer_gallery_already_gave(): void
+    {
+        $show = $this->makeShow();
+        $this->fakeHandshake($this->handshake());
+        $resolver = app(DeliveryTargetResolver::class);
+        $resolver->refresh($show);
+
+        // A deploy or a slow response mid-show: 502 on every attempt.
+        $this->fakeHandshakeSequence(['message' => 'Bad gateway'], 502);
+
+        $target = $resolver->refresh($show->fresh());
+
+        expect($target->isFromGallery())->toBeTrue()
+            ->and($target->directory('proofs'))->toBe('/mnt/photo-storage/proofs/26Test01')
+            ->and($show->fresh()->delivery_target_pending)->toBeNull();
+    }
+
+    public function test_an_outage_does_not_trust_an_answer_from_another_api_origin(): void
+    {
+        $show = $this->makeShow();
+        $this->fakeHandshake($this->handshake());
+        app(DeliveryTargetResolver::class)->refresh($show);
+
+        config(['proofgen.ferraraphoto.base_url' => 'https://production.test']);
+        app()->forgetInstance(FerraraphotoApiClient::class);
+        Http::fake(['https://production.test/api/v1/delivery-target*' => Http::response([], 502)]);
+
+        expect(fn () => app(DeliveryTargetResolver::class)->refresh($show->fresh()))
+            ->toThrow(fn (DeliveryTargetException $exception) => expect($exception->retryable)->toBeTrue());
+    }
+
+    public function test_a_rejected_token_still_stops_delivery_even_with_a_saved_answer(): void
+    {
+        $show = $this->makeShow();
+        $this->fakeHandshake($this->handshake());
+        $resolver = app(DeliveryTargetResolver::class);
+        $resolver->refresh($show);
+
+        $this->fakeHandshakeSequence(['error' => ['code' => 'unauthenticated', 'message' => 'Invalid token.']], 401);
+
+        expect(fn () => $resolver->refresh($show->fresh()))
+            ->toThrow(fn (DeliveryTargetException $exception) => expect($exception->retryable)->toBeFalse());
+    }
+
+    public function test_gallery_sends_an_explicit_null_transport_when_its_ssh_settings_are_unset(): void
+    {
+        $show = $this->makeShow();
+        $body = $this->handshake();
+        $body['data']['transport'] = null;
+        $this->fakeHandshake($body);
+
+        $target = app(DeliveryTargetResolver::class)->refresh($show);
+
+        expect($target->isFromGallery())->toBeTrue()
+            ->and($target->host)->toBe('old-host.example')
+            ->and($target->username)->toBe('forge')
+            ->and($target->directory('highres_images'))->toBe('/mnt/photo-storage/highres_images/26Test01');
+    }
+
+    public function test_a_show_on_a_non_local_profile_has_null_transport_and_destinations_and_is_not_guessed(): void
+    {
+        $show = $this->makeShow();
+        $body = $this->handshake();
+        $body['data']['show']['storage_profile_id'] = 'cloud';
+        $body['data']['storage_profile'] = ['id' => 'cloud', 'label' => 'Cloud bucket', 'driver' => 's3'];
+        $body['data']['transport'] = null;
+        $body['data']['destinations'] = null;
+        $this->fakeHandshake($body);
+
+        expect(fn () => app(DeliveryTargetResolver::class)->refresh($show))
+            ->toThrow(fn (DeliveryTargetException $exception) => expect($exception->retryable)->toBeFalse());
+
+        expect($show->fresh()->delivery_target)->toBeNull();
+    }
+
     /**
      * @return array<string, array{0: array<string, mixed>}>
      */
@@ -456,13 +531,13 @@ class DeliveryTargetHandshakeTest extends TestCase
         expect($resolver->pending($show->fresh()))->toBeNull();
     }
 
-    private function fakeHandshakeSequence(array $body): void
+    private function fakeHandshakeSequence(array $body, int $status = 200): void
     {
         // Http::fake() stubs accumulate and the first match wins, so a changed
         // answer needs a fresh factory.
         Http::swap(new Factory);
         Http::preventStrayRequests();
-        $this->fakeHandshake($body);
+        $this->fakeHandshake($body, $status);
     }
 
     /**

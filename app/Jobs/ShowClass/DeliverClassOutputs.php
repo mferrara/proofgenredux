@@ -8,6 +8,7 @@ use App\Services\AutomaticUploadSettings;
 use App\Services\Delivery\DeliveryTargetException;
 use App\Services\Delivery\DeliveryTargetResolver;
 use App\Services\Ferraraphoto\FerraraphotoApiClient;
+use App\Services\Ferraraphoto\WebsiteShowMissingException;
 use App\Services\PathResolver;
 use App\Services\Storage\ShowProfileBinder;
 use App\Services\Storage\StorageProfileResolver;
@@ -85,29 +86,32 @@ class DeliverClassOutputs implements ShouldQueue
             return;
         }
 
-        // 1. Make sure the show/classes and the pinned profile exist remotely.
-        //    No-op for legacy-local storage without an API token.
-        (new EnsureFerraraphotoShow($class->show_id))->handle(
-            app(FerraraphotoApiClient::class),
-            app(ShowProfileBinder::class),
-        );
+        // A show missing on the website, or a changed/unusable destination,
+        // cannot be fixed by retrying: fail without burning the backoff schedule.
+        try {
+            // 1. Make sure the show/classes and the pinned profile exist remotely.
+            //    No-op for legacy-local storage without an API token.
+            (new EnsureFerraraphotoShow($class->show_id))->handle(
+                app(FerraraphotoApiClient::class),
+                app(ShowProfileBinder::class),
+            );
 
-        // 2. Confirm with Gallery where this show's rsync delivery goes, once
-        //    per run. A changed or unusable destination stops here: retrying
-        //    cannot fix it, so it fails without burning the backoff schedule.
-        $class->load('show.storageProfile');
-        if ($class->show->storageProfile?->isLegacyLocal()) {
-            try {
+            // 2. Confirm with Gallery where this show's rsync delivery goes,
+            //    once per run.
+            $class->load('show.storageProfile');
+            if ($class->show->storageProfile?->isLegacyLocal()) {
                 app(DeliveryTargetResolver::class)->refresh($class->show);
-            } catch (DeliveryTargetException $exception) {
-                if (! $exception->retryable && $this->job) {
-                    $this->fail($exception);
-
-                    return;
-                }
-
-                throw $exception;
             }
+        } catch (WebsiteShowMissingException|DeliveryTargetException $exception) {
+            $retryable = $exception instanceof DeliveryTargetException && $exception->retryable;
+
+            if (! $retryable && $this->job) {
+                $this->fail($exception);
+
+                return;
+            }
+
+            throw $exception;
         }
 
         // 3. Transfer the derived files (legacy rsync or pinned-profile copies).

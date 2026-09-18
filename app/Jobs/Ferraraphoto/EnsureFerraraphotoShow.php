@@ -4,6 +4,8 @@ namespace App\Jobs\Ferraraphoto;
 
 use App\Models\Show;
 use App\Services\Ferraraphoto\FerraraphotoApiClient;
+use App\Services\Ferraraphoto\FerraraphotoApiException;
+use App\Services\Ferraraphoto\WebsiteShowMissingException;
 use App\Services\Storage\ShowProfileBinder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -40,10 +42,34 @@ class EnsureFerraraphotoShow implements ShouldQueue
         if (! $profile->isLegacyLocal()) {
             $api->upsertStorageProfile($profile);
         }
-        $api->upsertShow($show);
+        $this->syncShow($api, $show);
 
         foreach ($show->classes as $class) {
             $api->upsertClass($class);
+        }
+    }
+
+    /**
+     * Shows are created on the website. Once Gallery offers its show list,
+     * Proofgen only ever updates a show that already exists there; an older
+     * Gallery without the list keeps creating shows through the API as before.
+     */
+    private function syncShow(FerraraphotoApiClient $api, Show $show): void
+    {
+        $slug = $show->ferraraphoto_slug;
+
+        if ($api->readShow($slug) === null && $api->listShows(limit: 1) !== null) {
+            throw WebsiteShowMissingException::forSlug($slug);
+        }
+
+        try {
+            $api->upsertShow($show);
+        } catch (FerraraphotoApiException $exception) {
+            if ($exception->status === 409 && $exception->apiCode === 'show_creation_disabled') {
+                throw WebsiteShowMissingException::forSlug($slug, $exception);
+            }
+
+            throw $exception;
         }
     }
 }

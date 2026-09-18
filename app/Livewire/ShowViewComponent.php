@@ -14,6 +14,7 @@ use App\Proofgen\ShowClass;
 use App\Proofgen\Utility;
 use App\Services\ClassRenameService;
 use App\Services\Delivery\DeliveryTargetResolver;
+use App\Services\Ferraraphoto\WebsiteShows;
 use App\Services\FerraraphotoTargetVerifier;
 use App\Services\Migration\CopyShowToCloud;
 use App\Services\Migration\MigrationInventoryService;
@@ -125,8 +126,20 @@ class ShowViewComponent extends Component
         );
     }
 
+    /**
+     * `wire:init` on the Ferraraphoto panel: fetch the website's show list (for
+     * the slug picker) and whether this show exists there. Renders only read
+     * the cached result, so the 5s poll never calls the API.
+     */
+    public function loadWebsiteShows(bool $fresh = false): void
+    {
+        app(WebsiteShows::class)->check($this->show->ferraraphoto_slug, $fresh);
+    }
+
     public function checkFerraraphotoStatus(): void
     {
+        $this->loadWebsiteShows(fresh: true);
+
         $this->ferraraphotoStatus = app(FerraraphotoTargetVerifier::class)
             ->verifyShow($this->show);
     }
@@ -227,6 +240,7 @@ class ShowViewComponent extends Component
         $this->editingFerraraphotoSlug = false;
         // Re-check so the panel reflects the new slug immediately.
         $this->ferraraphotoStatus = null;
+        $this->loadWebsiteShows();
         Flux::toast(text: 'Ferraraphoto slug saved.', heading: 'Saved', variant: 'success', position: 'top right');
     }
 
@@ -331,6 +345,9 @@ class ShowViewComponent extends Component
             'storage_usage' => app(StorageUsageService::class)->cachedShowUsage($this->show),
             'queued_work' => $queuedWork,
             'ferraraphoto_status' => $this->ferraraphotoStatus,
+            'website_shows' => app(WebsiteShows::class)->peek(),
+            'website_show_exists' => app(WebsiteShows::class)->exists($this->show->ferraraphoto_slug),
+            'website_new_show_url' => app(WebsiteShows::class)->newShowUrl(),
             'delivery_target' => app(DeliveryTargetResolver::class)->current($this->show),
             'delivery_target_pending' => app(DeliveryTargetResolver::class)->pending($this->show),
             'storage_profile' => $storageProfile,
