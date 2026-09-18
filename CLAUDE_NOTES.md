@@ -131,6 +131,17 @@ the import reusing the Card Reader's archive copy (each photo is on the archive
 drive twice until then), generation yielding during a card dump, and a "Card
 access" line in Settings.
 
+**v2.4.1 and the transport decision (2026-09-18).** Web and highres now go up
+**one photo per job** (the operator's explicit design; an earlier batch-of-12
+default was my deviation and was reverted): follow-on jobs skip the per-class
+preamble, the remote folder check runs once per class, and only the photo just
+uploaded is reported to the website. **Decision: stay on rsync for now.** The
+replacement - a per-file HTTP upload API where the website places the file, so an
+install needs only API URL + token - is specified in flower brief **3866**
+(Gallery builds the endpoint first; Proofgen adds it as a second transport, proven
+on `26Test01` before it becomes the default; rsync stays as a fallback). Do not
+start the Proofgen side until Gallery's contract exists.
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.
