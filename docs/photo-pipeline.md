@@ -276,8 +276,16 @@ The classifier looks at **two things**:
 | numbered | none | no | `IMPORT_NEW` (use embedded #) | import without consuming Redis proof number |
 | raw | none | n/a | `IMPORT_NEW` (allocate next #) | import; consume next Redis proof number |
 
-The database enforces global uniqueness of non-null `photos.sha1`. The migration
-refuses existing duplicate hashes without modifying them. Normal imports and
+The database enforces uniqueness of non-null `photos.sha1` for every photo that
+is not flagged `sha1_grandfathered`. An install that predates this resolver can
+hold the same bytes more than once (the same frame sold under a portraits session
+and the main show); the upgrade flags those existing rows as grandfathered and
+never deletes, merges, or rewrites them. The unique index is partial
+(`WHERE sha1_grandfathered = 0`), so two new imports of the same bytes still
+cannot both be inserted, and a new photo repeating a grandfathered hash is caught
+by the resolver, which looks at all rows and prefers a match in the same class.
+The audit reports a duplicate group only once a non-grandfathered photo is in it.
+Normal imports and
 original discovery calculate the hash before inserting a row. Photo moves and
 class renames update the existing row in place. Direct imports reject duplicate
 content or a different image claiming an existing ID before writing files.

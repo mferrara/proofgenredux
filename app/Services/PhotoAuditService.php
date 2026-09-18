@@ -337,6 +337,10 @@ class PhotoAuditService
             ->where('sha1', '!=', '')
             ->groupBy('sha1')
             ->having('count', '>', 1)
+            // Groups made only of grandfathered photos are accepted history
+            // from before duplicate detection; a group is a finding once a
+            // newer photo joins it.
+            ->havingRaw('SUM(CASE WHEN sha1_grandfathered = 0 THEN 1 ELSE 0 END) > 0')
             ->get();
 
         $groups = [];

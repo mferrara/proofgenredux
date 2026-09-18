@@ -66,7 +66,14 @@ class PhotoImportIdentityResolver
         $embeddedProofNumber = $this->extractEmbeddedProofNumber($basename, $showId);
         $filenameIsNumbered = $embeddedProofNumber !== null;
 
-        $existingByContent = Photo::query()->where('sha1', $sha1)->first();
+        // Older installs can hold the same bytes in several classes
+        // (grandfathered duplicates). Prefer the copy in this class so a
+        // retry there is recognized as the same photo, not a cross-class duplicate.
+        $existingByContent = Photo::query()
+            ->where('sha1', $sha1)
+            ->orderByRaw('CASE WHEN show_class_id = ? THEN 0 ELSE 1 END', [$showId.'_'.$class])
+            ->orderBy('created_at')
+            ->first();
 
         $intendedProofNumber = $embeddedProofNumber;
         $existingByProofNumber = null;

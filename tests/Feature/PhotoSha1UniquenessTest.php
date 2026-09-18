@@ -7,13 +7,16 @@ use App\Models\PhotoIssue;
 use App\Models\Show;
 use App\Models\ShowClass;
 use App\Proofgen\Image;
+use App\Services\PhotoAuditService;
 use App\Services\PhotoImportIdentityResolver;
 use App\Services\PhotoService;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -98,48 +101,99 @@ class PhotoSha1UniquenessTest extends TestCase
         ]);
     }
 
-    public function test_migration_preflight_aborts_on_existing_non_null_duplicate_hashes(): void
+    /**
+     * An install from before duplicate detection: the same bytes already live
+     * in two classes. Returns the shared hash.
+     */
+    private function seedLegacyDuplicatesAndRunBothMigrations(): string
     {
-        $sha = sha1('preflight duplicate bytes');
+        $sha = sha1('legacy duplicate bytes');
 
+        // Rewind to the schema before either uniqueness migration.
         DB::statement('DROP INDEX IF EXISTS photos_sha1_unique');
+        Schema::table('photos', fn (Blueprint $table) => $table->dropColumn('sha1_grandfathered'));
 
-        DB::table('photos')->insert([
-            [
-                'id' => '22Buck_007_22BUCK_00001',
-                'show_class_id' => '22Buck_007',
-                'proof_number' => '22BUCK_00001',
+        foreach (['007' => '22BUCK_00001', '008' => '22BUCK_00002'] as $class => $proofNumber) {
+            DB::table('photos')->insert([
+                'id' => '22Buck_'.$class.'_'.$proofNumber,
+                'show_class_id' => '22Buck_'.$class,
+                'proof_number' => $proofNumber,
                 'file_type' => 'jpg',
                 'sha1' => $sha,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'id' => '22Buck_008_22BUCK_00002',
-                'show_class_id' => '22Buck_008',
-                'proof_number' => '22BUCK_00002',
-                'file_type' => 'jpg',
-                'sha1' => $sha,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        ]);
-
-        try {
-            /** @var Migration $migration */
-            $migration = require database_path('migrations/2026_09_13_120000_enforce_unique_photo_sha1.php');
-
-            $migration->up();
-            $this->fail('Expected the migration preflight to abort on duplicate sha1 values.');
-        } catch (\RuntimeException $e) {
-            $this->assertStringContainsString('duplicate', strtolower($e->getMessage()));
-            $this->assertStringContainsString($sha, $e->getMessage());
-            $this->assertSame(2, DB::table('photos')->where('sha1', $sha)->count());
-        } finally {
-            DB::table('photos')->where('sha1', $sha)->delete();
-            DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS photos_sha1_unique ON photos (sha1)');
+                'created_at' => now()->subYear(),
+                'updated_at' => now()->subYear(),
+            ]);
         }
 
+        foreach ([
+            '2026_09_13_120000_enforce_unique_photo_sha1.php',
+            '2026_09_18_000002_grandfather_legacy_duplicate_photo_hashes.php',
+        ] as $file) {
+            /** @var Migration $migration */
+            $migration = require database_path('migrations/'.$file);
+            $migration->up();
+        }
+
+        return $sha;
+    }
+
+    public function test_existing_duplicate_hashes_are_grandfathered_instead_of_blocking_the_upgrade(): void
+    {
+        $sha = $this->seedLegacyDuplicatesAndRunBothMigrations();
+
+        // Published history is untouched: both rows remain, flagged as exempt.
+        $rows = DB::table('photos')->where('sha1', $sha)->orderBy('proof_number')->get();
+        $this->assertSame(['22BUCK_00001', '22BUCK_00002'], $rows->pluck('proof_number')->all());
+        $this->assertSame([1, 1], $rows->pluck('sha1_grandfathered')->map(fn ($flag) => (int) $flag)->all());
+        $this->assertTrue(Schema::hasIndex('photos', 'photos_sha1_unique'));
+    }
+
+    public function test_new_photos_are_still_unique_on_an_install_with_grandfathered_duplicates(): void
+    {
+        $this->seedLegacyDuplicatesAndRunBothMigrations();
+
+        $newSha = sha1('bytes imported after the upgrade');
+        Photo::create([
+            'id' => '22Buck_007_22BUCK_00010', 'show_class_id' => '22Buck_007',
+            'proof_number' => '22BUCK_00010', 'file_type' => 'jpg', 'sha1' => $newSha,
+        ]);
+
+        $this->expectException(QueryException::class);
+
+        Photo::create([
+            'id' => '22Buck_008_22BUCK_00011', 'show_class_id' => '22Buck_008',
+            'proof_number' => '22BUCK_00011', 'file_type' => 'jpg', 'sha1' => $newSha,
+        ]);
+    }
+
+    public function test_reimporting_a_grandfathered_photo_in_its_own_class_is_recognized_as_the_same_photo(): void
+    {
+        $this->seedLegacyDuplicatesAndRunBothMigrations();
+
+        // The 008 copy is the second row for this hash; a plain first() would
+        // find the 007 copy and call this a cross-class duplicate.
+        Storage::disk('fullsize')->put('22Buck/008/IMG_0002.jpg', 'legacy duplicate bytes');
+
+        $plan = app(PhotoImportIdentityResolver::class)->resolve('22Buck/008/IMG_0002.jpg', '22Buck', '008');
+
+        $this->assertSame(PhotoImportIdentityResolver::IDEMPOTENT_EXISTING, $plan->decision);
+    }
+
+    public function test_the_audit_reports_a_duplicate_group_only_once_a_new_photo_joins_it(): void
+    {
+        $sha = $this->seedLegacyDuplicatesAndRunBothMigrations();
+
+        $this->assertSame([], app(PhotoAuditService::class)->findDuplicateSha1Groups());
+
+        DB::table('photos')->insert([
+            'id' => '22Buck_007_22BUCK_00020', 'show_class_id' => '22Buck_007',
+            'proof_number' => '22BUCK_00020', 'file_type' => 'jpg', 'sha1' => $sha,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $groups = app(PhotoAuditService::class)->findDuplicateSha1Groups();
+        $this->assertCount(1, $groups);
+        $this->assertSame($sha, $groups[0]['sha1']);
     }
 
     public function test_discovery_hashes_before_insert_and_leaves_no_duplicate_null_row(): void

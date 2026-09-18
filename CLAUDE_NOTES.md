@@ -62,6 +62,18 @@ destination against the new origin with no "destination changed" (same host and
 paths), pending dry runs 0/0/0. Every other Proofgen machine needs the same
 one-value change (Settings → Ferraraphoto API base URL, and `.env` if set there).
 
+**v2.0.1 (same day): legacy duplicate hashes no longer block an upgrade.** The
+photographer's v1.1.8 database holds 223 duplicated source hashes (frames shared
+between portrait sessions and the main show, across classes, and a few within a
+class). v2.0.0's unique-`sha1` migration refused to run on it. Those photos are
+published history, so they are now flagged `photos.sha1_grandfathered` and left
+alone; the unique index is partial and still protects new imports. See
+[photo pipeline §5](docs/photo-pipeline.md). The upgrade runbook for an old
+install is [UPGRADE_FROM_V1](docs/UPGRADE_FROM_V1.md). Isolated suite: 552 passed,
+22 skipped. `public/build/` is still committed (tests rely on its manifest), so
+every install shows it modified after a build; the runbook restores it before
+pulling.
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.

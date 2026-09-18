@@ -6,12 +6,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Enforce global uniqueness of the exact source-byte hash (photos.sha1).
+ * Enforce uniqueness of the exact source-byte hash (photos.sha1).
  *
- * The preflight deliberately refuses to run when existing non-null duplicate
- * hashes are present. It never deletes, merges, or rewrites photo rows — the
- * operator must resolve duplicates deliberately. Null hashes (incomplete
- * legacy rows) are left alone; unique indexes treat NULLs as distinct.
+ * An install that predates the import resolver can legitimately hold the same
+ * source bytes more than once (the same frame sold under a portraits session
+ * and the main show, for example). Those rows are published history: this
+ * migration never deletes, merges, or rewrites them, and it no longer refuses
+ * to run because of them. When duplicates exist it leaves the index to the
+ * follow-up migration `2026_09_18_000002_grandfather_legacy_duplicate_photo_hashes`,
+ * which exempts exactly those rows and enforces uniqueness for everything else.
+ * Null hashes (incomplete legacy rows) are left alone; unique indexes treat
+ * NULLs as distinct.
  *
  * The original non-unique photos_sha1_index is intentionally retained; the
  * unique index is additive and rollback removes only the unique index.
@@ -20,24 +25,17 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $duplicates = DB::table('photos')
-            ->select('sha1', DB::raw('COUNT(*) as photo_count'))
+        $hasDuplicates = DB::table('photos')
+            ->select('sha1')
             ->whereNotNull('sha1')
             ->groupBy('sha1')
             ->havingRaw('COUNT(*) > 1')
-            ->orderBy('sha1')
-            ->get();
+            ->exists();
 
-        if ($duplicates->isNotEmpty()) {
-            $summary = $duplicates
-                ->map(fn ($row) => $row->sha1.' ('.$row->photo_count.' photos)')
-                ->implode(', ');
-
-            throw new RuntimeException(
-                'Cannot enforce unique photos.sha1: existing duplicate hashes found: '.$summary.
-                '. Resolve these duplicates manually before running this migration; '.
-                'no photos were deleted or modified.'
-            );
+        if ($hasDuplicates) {
+            // A full unique index cannot be built over existing duplicates.
+            // The follow-up migration builds the index that exempts them.
+            return;
         }
 
         Schema::table('photos', function (Blueprint $table) {
@@ -47,6 +45,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasIndex('photos', 'photos_sha1_unique')) {
+            return;
+        }
+
         Schema::table('photos', function (Blueprint $table) {
             $table->dropUnique('photos_sha1_unique');
         });

@@ -39,6 +39,7 @@ class Photo extends Model
         'id' => 'string',
         'show_class_id' => 'string',
         'sha1' => 'string',
+        'sha1_grandfathered' => 'boolean',
         'archive_path' => 'string',
         'archive_sha1' => 'string',
         'archive_size' => 'integer',

@@ -1,8 +1,8 @@
-# Upgrading an existing v1.x install to v2.0.0
+# Upgrading an existing v1.x install to v2
 
 Runbook for a Claude Code session running **on the Mac that has the old install**
 (for example the photographer's laptop), with the project owner watching. v1.1.8
-(June 2025) to v2.0.0 is a major jump: Laravel 11 → 13, Livewire 3 → 4, PHP 8.2 →
+(June 2025) to v2.0.1 or later is a major jump: Laravel 11 → 13, Livewire 3 → 4, PHP 8.2 →
 8.4, new queue workers, new database columns, and the website (Gallery) API.
 The old in-app updater is **not** used for this jump: it would run Composer and
 migrations with whatever `php` is first on PATH.
@@ -17,8 +17,12 @@ override anything else in this file.
 2. **Never print a secret.** For tokens, passwords, and key files report only
    "set" / "not set" / "file exists". Never `cat .env`; read single keys.
 3. **Never delete or discard anything.** No `git reset --hard`, `git clean`,
-   `git stash drop`, `migrate:fresh`, `migrate:rollback`, `db:wipe`, `rm -rf`.
-   The photo folders and the archive are never touched by this upgrade.
+   `git stash drop`, `migrate:fresh`, `migrate:rollback`, `db:wipe`, `rm -rf`,
+   and no pruning of database tables. The photo folders and the archive are never
+   touched by this upgrade. **One exception:** `public/build/` is generated
+   frontend output that is committed to the repository, so every install that has
+   ever run `npm run build` shows it as modified. Restoring it with
+   `git checkout -- public/build` is allowed; Phase 4 rebuilds it.
 4. **Stop at every line marked CHECKPOINT** and wait for the owner to say continue.
 5. Use Herd's PHP for every PHP command (`herd php …`, `herd composer …`) so the
    version chosen for this site is the one that runs.
@@ -47,7 +51,8 @@ Report all of this in one block:
   `SELECT COUNT(*) FROM (SELECT sha1 FROM photos WHERE sha1 IS NOT NULL GROUP BY sha1 HAVING COUNT(*) > 1);`
 - Whether the `FULLSIZE_HOME_DIR` and `ARCHIVE_HOME_DIR` folders are present now;
   free space on their volumes and on the main disk.
-- `herd php artisan horizon:status`; whether any queue jobs are waiting or running.
+- `herd php artisan horizon:status`; whether any queue jobs are waiting or running;
+  the row count of `failed_jobs`.
 - Whether Composer credentials for `composer.fluxui.dev` exist
   (`~/.composer/auth.json`, `~/.config/composer/auth.json`, or `./auth.json`): yes/no.
 
@@ -58,12 +63,21 @@ Report all of this in one block:
 Do not continue unless every one of these is true. If one is not, say which and stop.
 
 - No import, generation, or upload is running or queued.
-- The working tree has no uncommitted changes to tracked files. (Untracked files
-  are fine and are left alone.)
+- The only modified tracked files are under `public/build/` (see Rule 3). Any
+  other modified tracked file: stop and list it. Untracked files are fine and are
+  left alone.
+- Redis answers: `redis-cli ping` returns `PONG` (Herd's Redis service, or a
+  Homebrew one). Horizon cannot run without it. If it does not answer, the owner
+  starts Redis in the Herd app (Services); do not install Redis another way.
+  Leave `QUEUE_CONNECTION` and `CACHE_STORE` in `.env` exactly as they are — an
+  existing Horizon install uses `redis`, whatever `.env.example` suggests for new
+  installs.
 - Herd has PHP **8.4** installed. If not, the owner installs it in the Herd app
   (Herd → PHP); do not install PHP any other way.
-- The duplicate-`sha1` count from Phase 1 is `0` (or the column does not exist yet).
-  If it is above zero the v2 migration will refuse to run: stop here.
+- Duplicate `sha1` values are **not** a blocker from v2.0.1 on. Older installs
+  legitimately hold the same frame in more than one class or show; the upgrade
+  flags those photos as grandfathered and changes nothing else about them. Just
+  make sure the count was reported in Phase 1.
 - Flux Composer credentials exist.
 - Homebrew rsync 3 exists at `/opt/homebrew/bin/rsync` or `/usr/local/bin/rsync`.
   If not, ask before running `brew install rsync`.
@@ -71,6 +85,8 @@ Do not continue unless every one of these is true. If one is not, say which and 
 - At least 5 GB free on the main disk.
 
 ## Phase 3 — Stop workers and back up
+
+If `horizon:terminate` says Horizon is not running, that is fine: continue.
 
 ```sh
 herd php artisan horizon:terminate
@@ -81,6 +97,8 @@ cp -p "<the DB_DATABASE file from Phase 1>" "$backup/"
 git rev-parse HEAD > "$backup/git-head.txt"
 git describe --tags --always > "$backup/git-version.txt"
 herd php -v | head -1 > "$backup/php-version.txt"
+# For the record only. Old upload failures can explain past problems; do not prune them.
+sqlite3 "<the DB_DATABASE file>" "SELECT COUNT(*) FROM failed_jobs;" > "$backup/failed-jobs-count.txt"
 ls -la "$backup"
 ```
 
@@ -93,10 +111,12 @@ restarted in Phase 5.
 ## Phase 4 — Update the code and dependencies
 
 ```sh
+git status --short             # if only public/build/ is modified:
+git checkout -- public/build   #   restore it (Rule 3); anything else: stop
 git fetch origin --tags
 git checkout main
 git pull --ff-only origin main
-git describe --tags            # expect v2.0.0 (or later)
+git describe --tags            # expect v2.0.1 or later — stop if it is older
 herd isolate 8.4               # this site only; other Herd sites are unaffected
 herd php -v                    # must show 8.4.x — stop if it does not
 herd composer install --no-dev --optimize-autoloader
@@ -120,6 +140,13 @@ herd php artisan config:clear
 herd php artisan route:clear
 herd php artisan view:clear
 herd php artisan cache:clear
+```
+
+Then report how many photos were grandfathered (expect the Phase 1 duplicates,
+counted per photo rather than per hash):
+
+```sh
+sqlite3 "<the DB_DATABASE file>" "SELECT COUNT(*) FROM photos WHERE sha1_grandfathered = 1;"
 ```
 
 If a migration fails, stop: nothing was deleted, and the Phase 3 copy is intact.
@@ -161,7 +188,9 @@ foreach (App\Models\Show::orderByDesc("created_at")->take(3)->get() as $show) {
 
 Report whether, for each show, the website's proofs directory equals the local
 settings directory. A difference is the drift this version exists to catch:
-report it, change nothing.
+report it, change nothing. An empty local directory (for example
+`SFTP_HIGHRES_IMAGES_PATH` was never set on this machine) is not a problem once
+the website supplies the destination; it only matters against an older website.
 
 Then the owner (not the session) opens the app in the browser, starts the
 background workers from the page header, and the session confirms:
