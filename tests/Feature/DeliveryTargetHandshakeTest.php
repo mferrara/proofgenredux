@@ -529,6 +529,26 @@ class DeliveryTargetHandshakeTest extends TestCase
             ->assertDontSee('/staging/proofs/26Test01');
     }
 
+    public function test_a_brand_new_show_without_class_folders_still_shows_where_uploads_will_go(): void
+    {
+        Storage::fake('fullsize');
+        Storage::fake('archive');
+        Storage::disk('fullsize')->makeDirectory('26Test01');
+        $this->makeShow();
+
+        Http::fake([
+            self::ORIGIN.'/api/v1/delivery-target*' => Http::response($this->handshake()),
+            '*' => Http::response(['data' => ['slug' => '26Test01']]),
+        ]);
+
+        Livewire::test(ShowViewComponent::class, ['show_id' => '26Test01'])
+            ->assertSee('No class directories found')
+            ->call('loadWebsiteShows')
+            ->assertSee('from website')
+            ->assertSee('/mnt/photo-storage/proofs/26Test01')
+            ->assertSee('on website');
+    }
+
     public function test_an_upload_check_never_runs_against_an_unconfirmed_destination(): void
     {
         Storage::fake('fullsize');

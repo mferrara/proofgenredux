@@ -61,6 +61,13 @@
             <flux:heading size="base" class="!font-medium">No class directories found</flux:heading>
             <flux:text class="mt-1">Create a class directory inside this show's folder to get started.</flux:text>
         </flux:card>
+
+        {{-- A brand-new show has no classes yet, but this is exactly when the
+             operator wants to confirm it is matched to the website and where
+             its uploads will go. --}}
+        <div class="mt-6 grid gap-4 md:grid-cols-2">
+            @include('livewire.partials.ferraraphoto-status-panel', ['ferraraphoto_status' => $ferraraphoto_status, 'show_for_slug' => $show, 'delivery_target' => $delivery_target, 'delivery_target_pending' => $delivery_target_pending, 'website_shows' => $website_shows, 'website_show_exists' => $website_show_exists, 'website_new_show_url' => $website_new_show_url])
+        </div>
     @else
         {{-- Status snapshot + actions --}}
         <div class="grid grid-cols-12 gap-4 mb-8">
