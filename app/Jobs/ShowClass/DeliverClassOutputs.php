@@ -106,7 +106,7 @@ class DeliverClassOutputs implements ShouldQueue
         try {
             // 1. Make sure the show/classes and the pinned profile exist remotely.
             //    No-op for legacy-local storage without an API token.
-            (new EnsureFerraraphotoShow($class->show_id))->handle(
+            (new EnsureFerraraphotoShow($class->show_id, $class->id))->handle(
                 app(FerraraphotoApiClient::class),
                 app(ShowProfileBinder::class),
             );

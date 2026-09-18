@@ -57,7 +57,8 @@ it('throws ferraraphoto API exceptions from error envelopes', function () {
         expect($exception->apiCode)->toBe('validation_error')
             ->and($exception->status)->toBe(422)
             ->and($exception->context)->toBe(['slug' => ['required']])
-            ->and($exception->getMessage())->toBe('The show slug is invalid.');
+            // The message names the request so a log line or Sentry event is enough to act on.
+            ->and($exception->getMessage())->toBe('The show slug is invalid. [POST /shows]');
     }
 });
 

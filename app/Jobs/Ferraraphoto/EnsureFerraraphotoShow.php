@@ -20,7 +20,13 @@ class EnsureFerraraphotoShow implements ShouldQueue
 
     public int $tries = 5;
 
-    public function __construct(public string $showId) {}
+    /**
+     * @param  string|null  $requiredClassId  The class being delivered. Its sync must
+     *                                        succeed; a website rejection of any OTHER class is logged and skipped,
+     *                                        so one class folder the website will not accept cannot block the
+     *                                        uploads of every other class in the show.
+     */
+    public function __construct(public string $showId, public ?string $requiredClassId = null) {}
 
     public function handle(FerraraphotoApiClient $api, ShowProfileBinder $binder): void
     {
@@ -44,8 +50,30 @@ class EnsureFerraraphotoShow implements ShouldQueue
         }
         $this->syncShow($api, $show);
 
+        $rejected = null;
+
         foreach ($show->classes as $class) {
-            $api->upsertClass($class);
+            try {
+                $api->upsertClass($class);
+            } catch (FerraraphotoApiException $exception) {
+                // Only a rejection of this class's own data (422) is skippable;
+                // auth, outage and server errors still stop the delivery.
+                if ($exception->status !== 422 || $class->id === $this->requiredClassId) {
+                    throw $exception;
+                }
+
+                Log::warning('The website rejected class "'.$class->name.'" of show '.$show->id.'; it cannot be uploaded until it is renamed. Other classes are unaffected.', [
+                    'class_id' => $class->id,
+                    'reason' => $exception->getMessage(),
+                ]);
+                $rejected ??= $exception;
+            }
+        }
+
+        // With no particular class being delivered (show-level sync), a
+        // rejection is still a failure - after every other class was synced.
+        if ($rejected !== null && $this->requiredClassId === null) {
+            throw $rejected;
         }
     }
 

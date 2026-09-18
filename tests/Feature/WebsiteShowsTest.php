@@ -7,6 +7,7 @@ use App\Models\Show;
 use App\Models\ShowClass;
 use App\Models\StorageProfile;
 use App\Services\Ferraraphoto\FerraraphotoApiClient;
+use App\Services\Ferraraphoto\FerraraphotoApiException;
 use App\Services\Ferraraphoto\WebsiteShowMissingException;
 use App\Services\Ferraraphoto\WebsiteShows;
 use App\Services\Storage\ShowProfileBinder;
@@ -93,6 +94,30 @@ it('turns a creation-disabled conflict into create-it-on-the-website-first', fun
 
     expect(fn () => ensureShow())->toThrow(WebsiteShowMissingException::class);
     expect(postedPaths())->toBe(['/api/v1/shows']);
+});
+
+it('does not let one class the website rejects block the class being delivered', function () {
+    ShowClass::withoutEvents(fn () => ShowClass::create(['id' => 'TEST_Halter_', 'show_id' => 'TEST', 'name' => 'Halter_']));
+
+    Http::fake(fn ($request) => match (true) {
+        $request->method() === 'GET' => Http::response(['data' => ['slug' => 'TEST']]),
+        ($request['class_number'] ?? null) === 'Halter_' => Http::response(['error' => [
+            'code' => 'validation_error',
+            'message' => 'Payload schema invalid',
+            'context' => ['errors' => ['class_number' => ['The class number field format is invalid.']]],
+        ]], 422),
+        default => Http::response(['data' => []]),
+    });
+
+    // Delivering class 001: the badly named sibling is skipped, not fatal.
+    (new EnsureFerraraphotoShow('TEST', 'TEST_001'))->handle(app(FerraraphotoApiClient::class), app(ShowProfileBinder::class));
+
+    // Delivering the rejected class itself fails, and says exactly why.
+    expect(fn () => (new EnsureFerraraphotoShow('TEST', 'TEST_Halter_'))->handle(app(FerraraphotoApiClient::class), app(ShowProfileBinder::class)))
+        ->toThrow(FerraraphotoApiException::class, 'Payload schema invalid [POST /shows/TEST/classes] class_number: The class number field format is invalid.');
+
+    // A show-level sync still reports the rejection, after syncing the rest.
+    expect(fn () => ensureShow())->toThrow(FerraraphotoApiException::class, 'class_number');
 });
 
 it('reports the list as absent without a request when no token is configured', function () {

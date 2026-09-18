@@ -167,7 +167,7 @@ class FerraraphotoApiClient
         }
 
         if (! $response->ok()) {
-            $this->throwForResponse($response);
+            $this->throwForResponse($response, $method.' '.$path);
         }
 
         return $response->json('data') ?? [];
@@ -182,7 +182,7 @@ class FerraraphotoApiClient
         return ['json' => $body];
     }
 
-    private function throwForResponse(Response $response): never
+    private function throwForResponse(Response $response, string $request): never
     {
         $error = $response->json('error');
 
@@ -194,11 +194,23 @@ class FerraraphotoApiClient
             ];
         }
 
+        $context = is_array($error['context'] ?? null) ? $error['context'] : [];
+
+        // "Payload schema invalid" alone sends someone hunting. Say which
+        // request and which fields, so the log, the failed job and Sentry
+        // already hold the answer.
+        $message = (string) ($error['message'] ?? 'Ferraraphoto API request failed.');
+        $fields = [];
+        foreach ((array) ($context['errors'] ?? []) as $field => $problems) {
+            $fields[] = $field.': '.implode(' ', (array) $problems);
+        }
+        $message .= ' ['.$request.']'.($fields === [] ? '' : ' '.implode('; ', $fields));
+
         throw new FerraraphotoApiException(
             apiCode: (string) ($error['code'] ?? 'unknown'),
-            message: (string) ($error['message'] ?? 'Ferraraphoto API request failed.'),
+            message: $message,
             status: $response->status(),
-            context: is_array($error['context'] ?? null) ? $error['context'] : [],
+            context: $context,
         );
     }
 
