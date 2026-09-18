@@ -35,7 +35,11 @@ class EnsureFerraraphotoShow implements ShouldQueue
 
         $show->loadMissing(['classes', 'storageProfile']);
 
-        $api->upsertStorageProfile($profile);
+        // Both applications seed legacy-local. Its sentinel fingerprint and
+        // per-kind filesystem roots are not a custom profile registration.
+        if (! $profile->isLegacyLocal()) {
+            $api->upsertStorageProfile($profile);
+        }
         $api->upsertShow($show);
 
         foreach ($show->classes as $class) {

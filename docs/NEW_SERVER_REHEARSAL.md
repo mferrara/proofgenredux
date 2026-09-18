@@ -1,7 +1,11 @@
 # New-server mock show
 
-Prepared September 15, 2026, after delivery fix `ee96150`. No new-server
-connection, import, generation, or delivery has been run.
+Historical preparation checklist from September 15, 2026, after `ee96150`.
+A smaller two-photo `26Test01` beta smoke test completed September 18; see
+[the results and current configuration](reviews/2026-09-18-beta-smoke.md).
+The parked configuration and eight-photo run below describe the original plan,
+not the current local state. Two originals from class `001` are now imported as
+`26Test01`; do not import all eight staged originals again under another show.
 
 ## Ready locally
 

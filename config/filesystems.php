@@ -39,7 +39,7 @@ return [
         'remote_proofs' => [
             'driver' => 'sftp',
             'host' => getenv('SFTP_HOSTNAME'),
-            'port' => getenv('SFTP_PORT') ?: 22,
+            'port' => (int) (getenv('SFTP_PORT') ?: 22),
             'username' => getenv('SFTP_USERNAME'),
             'privateKey' => getenv('SFTP_PATHTOPRIVATEKEY'),
             'root' => getenv('SFTP_PROOFSPATH'),
@@ -49,7 +49,7 @@ return [
         'remote_web_images' => [
             'driver' => 'sftp',
             'host' => getenv('SFTP_HOSTNAME'),
-            'port' => getenv('SFTP_PORT') ?: 22,
+            'port' => (int) (getenv('SFTP_PORT') ?: 22),
             'username' => getenv('SFTP_USERNAME'),
             'privateKey' => getenv('SFTP_PATHTOPRIVATEKEY'),
             'root' => getenv('SFTP_WEB_IMAGES_PATH'),
@@ -59,7 +59,7 @@ return [
         'remote_highres_images' => [
             'driver' => 'sftp',
             'host' => getenv('SFTP_HOSTNAME'),
-            'port' => getenv('SFTP_PORT') ?: 22,
+            'port' => (int) (getenv('SFTP_PORT') ?: 22),
             'username' => getenv('SFTP_USERNAME'),
             'privateKey' => getenv('SFTP_PATHTOPRIVATEKEY'),
             'root' => getenv('SFTP_HIGHRES_IMAGES_PATH'),

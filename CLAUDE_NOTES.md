@@ -23,16 +23,19 @@ A real 45 MP EXIF-rotated original rendered in all four Settings tabs. Long proo
 labels now fit both proof sizes. Existing proofs require regeneration to receive
 new output behavior; final watermarked proof quality is 95.
 
-The next operator check is a small test show delivered to the actual Ferraraphoto
-server, including catalog/display and web/highres resolution. Dad's laptop rollout
-is deferred. Nothing in the local reports establishes Ferraraphoto's production
-deployment state. Recognition is deferred. Encoding, S3 migration, and updater
-research remain separate briefs.
+The [beta smoke test](docs/reviews/2026-09-18-beta-smoke.md) passed September 18:
+`26Test01`, one class/two photos, eight delivered files with matching SHA-256,
+four working proof URLs, and matching Gallery web/highres download streams.
+Local API/SSH configuration now targets beta and the shared production media
+roots. Automatic uploads remain OFF; Horizon remains stopped. Manual Upload
+now targets that server. The original 72 photos were not reuploaded.
 
-The [new-server rehearsal](docs/NEW_SERVER_REHEARSAL.md) is prepared: eight new
-photos are staged on TrueNAS outside the import tree. Uploads are OFF and local
-API overrides are parked at an invalid placeholder with an empty token; replace
-both when configuring the new server. No mock-show import or remote test has run.
+The smoke exposed two local fixes: use the already-seeded legacy storage profile
+without registering it, and cast SFTP environment ports to integers. Focused
+isolated validation: 25 tests, 76 assertions. See the
+[proposed Gallery handshake contract](docs/GALLERY_DELIVERY_HANDSHAKE.md) for
+next-session coordination; no handshake implementation has begun. Dad's laptop,
+recognition, encoding, S3 migration, and updater research remain deferred/separate.
 
 ## Stack and local paths
 
