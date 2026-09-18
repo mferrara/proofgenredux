@@ -53,6 +53,15 @@ Isolated validation: full suite 549 passed, 22 skipped. Adds two nullable column
 on `shows`; the in-app updater runs the migration, a manual checkout needs
 `php artisan migrate`.
 
+**Cutover to the main domain (same day).** The website moved from
+`beta.ferraraphoto.com` to `https://ferraraphoto.com`. This Mac's API base was
+switched in both places that hold it (`.env` `FERRARAPHOTO_API_BASE` and the saved
+Settings value `ferraraphoto.base_url`); the token and SSH settings are unchanged.
+Verified through the app: both endpoints answer, `26Test01` re-confirmed its
+destination against the new origin with no "destination changed" (same host and
+paths), pending dry runs 0/0/0. Every other Proofgen machine needs the same
+one-value change (Settings → Ferraraphoto API base URL, and `.env` if set there).
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.
