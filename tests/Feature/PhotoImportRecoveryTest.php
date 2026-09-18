@@ -154,12 +154,12 @@ class PhotoImportRecoveryTest extends TestCase
         Bus::assertDispatched(GenerateWebImage::class, function (GenerateWebImage $job) use ($recovered) {
             return $job->photo_id === $recovered->id
                 && $job->web_destination_path === 'web_images/'.self::SHOW.'/'.self::CLASS_NAME
-                && $job->queue === 'thumbnails';
+                && $job->queue === 'generate-web';
         });
         Bus::assertDispatched(GenerateHighresImage::class, function (GenerateHighresImage $job) use ($recovered) {
             return $job->photo_id === $recovered->id
                 && $job->highres_destination_path === 'highres_images/'.self::SHOW.'/'.self::CLASS_NAME
-                && $job->queue === 'thumbnails';
+                && $job->queue === 'generate-highres';
         });
     }
 
@@ -230,12 +230,12 @@ class PhotoImportRecoveryTest extends TestCase
         Bus::assertDispatched(GenerateWebImage::class, function (GenerateWebImage $job) use ($photo) {
             return $job->photo_id === $photo->id
                 && $job->web_destination_path === 'web_images/'.self::SHOW.'/'.self::CLASS_NAME
-                && $job->queue === 'thumbnails';
+                && $job->queue === 'generate-web';
         });
         Bus::assertDispatched(GenerateHighresImage::class, function (GenerateHighresImage $job) use ($photo) {
             return $job->photo_id === $photo->id
                 && $job->highres_destination_path === 'highres_images/'.self::SHOW.'/'.self::CLASS_NAME
-                && $job->queue === 'thumbnails';
+                && $job->queue === 'generate-highres';
         });
     }
 

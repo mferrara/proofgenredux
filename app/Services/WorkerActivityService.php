@@ -12,7 +12,7 @@ class WorkerActivityService
     {
         $waiting = $active = $delayed = 0;
         try {
-            $queues = array_map(fn (string $name) => [config('queue.default'), $name], ['default', 'processing', 'imports', 'thumbnails']);
+            $queues = array_map(fn (string $name) => [config('queue.default'), $name], ['default', 'processing', 'imports', 'thumbnails', 'generate-web', 'generate-highres']);
             foreach (['queue', 'web_queue', 'highres_queue'] as $uploadQueue) {
                 $queues[] = [config('proofgen.uploads.connection', 'uploads'), config('proofgen.uploads.'.$uploadQueue)];
             }

@@ -543,7 +543,7 @@ class ShowClass extends Model
             if (! Storage::disk('fullsize')->exists($photo->relative_path)) {
                 continue;
             }
-            GenerateWebImage::dispatch($photo->id, $this->web_images_path)->onQueue('thumbnails');
+            GenerateWebImage::dispatch($photo->id, $this->web_images_path)->onQueue('generate-web');
             $queued++;
         }
 
@@ -565,7 +565,7 @@ class ShowClass extends Model
             if (! Storage::disk('fullsize')->exists($photo->relative_path)) {
                 continue;
             }
-            GenerateHighresImage::dispatch($photo->id, $this->highres_images_path)->onQueue('thumbnails');
+            GenerateHighresImage::dispatch($photo->id, $this->highres_images_path)->onQueue('generate-highres');
             $queued++;
         }
 

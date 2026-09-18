@@ -53,7 +53,7 @@ class QueuedWorkStatus
         $default = config('queue.default');
         $queues = array_map(fn ($name) => [$default, $name], array_unique([
             config("queue.connections.{$default}.queue", 'default'),
-            'default', 'imports', 'processing', 'thumbnails',
+            'default', 'imports', 'processing', 'thumbnails', 'generate-web', 'generate-highres',
         ]));
         foreach (['queue', 'web_queue', 'highres_queue'] as $uploadQueue) {
             $queues[] = [config('proofgen.uploads.connection', 'uploads'), config('proofgen.uploads.'.$uploadQueue)];

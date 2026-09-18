@@ -199,15 +199,31 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
-        'supervisor-2' => [
+        // Proofs are generated before anything else: customers order from them.
+        // A few workers make nothing but proofs, so a proof never waits for a
+        // web or highres render to finish...
+        'supervisor-proofs' => [
             'connection' => 'redis',
             'queue' => ['thumbnails'],
-            'balance' => 'auto',
-            'autoScalingStrategy' => 'time',
+            'balance' => false,
             'minProcesses' => 1,
-            'maxProcesses' => 12,
-            'balanceMaxShift' => 1,
-            'balanceCooldown' => 2,
+            'maxProcesses' => 3,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 1,
+            'timeout' => 60,
+            'nice' => 0,
+        ],
+        // ...and the rest take the queues strictly in this order (`balance =>
+        // false`): proofs of every class, then web images, then highres.
+        // `thumbnails` is the proofs queue (the name predates the others).
+        'supervisor-2' => [
+            'connection' => 'redis',
+            'queue' => ['thumbnails', 'generate-web', 'generate-highres'],
+            'balance' => false,
+            'minProcesses' => 1,
+            'maxProcesses' => 9,
             'maxTime' => 0,
             'maxJobs' => 0,
             'memory' => 128,

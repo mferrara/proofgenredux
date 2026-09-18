@@ -194,10 +194,10 @@ class PhotoMoveService
             GenerateThumbnails::dispatch($newPhoto->id, $proofsPath)->onQueue('thumbnails');
         }
         if ($missing['web']) {
-            GenerateWebImage::dispatch($newPhoto->id, $webPath)->onQueue('thumbnails');
+            GenerateWebImage::dispatch($newPhoto->id, $webPath)->onQueue('generate-web');
         }
         if ($missing['highres']) {
-            GenerateHighresImage::dispatch($newPhoto->id, $highresPath)->onQueue('thumbnails');
+            GenerateHighresImage::dispatch($newPhoto->id, $highresPath)->onQueue('generate-highres');
         }
     }
 

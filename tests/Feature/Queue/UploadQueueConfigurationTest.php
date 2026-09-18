@@ -114,6 +114,23 @@ class UploadQueueConfigurationTest extends TestCase
         }
     }
 
+    public function test_proofs_are_generated_before_web_and_highres_images(): void
+    {
+        $plan = new ProvisioningPlan('test-master', config('horizon.environments'), config('horizon.defaults'));
+
+        foreach (['local', 'production'] as $environment) {
+            // The shared pool takes proofs of every class first, then web, then highres.
+            $pool = $plan->optionsFor($environment, 'supervisor-2');
+            $this->assertSame('thumbnails,generate-web,generate-highres', $pool->queue);
+            $this->assertFalse($pool->balancing(), 'Balancing would give web and highres their own workers and put them neck and neck with proofs again.');
+
+            // Some workers make nothing but proofs, so a proof never waits for a bigger render.
+            $proofs = $plan->optionsFor($environment, 'supervisor-proofs');
+            $this->assertSame('thumbnails', $proofs->queue);
+            $this->assertGreaterThanOrEqual(2, $proofs->maxProcesses);
+        }
+    }
+
     public function test_horizon_provisions_a_single_upload_worker_in_local_and_production(): void
     {
         $proofgen = require base_path('config/proofgen.php');

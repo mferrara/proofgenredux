@@ -150,10 +150,10 @@ class PhotoService
             GenerateThumbnails::dispatch($photo->id, $photo->proofs_path)->onQueue('thumbnails');
         }
         if ((! $missingOnly || $photo->web_image_generated_at === null) && config('proofgen.generate_web_images.enabled', true)) {
-            GenerateWebImage::dispatch($photo->id, $photo->showClass->web_images_path)->onQueue('thumbnails');
+            GenerateWebImage::dispatch($photo->id, $photo->showClass->web_images_path)->onQueue('generate-web');
         }
         if ((! $missingOnly || $photo->highres_image_generated_at === null) && config('proofgen.generate_highres_images.enabled', true)) {
-            GenerateHighresImage::dispatch($photo->id, $photo->showClass->highres_images_path)->onQueue('thumbnails');
+            GenerateHighresImage::dispatch($photo->id, $photo->showClass->highres_images_path)->onQueue('generate-highres');
         }
     }
 

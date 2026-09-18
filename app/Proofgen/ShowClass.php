@@ -216,7 +216,7 @@ class ShowClass
         if ($images) {
             foreach ($images as $image) {
                 $image_path = $image->path();
-                GenerateWebImage::dispatch($image_path, $this->web_images_path)->onQueue('thumbnails');
+                GenerateWebImage::dispatch($image_path, $this->web_images_path)->onQueue('generate-web');
                 $proofed++;
             }
         }

@@ -677,6 +677,26 @@ Current constraints and dated resolutions from the resolver/audit/upload work ar
 
 *Last updated: 2026-09-15. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
 
+## Generation priority (v2.5.1)
+
+Until v2.5.0 a photo's three generation jobs (proofs, web image, highres) all went
+onto one queue in that order, so workers took them first-in-first-out and the three
+kinds advanced neck and neck: proofs got a third of the capacity.
+
+- Proofs are queued on `thumbnails` (the name predates the others), web images on
+  `generate-web`, highres on `generate-highres`.
+- `supervisor-2` (9 workers, `balance => false`) takes those queues strictly in
+  that order: proofs of **every** class before any web image, web before highres.
+- `supervisor-proofs` (3 workers) makes nothing but proofs, so a proof never waits
+  for a bigger render to finish. 12 generation workers in total, as before.
+- Imports feed the queues one photo at a time, so workers with no proof to make
+  use the gaps for web and highres; nothing sits idle.
+- A class's proofs therefore finish, and are queued for upload, well before its
+  web and highres images exist. Web and highres uploads are queued when their own
+  generation completes, which is now after the proofs.
+- Restart the background workers after updating. Jobs an older version queued on
+  `thumbnails` are processed as proofs-priority work.
+
 ## Upload priority (v2.4.0)
 
 Proofs are what customers order from, so they always go first.

@@ -152,6 +152,13 @@ readable. New read-only `proofgen:status [show]` plus `proofgen:import` and
 photographer at a show - priorities, how the system works, "handle all pending
 classes", troubleshooting, what never to do. `CLAUDE.md`/`AGENTS.md` point to it.
 
+**v2.5.1: proofs are generated first too.** The three generation jobs of a photo
+used to share one queue and ran interleaved. Now web and highres generation have
+their own lower-priority queues, the shared worker pool takes them strictly in
+order, and three workers make only proofs ([photo pipeline, "Generation
+priority"](docs/photo-pipeline.md)). Found by the operator watching a 125-photo
+import: uploads were proofs-first but generation was neck and neck.
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.
