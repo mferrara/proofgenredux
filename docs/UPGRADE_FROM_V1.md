@@ -166,7 +166,11 @@ session never sees or echoes it.
    starts with `ferraraphoto.` (value for `base_url`; set/not set for the token).
    If `ferraraphoto.base_url` exists and is not `https://ferraraphoto.com`, tell
    the owner — he changes it in the app's Settings page.
-3. `herd php artisan config:clear`
+3. Problem reports: ask the owner to add `PROOFGEN_INSTALL_NAME="<what to call this
+   machine>"` and `PROOFGEN_FEEDBACK_TOKEN=…` (he types the token himself). From
+   then on, anything that looks like a defect during this upgrade is filed with
+   `herd php artisan proofgen:report --llm …` — see `docs/FEEDBACK.md`.
+4. `herd php artisan config:clear`
 
 **CHECKPOINT 4.**
 

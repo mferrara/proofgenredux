@@ -113,6 +113,15 @@ return [
         'api_token' => getenv('FERRARAPHOTO_API_TOKEN'),
     ],
 
+    // Reports filed from an install (php artisan proofgen:report). They go to a
+    // PRIVATE GitHub repo as issues; the token needs only "Issues: write" on it.
+    'feedback' => [
+        'repo' => getenv('PROOFGEN_FEEDBACK_REPO') ?: 'mferrara/proofgen-feedback',
+        'token' => getenv('PROOFGEN_FEEDBACK_TOKEN') ?: null,
+        // How this machine is named in reports, e.g. "Dad's MacBook".
+        'install_name' => getenv('PROOFGEN_INSTALL_NAME') ?: null,
+    ],
+
     'sftp' => [
         'rsync_binary' => env('RSYNC_BINARY'),
         // Transport driver: 'sftp' for rsync-over-SSH (production / staging),

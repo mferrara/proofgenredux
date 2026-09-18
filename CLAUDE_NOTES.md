@@ -5,6 +5,8 @@
 - [Documentation index](docs/README.md) — current guides versus historical plans.
 - [Photo pipeline](docs/photo-pipeline.md) — import identity, originals/archive,
   quarantine, generation, uploads, and recovery invariants. Read before pipeline changes.
+- **Inbox:** `gh issue list -R mferrara/proofgen-feedback --state open` — problem
+  reports filed from installs with `php artisan proofgen:report`. See [Feedback](docs/FEEDBACK.md).
 - [Testing](docs/TESTING.md) — isolated checkout and guarded SQLite `:memory:`.
 - [Ferraraphoto integration](docs/FERRARAPHOTO_INTEGRATION.md) — local delivery and
   existing storage/API code; not a claim of production S3 cutover.
