@@ -132,8 +132,68 @@ class DeliverClassOutputs implements ShouldQueue
             return;
         }
 
-        // A show missing on the website, or a changed/unusable destination,
-        // cannot be fixed by retrying: fail without burning the backoff schedule.
+        $bulk = $kinds === ['web'] || $kinds === ['highres'];
+
+        // Web and highres go up one photo per job, so the per-class preamble
+        // (sync the show and every class with the website, confirm the
+        // destination) must not be paid per photo. It stays good for a while
+        // after any delivery of this class ran it; proofs always run it.
+        $skipPreamble = $bulk && Cache::has('delivery-preamble:'.$this->classId);
+
+        // Cheapest check first: on a slow connection highres steps aside
+        // before anything talks to the website.
+        if ($kinds === ['highres'] && $this->waitForBetterBandwidth()) {
+            return;
+        }
+
+        if (! $skipPreamble && ! $this->runPreamble($class)) {
+            return;
+        }
+
+        $waitingIdsBefore = $bulk ? $this->waitingToUpload($class, $kinds[0]) : [];
+        $waitingBefore = count($waitingIdsBefore);
+        $startedAt = microtime(true);
+
+        (new UploadDerivedFiles($this->classId, $kinds, $bulk ? (int) config('proofgen.uploads.batch_size') : null))->handle(
+            app(StorageProfileResolver::class),
+            app(PathResolver::class),
+        );
+
+        $waitingIdsAfter = $bulk ? $this->waitingToUpload($class, $kinds[0]) : [];
+        $waitingAfter = count($waitingIdsAfter);
+        if ($bulk) {
+            $this->recordThroughput($class, $kinds[0], $waitingBefore - $waitingAfter, microtime(true) - $startedAt);
+        }
+
+        // 4. Push photo metadata. Same legacy-local/no-token skip rule as step 1.
+        //    A one-photo web/highres job tells the website about that photo
+        //    only, not the whole class again.
+        // Exactly the photos this job moved from "waiting" to "uploaded".
+        $justUploaded = $bulk ? array_values(array_diff($waitingIdsBefore, $waitingIdsAfter)) : null;
+
+        if ($justUploaded !== []) {
+            (new PushPhotoMetadata($this->classId, $justUploaded))->handle(app(FerraraphotoApiClient::class));
+        }
+
+        // One line per photo would drown the log; whole-class deliveries stay at info.
+        Log::log($bulk ? 'debug' : 'info', 'Delivered derived outputs for '.$this->classId.'.', ['kinds' => $kinds]);
+
+        // More of this class is waiting: go to the back of the same queue, so
+        // the worker looks for proofs (and other classes) before continuing.
+        // A batch that uploaded nothing must not loop forever.
+        if ($bulk && $waitingAfter > 0 && $waitingAfter < $waitingBefore) {
+            self::dispatch($this->classId, $this->automatic, $kinds);
+        }
+    }
+
+    /**
+     * Steps 1 and 2: the show and classes exist on the website, and the website
+     * confirmed where this show's files go. False = the job was failed for good
+     * (a show missing on the website, or a changed/unusable destination, cannot
+     * be fixed by retrying, so the backoff schedule is not burned on it).
+     */
+    private function runPreamble(ShowClass $class): bool
+    {
         try {
             // 1. Make sure the show/classes and the pinned profile exist remotely.
             //    No-op for legacy-local storage without an API token.
@@ -142,8 +202,7 @@ class DeliverClassOutputs implements ShouldQueue
                 app(ShowProfileBinder::class),
             );
 
-            // 2. Confirm with Gallery where this show's rsync delivery goes,
-            //    once per run.
+            // 2. Confirm with Gallery where this show's rsync delivery goes.
             $class->load('show.storageProfile');
             if ($class->show->storageProfile?->isLegacyLocal()) {
                 app(DeliveryTargetResolver::class)->refresh($class->show);
@@ -154,54 +213,28 @@ class DeliverClassOutputs implements ShouldQueue
             if (! $retryable && $this->job) {
                 $this->fail($exception);
 
-                return;
+                return false;
             }
 
             throw $exception;
         }
 
-        // 3. Transfer the derived files (legacy rsync or pinned-profile copies).
-        //    Throws on failure so the metadata push below is never reached.
-        $bulk = $kinds === ['web'] || $kinds === ['highres'];
+        Cache::put('delivery-preamble:'.$this->classId, true, (int) config('proofgen.uploads.preamble_seconds'));
 
-        if ($kinds === ['highres'] && $this->waitForBetterBandwidth()) {
-            return;
-        }
-
-        $waitingBefore = $bulk ? $this->waitingToUpload($class, $kinds[0]) : 0;
-        $startedAt = microtime(true);
-
-        (new UploadDerivedFiles($this->classId, $kinds, $bulk ? (int) config('proofgen.uploads.batch_size') : null))->handle(
-            app(StorageProfileResolver::class),
-            app(PathResolver::class),
-        );
-
-        $waitingAfter = $bulk ? $this->waitingToUpload($class, $kinds[0]) : 0;
-        if ($bulk) {
-            $this->recordThroughput($class, $kinds[0], $waitingBefore - $waitingAfter, microtime(true) - $startedAt);
-        }
-
-        // 4. Push photo metadata. Same legacy-local/no-token skip rule as step 1.
-        (new PushPhotoMetadata($this->classId))->handle(app(FerraraphotoApiClient::class));
-
-        Log::info('Delivered derived outputs for '.$this->classId.'.', ['kinds' => $kinds]);
-
-        // More of this class is waiting: go to the back of the same queue, so
-        // the worker looks for proofs (and other classes) before continuing.
-        // A batch that uploaded nothing must not loop forever.
-        if ($bulk && $waitingAfter > 0 && $waitingAfter < $waitingBefore) {
-            self::dispatch($this->classId, $this->automatic, $kinds);
-        }
+        return true;
     }
 
-    private function waitingToUpload(ShowClass $class, string $kind): int
+    /**
+     * @return array<int, string> ids of photos generated but not yet uploaded for this kind
+     */
+    private function waitingToUpload(ShowClass $class, string $kind): array
     {
         [$generated, $uploaded] = [
             'web' => ['web_image_generated_at', 'web_image_uploaded_at'],
             'highres' => ['highres_image_generated_at', 'highres_image_uploaded_at'],
         ][$kind];
 
-        return $class->photos()->whereNotNull($generated)->whereNull($uploaded)->count();
+        return $class->photos()->whereNotNull($generated)->whereNull($uploaded)->pluck('id')->all();
     }
 
     /**

@@ -690,12 +690,18 @@ Proofs are what customers order from, so they always go first.
   strictly in order: proofs, web, highres. `supervisor-uploads-proofs` takes
   nothing but proofs, so two proof uploads run at once and proofs never wait
   behind a web or highres transfer that is already in flight.
-- **Batches.** Web and highres go up `proofgen.uploads.batch_size` photos at a
-  time (default 12, `UPLOAD_BATCH_SIZE`), lowest proof number first, via
-  `rsync --files-from`. After a batch the job puts the rest of the class at the
-  back of its queue, so the worker looks for proofs (and other classes) before
-  continuing. A batch that uploads nothing does not re-queue itself. Proofs are
-  small and still go up a class at a time.
+- **One photo per job.** Web and highres go up one photo at a time
+  (`proofgen.uploads.batch_size`, default 1, `UPLOAD_BATCH_SIZE`), lowest proof
+  number first, via `rsync --files-from`. They are large and not urgent: after
+  every photo the worker looks for proofs again, and a proof upload shares the
+  connection with at most one big file. After its photo the job puts the rest of
+  the class at the back of its queue; a job that uploaded nothing does not
+  re-queue itself. Proofs are small and still go up a class at a time.
+  To make this affordable a follow-on job skips the per-class preamble (website
+  show/class sync and destination check stay good for `preamble_seconds`, 900),
+  the remote folder check is done once per class rather than per photo, and only
+  the photo that job uploaded is reported to the website. What remains per photo
+  is one SSH connection for rsync and one small API call.
 - **Slow connections.** Web/highres batches feed a rolling uplink estimate
   (proofs are too small to measure with). When it is below
   `proofgen.uploads.highres_min_kbps` (default 1000, `UPLOAD_HIGHRES_MIN_KBPS`;

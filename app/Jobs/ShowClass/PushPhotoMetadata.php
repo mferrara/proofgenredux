@@ -19,7 +19,11 @@ class PushPhotoMetadata implements ShouldQueue
 
     public int $tries = 5;
 
-    public function __construct(public string $classId) {}
+    /**
+     * @param  array<int, string>|null  $photoIds  Only these photos (what one small upload just sent);
+     *                                             null = the whole class.
+     */
+    public function __construct(public string $classId, public ?array $photoIds = null) {}
 
     public function handle(FerraraphotoApiClient $api): void
     {
@@ -39,6 +43,7 @@ class PushPhotoMetadata implements ShouldQueue
         }
 
         $class->photos()
+            ->when($this->photoIds !== null, fn ($query) => $query->whereIn('id', $this->photoIds))
             ->with('metadata')
             ->orderBy('id')
             ->chunk(500, function (Collection $photos) use ($api, $class): void {

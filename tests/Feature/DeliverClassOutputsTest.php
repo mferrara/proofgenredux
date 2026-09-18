@@ -11,6 +11,7 @@ use App\Models\StorageProfile;
 use App\Services\QueuedWorkStatus;
 use App\Services\Transport\RsyncFailedException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
@@ -155,6 +156,51 @@ class DeliverClassOutputsTest extends TestCase
 
         // The remainder waits its turn behind any proofs that arrived meanwhile.
         Bus::assertDispatched(fn (DeliverClassOutputs $job) => $job->kinds === ['web'] && $job->queue === config('proofgen.uploads.web_queue'));
+
+        $this->tearDownLocalRsyncUploads();
+    }
+
+    public function test_web_and_highres_go_up_one_photo_per_job_without_repeating_the_class_preamble(): void
+    {
+        $this->setUpLocalRsyncUploads();
+        config(['proofgen.ferraraphoto.api_token' => 'test-token']);
+        $this->seedLegacyLocalProfile();
+        $this->seedPhotoWithWebImage('SHOW1_00001');
+        $this->seedPhotoWithWebImage('SHOW1_00002');
+
+        expect(config('proofgen.uploads.batch_size'))->toBe(1);
+
+        Http::fake(['*' => Http::response(['data' => ['slug' => 'SHOW1']])]);
+        Bus::fake([DeliverClassOutputs::class]);
+
+        // First job: full preamble (show + class sync), one photo, its metadata only.
+        (new DeliverClassOutputs('SHOW1_101', false, ['web']))->handle();
+
+        expect(Photo::whereNotNull('web_image_uploaded_at')->pluck('proof_number')->all())->toBe(['SHOW1_00001']);
+        $sent = fn () => Http::recorded()->map(fn ($pair) => $pair[0]->method().' '.parse_url($pair[0]->url(), PHP_URL_PATH))->all();
+        $photosSent = fn () => Http::recorded()
+            ->filter(fn ($pair) => str_ends_with($pair[0]->url(), '/photos'))
+            ->flatMap(fn ($pair) => array_column($pair[0]->data()['photos'], 'proof_number'))
+            ->values()->all();
+
+        expect($sent())->toBe([
+            'GET /api/v1/shows/SHOW1',
+            'POST /api/v1/shows',
+            'POST /api/v1/shows/SHOW1/classes',
+            'POST /api/v1/shows/SHOW1/classes/101/photos',
+        ])->and($photosSent())->toBe(['SHOW1_00001']);
+        Bus::assertDispatched(fn (DeliverClassOutputs $job) => $job->kinds === ['web']);
+
+        // Follow-on job: straight to the transfer. No show or class sync again.
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        Http::fake(['*/photos' => Http::response(['data' => []])]);
+
+        (new DeliverClassOutputs('SHOW1_101', false, ['web']))->handle();
+
+        expect(Photo::whereNotNull('web_image_uploaded_at')->count())->toBe(2);
+        expect($sent())->toBe(['POST /api/v1/shows/SHOW1/classes/101/photos'])
+            ->and($photosSent())->toBe(['SHOW1_00002']);
 
         $this->tearDownLocalRsyncUploads();
     }

@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use League\Flysystem\FileAttributes;
@@ -973,7 +974,13 @@ class ShowClass extends Model
             return new UploadSyncResult($syncType, $dryRun, [], [], []);
         }
 
-        app(DeliveryTargetDisks::class)->ensureDirectory($target, $syncType, $this->name);
+        // Opens its own SSH connection, so not once per photo: web and highres
+        // go up one photo per job.
+        $ensuredKey = 'remote-dir-ensured:'.sha1($remoteShowDir.'|'.$this->name.'|'.$target->host);
+        if (! Cache::has($ensuredKey)) {
+            app(DeliveryTargetDisks::class)->ensureDirectory($target, $syncType, $this->name);
+            Cache::put($ensuredKey, true, 900);
+        }
 
         $local = app(PathResolver::class)->getAbsolutePath($localBase, config('proofgen.fullsize_home_dir').'/').'/';
 

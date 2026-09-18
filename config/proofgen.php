@@ -169,9 +169,15 @@ return [
         // so a highres transfer already in flight never delays them.
         'web_queue' => 'uploads-web',
         'highres_queue' => 'uploads-highres',
-        // Web/highres go up this many photos at a time, so the worker comes back
-        // to look for new proofs often instead of after a whole class.
-        'batch_size' => (int) (getenv('UPLOAD_BATCH_SIZE') ?: 12),
+        // Web/highres go up ONE photo per job. They are large and not urgent:
+        // after every photo the worker looks for proofs again, and a proof
+        // upload shares the connection with at most one big file. This is
+        // affordable because a follow-on job skips the per-class preamble (see
+        // DeliverClassOutputs). Raise it only on a fast, idle connection.
+        'batch_size' => (int) (getenv('UPLOAD_BATCH_SIZE') ?: 1),
+        // How long a class's website sync and destination check stay good for
+        // its follow-on web/highres jobs.
+        'preamble_seconds' => 900,
         // When recent web/highres uploads averaged less than this (kilobits per
         // second), highres waits and tries again later: on bad show wifi it only
         // gets in the way. 0 turns this off.
