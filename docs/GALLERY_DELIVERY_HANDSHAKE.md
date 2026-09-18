@@ -9,8 +9,9 @@ Status, September 18, 2026: **both sides implemented.** Gallery's endpoints are
 live on beta (gallery commit 21868fa; its authoritative contract doc is
 `docs/PROOFGEN_DELIVERY_TARGET.md` in the gallery repo). Proofgen's side is on
 branch `delivery-target-handshake`, tested against faked responses and checked
-read-only against beta: the live `26Test01` answer parses and equals the current
-local settings. A full upload smoke through the new path has not been run yet.
+against beta: the live `26Test01` answer equals the current local settings, and
+the [delivery smoke](reviews/2026-09-18-delivery-target-smoke.md) through the new
+path passed (all eight files confirmed in place at Gallery's destination).
 Against an older Gallery, Proofgen gets a 404 and behaves exactly as before.
 
 This first version covers the existing rsync/SSH filesystem delivery only. S3
@@ -146,8 +147,6 @@ storage_profile_id, class_count, photo_count, hidden }] }`, newest first
 
 ## Not done yet
 
-- A full two-photo `26Test01` upload smoke through the handshake path against
-  beta (needs this install's database migrated first).
 - Shrinking Settings → Legacy SFTP to the key path plus a collapsed fallback
   group.
 - The legacy string builders in `app/Proofgen/Show*.php`, the rclone migration

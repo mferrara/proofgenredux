@@ -47,8 +47,8 @@ operator accepts it on the show page. Shows are created on the website: once
 the slug override become pickers (`app/Services/Ferraraphoto/WebsiteShows.php`),
 and a missing show fails with "create it on the website first". Against an older
 Gallery (404 on either endpoint) everything behaves as before. Both endpoints
-are live on beta and were checked read-only; a real upload smoke through the new
-path is still to do. Details: [the handshake doc](docs/GALLERY_DELIVERY_HANDSHAKE.md).
+are live on beta; the [delivery smoke](docs/reviews/2026-09-18-delivery-target-smoke.md)
+through the new path passed on `26Test01`. Details: [the handshake doc](docs/GALLERY_DELIVERY_HANDSHAKE.md).
 Isolated validation: full suite 549 passed, 22 skipped. Adds two nullable columns
 on `shows`; the in-app updater runs the migration, a manual checkout needs
 `php artisan migrate`.
