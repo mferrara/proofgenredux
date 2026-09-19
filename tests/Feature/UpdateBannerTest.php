@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\UpdateBanner;
+use App\Models\User;
 use App\Services\UpdateService;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
@@ -63,8 +64,22 @@ it('runs the updater from the bar and reports a failure without hiding it', func
 it('sits at the top of a real page, above the navigation', function () {
     Cache::put('update-notice.check', $this->available, now()->addMinutes(30));
 
-    $html = $this->actingAs(App\Models\User::factory()->create())->get('/')->assertOk()->getContent();
+    $html = $this->actingAs(User::factory()->create())->get('/')->assertOk()->getContent();
 
     expect($html)->toContain('Update now')
         ->and(strpos($html, 'Update now'))->toBeLessThan(strpos($html, 'wire:name="navigation-menu"'));
+});
+
+it('appears on a page that has been open since before the release, without a reload', function () {
+    $this->updates->shouldReceive('checkForUpdates')->andReturn(
+        ['current_version' => 'v2.6.0', 'latest_version' => 'v2.6.0', 'update_available' => false],
+        $this->available,
+    );
+
+    $page = Livewire::test(UpdateBanner::class)->call('check')->assertDontSee('is available');
+    expect($page->html())->toContain('wire:poll.600s="check"');
+
+    // A release is tagged while he works on the show page; the timer fires after the cached check has expired.
+    $this->travel(40)->minutes();
+    $page->call('check')->assertSee('v2.6.0')->assertSee('Update now');
 });

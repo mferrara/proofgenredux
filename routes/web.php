@@ -11,10 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/test', function () {
-    return 'Hello World';
-});
-
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),

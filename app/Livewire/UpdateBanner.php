@@ -11,7 +11,12 @@ use Livewire\Component;
 /** The thin "a new version is available" bar at the top of every page. */
 class UpdateBanner extends Component
 {
-    /** `wire:init`: the git fetch happens after the page is on screen, at most every 30 minutes. */
+    /**
+     * Runs once the page is on screen and then every ten minutes while it
+     * stays open; the git fetch behind it happens at most every 30 minutes.
+     * Each run re-renders, which is also what brings the bar back after
+     * "Remind me later".
+     */
     public function check(): void
     {
         try {

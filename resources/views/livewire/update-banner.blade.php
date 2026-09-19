@@ -1,4 +1,6 @@
-<div wire:init="check">
+{{-- He can sit on one page for hours at a show (Card Reader, Process), so the
+     bar also looks on a timer. The check itself still runs at most every 30 minutes. --}}
+<div wire:init="check" wire:poll.600s="check">
     @if($offer)
         <div class="w-full bg-sky-600 text-white dark:bg-sky-700">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
