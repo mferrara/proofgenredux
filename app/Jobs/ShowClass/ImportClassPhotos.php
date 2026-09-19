@@ -42,9 +42,9 @@ class ImportClassPhotos implements ShouldBeUnique, ShouldQueue
 
             return;
         }
-        $show_class = $show->classes()->where('id', $show->id.'_'.$this->class)->first();
+        $show_class = $show->ensureClass($this->class);
         if (! $show_class) {
-            Log::error(self::class.': ShowClass not found: '.$this->show_id.'_'.$this->class);
+            Log::error(self::class.': No class record and the folder name is not valid: '.$this->show_id.'_'.$this->class);
 
             return;
         }

@@ -56,6 +56,12 @@ class PhotoService
         }
         [$show, $class] = [$parts[0], $parts[1]];
 
+        // Importing renames and moves the source file. Without a class record the
+        // photo would be moved and numbered, then never proofed or listed anywhere.
+        if (! Show::find($show)?->ensureClass($class)) {
+            throw new Exception("Cannot import {$imagePath}: no class record for {$show}/{$class} and one cannot be created (unknown show, or a folder name the website rejects).");
+        }
+
         if ($bypassResolver) {
             if ($proofNumberOverride === null) {
                 throw new Exception('bypassResolver requires an explicit proofNumberOverride.');

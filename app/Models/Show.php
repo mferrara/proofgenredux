@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\DirectoryNameValidator;
 use App\Jobs\Photo\ImportPhoto;
 use App\Proofgen\Utility;
 use App\Services\Delivery\DeliveryTargetDisks;
@@ -146,6 +147,25 @@ class Show extends Model
             'id' => $this->id.'_'.$class_folder,
             'name' => $class_folder,
         ]);
+    }
+
+    /**
+     * The class record for a folder, created when the folder was made after the
+     * show page last looked (Finder, a card copied by hand). Null when there is
+     * no record and the website would reject the name: nothing may be imported
+     * into a class that can never be delivered.
+     */
+    public function ensureClass(string $class_folder): ?ShowClass
+    {
+        $class = $this->classes()->where('id', $this->id.'_'.$class_folder)->first();
+        if ($class || ! DirectoryNameValidator::isValid($class_folder)) {
+            return $class;
+        }
+
+        return ShowClass::firstOrCreate(
+            ['id' => $this->id.'_'.$class_folder],
+            ['show_id' => $this->id, 'name' => $class_folder],
+        );
     }
 
     public function checkAllUploads(): array
@@ -364,7 +384,15 @@ class Show extends Model
 
         $processed = 0;
         if ($images) {
+            $classes = [];
             foreach ($images as $image) {
+                // Importing moves the file, so the class record must exist first.
+                $classFolder = basename(dirname($image->path()));
+                $classes[$classFolder] ??= $this->ensureClass($classFolder) !== null;
+                if (! $classes[$classFolder]) {
+                    continue;
+                }
+
                 // No pre-allocated proof number — the resolver inside the job will decide
                 // whether the file is a genuinely new raw upload (allocate then) or already
                 // numbered / duplicate / collision (don't burn a number).
