@@ -25,6 +25,7 @@
     </head>
     <body class="font-sans antialiased">
         <x-banner />
+        <livewire:update-banner />
 
         <div class="min-h-screen">
             @livewire('navigation-menu')

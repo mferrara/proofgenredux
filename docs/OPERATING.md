@@ -130,7 +130,10 @@ not fix it and the developer has been told.
 
 ## Updating Proofgen
 
-Only when he or the developer asks: Settings → Services → Update in the app. If
+When a new version exists a blue bar appears at the top of every page with
+**Update now**, **Remind me later** (asks again in 4 hours) and **Skip this
+version**. Update only when he or the developer asks, and between classes, not
+during an import: press **Update now** on the bar, or Settings → Services → Update. If
 that fails, stop and report; do not improvise `git` commands. Upgrading a very old
 install is a different, supervised job: `docs/UPGRADE_FROM_V1.md`.
 
