@@ -113,10 +113,13 @@
                         <flux:radio value="split" label="Split into multiple classes" />
                     </flux:radio.group>
 
+                    {{-- A Flux listbox keeps the options it was first drawn with, so key
+                         it to the class list: a class added below shows up at once. --}}
+                    @php $classesKey = md5(implode('|', $classes)); @endphp
                     @if ($mode === 'single')
                         <flux:field>
                             <flux:label>Class</flux:label>
-                            <flux:select variant="listbox" searchable wire:model.live="classFolder" placeholder="Choose the class…">
+                            <flux:select wire:key="class-select-{{ $classesKey }}" variant="listbox" searchable wire:model.live="classFolder" placeholder="Choose the class…">
                                 @foreach ($classes as $class)
                                     <flux:select.option value="{{ $class }}">{{ $class }}</flux:select.option>
                                 @endforeach
@@ -141,7 +144,7 @@
                                 <div wire:key="group-{{ $g }}-{{ $indexes[0] }}" class="rounded-lg border border-zinc-200 dark:border-white/10 p-3">
                                     <div class="flex flex-wrap items-center gap-3 mb-2">
                                         <div class="w-56">
-                                            <flux:select variant="listbox" searchable size="sm" wire:model.live="groupClasses.{{ $g }}" placeholder="Class for this group…">
+                                            <flux:select wire:key="group-class-select-{{ $g }}-{{ $classesKey }}" variant="listbox" searchable size="sm" wire:model.live="groupClasses.{{ $g }}" placeholder="Class for this group…">
                                                 @foreach ($classes as $class)
                                                     <flux:select.option value="{{ $class }}">{{ $class }}</flux:select.option>
                                                 @endforeach

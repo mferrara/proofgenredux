@@ -175,6 +175,18 @@ it('only creates class folders the website will accept', function () {
         ->and(Storage::disk('fullsize')->exists('26AAC/Halter_'))->toBeFalse();
 });
 
+it('gives a class added while splitting to the first group without one', function () {
+    Storage::disk('fullsize')->makeDirectory('26AAC/005');
+
+    Livewire::test(CardReaderComponent::class, ['show_id' => '26AAC'])
+        ->set('mode', 'split')
+        ->set('groups', [[0], [1], [2]])
+        ->set('groupClasses', [0 => '005'])
+        ->set('newClassName', '013')->call('createClass')->assertHasNoErrors()
+        ->assertSet('groupClasses.0', '005')
+        ->assertSet('groupClasses.1', '013');
+});
+
 it('picks up the card in the remembered reader and explains a privacy denial', function () {
     Storage::disk('fullsize')->makeDirectory('26AAC/005');
     Cache::forever('cards.slot_key', 'slot-1');

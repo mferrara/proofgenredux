@@ -155,8 +155,20 @@ class CardReaderComponent extends Component
         $this->resetErrorBag('newClassName');
         $this->newClassName = '';
 
+        // The class just typed is the one wanted: select it, or when splitting,
+        // give it to the first group that has no class yet.
         if ($this->mode === 'single') {
             $this->classFolder = $name;
+
+            return;
+        }
+
+        foreach (array_keys($this->groups) as $g) {
+            if (($this->groupClasses[$g] ?? '') === '') {
+                $this->groupClasses[$g] = $name;
+
+                return;
+            }
         }
     }
 
