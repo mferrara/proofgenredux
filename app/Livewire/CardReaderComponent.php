@@ -248,8 +248,25 @@ class CardReaderComponent extends Component
             'classes' => $this->classFolders(),
             'archiveUsable' => app(CardDumper::class)->archiveUsable($this->show_id),
             'progress' => $progress,
+            'waiting' => $this->waitingFiles($progress),
             'dumping' => $this->dumping(),
         ]);
+    }
+
+    /**
+     * Files of the running dump that are not copied yet, in copy order. The
+     * first one is the file being copied now. Files are copied in the order
+     * the job listed them, so the count done is all that is needed.
+     *
+     * @return array<int, array{class: string, name: string}>
+     */
+    private function waitingFiles(?array $progress): array
+    {
+        if (! $progress || ($progress['state'] ?? null) !== 'copying') {
+            return [];
+        }
+
+        return array_slice(Cache::get(DumpCard::filesKey($this->dumpId), []), (int) $progress['done']);
     }
 
     private function allGroupsAssigned(): bool

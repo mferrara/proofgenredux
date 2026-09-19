@@ -54,9 +54,23 @@ class DumpCard implements ShouldQueue
         return 'card-dump:'.$dumpId;
     }
 
+    /** The files of a dump in the order they are copied, written once so the progress itself stays small. */
+    public static function filesKey(string $dumpId): string
+    {
+        return 'card-dump:'.$dumpId.':files';
+    }
+
     public function handle(CardDumper $dumper, CardVolumeFinder $finder): void
     {
         $total = array_sum(array_map('count', $this->assignments));
+
+        $files = [];
+        foreach ($this->assignments as $classFolder => $paths) {
+            foreach ($paths as $relative) {
+                $files[] = ['class' => (string) $classFolder, 'name' => basename($relative)];
+            }
+        }
+        Cache::put(self::filesKey($this->dumpId), $files, 86400);
         $progress = [
             'state' => 'copying', 'total' => $total, 'done' => 0, 'bytes' => 0, 'current' => null,
             'copied' => 0, 'already_imported' => 0, 'already_present' => 0, 'cleared' => 0,

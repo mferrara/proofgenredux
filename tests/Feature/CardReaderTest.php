@@ -187,6 +187,24 @@ it('gives a class added while splitting to the first group without one', functio
         ->assertSet('groupClasses.1', '013');
 });
 
+it('lists the photos still to copy and drops each one as it is done', function () {
+    Storage::disk('fullsize')->makeDirectory('26AAC/005');
+    $progress = ($this->dump)([]);
+    expect(Cache::get(DumpCard::filesKey('test-dump')))->toBe([
+        ['class' => '005', 'name' => '_Z5A0001.JPG'], ['class' => '005', 'name' => '_Z5A0002.JPG'], ['class' => '005', 'name' => '_Z5A0003.JPG'],
+    ]);
+
+    // Part-way through: two copied, one to go.
+    Cache::put(DumpCard::progressKey('test-dump'), ['state' => 'copying', 'done' => 2, 'started_at' => now()->timestamp - 4, 'finished_at' => null] + $progress, 600);
+
+    Livewire::test(CardReaderComponent::class, ['show_id' => '26AAC'])
+        ->set('dumpId', 'test-dump')
+        ->assertSee('1 to go')
+        ->assertSee('_Z5A0003.JPG')
+        ->assertDontSee('_Z5A0001.JPG')
+        ->assertDontSee('_Z5A0002.JPG');
+});
+
 it('picks up the card in the remembered reader and explains a privacy denial', function () {
     Storage::disk('fullsize')->makeDirectory('26AAC/005');
     Cache::forever('cards.slot_key', 'slot-1');

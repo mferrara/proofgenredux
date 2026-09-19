@@ -71,7 +71,35 @@
                         <div class="h-full {{ $state === 'failed' ? 'bg-rose-500' : 'bg-emerald-500' }}"
                              style="width: {{ $progress['total'] ? round($progress['done'] / $progress['total'] * 100) : 0 }}%"></div>
                     </div>
-                    @if ($progress['current'])
+                    @if ($state === 'copying' && $progress['done'] > 0 && count($waiting))
+                        @php
+                            $secondsLeft = (int) round((now()->timestamp - $progress['started_at']) / $progress['done'] * count($waiting));
+                        @endphp
+                        <flux:text class="!text-xs">
+                            {{ count($waiting) }} to go · about {{ $secondsLeft < 90 ? $secondsLeft.' seconds' : round($secondsLeft / 60).' minutes' }} left
+                        </flux:text>
+                    @endif
+                    @if (count($waiting))
+                        {{-- Shrinks from the top as each photo is copied and verified. --}}
+                        <div class="max-h-44 overflow-y-auto rounded border border-zinc-200 dark:border-white/10 divide-y divide-zinc-100 dark:divide-white/5">
+                            @foreach (array_slice($waiting, 0, 40) as $i => $file)
+                                <div wire:key="waiting-{{ $progress['done'] + $i }}" class="flex items-center justify-between gap-3 px-2.5 py-1 text-xs">
+                                    <span class="flex items-center gap-2 font-mono {{ $i === 0 ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 dark:text-zinc-400' }}">
+                                        @if ($i === 0)
+                                            <flux:icon.loading class="size-3 shrink-0" />
+                                        @else
+                                            <span class="size-3 shrink-0"></span>
+                                        @endif
+                                        {{ $file['name'] }}
+                                    </span>
+                                    <span class="text-zinc-500 dark:text-zinc-400">{{ $i === 0 ? 'copying to '.$file['class'] : $file['class'] }}</span>
+                                </div>
+                            @endforeach
+                            @if (count($waiting) > 40)
+                                <div class="px-2.5 py-1 text-xs text-zinc-500 dark:text-zinc-400">and {{ count($waiting) - 40 }} more</div>
+                            @endif
+                        </div>
+                    @elseif ($progress['current'])
                         <flux:text class="!text-xs font-mono">{{ $progress['current'] }}</flux:text>
                     @endif
                     @if ($state === 'done')
