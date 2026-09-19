@@ -1,7 +1,7 @@
 <?php
 
-it('returns a successful response', function () {
-    $response = $this->get('/test');
+it('serves the login page to a visitor who is not signed in', function () {
+    $response = $this->get('/login');
 
     $response->assertStatus(200);
 });
