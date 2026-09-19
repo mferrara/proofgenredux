@@ -349,8 +349,7 @@ class ConfigComponent extends Component
      */
     /**
      * Test the configured website connector by listing the remote proofs root
-     * directory. Same logic as the standalone /config/server page, embedded
-     * here so operators don't have to leave Settings to verify their config.
+     * directory, so operators can verify their config without leaving Settings.
      */
     public function testConnectorConnection(): void
     {

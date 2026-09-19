@@ -5,30 +5,29 @@
             <div class="flex">
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}">
+                    <a href="{{ route('home') }}">
                         <x-application-mark class="block h-10 w-auto text-indigo-300 hover:text-indigo-400" />
                     </a>
                 </div>
 
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    {{-- Everyday pages only. Storage profiles and the website connection live under Settings. --}}
+                    @php $openIssues = \App\Models\PhotoIssue::open()->count(); @endphp
                     <x-nav-link href="{{ route('home') }}" :active="request()->routeIs('home')">
                         {{ __('Home') }}
                     </x-nav-link>
-                    <x-nav-link href="{{ route('settings') }}" :active="request()->routeIs('settings')">
-                        {{ __('Settings') }}
-                    </x-nav-link>
-                    <x-nav-link href="{{ route('storage-profiles') }}" :active="request()->routeIs('storage-profiles')">
-                        {{ __('Storage Profiles') }}
-                    </x-nav-link>
-                    <x-nav-link href="{{ route('server-connection') }}" :active="request()->routeIs('server-connection')">
-                        {{ __('Legacy SFTP') }}
+                    <x-nav-link href="{{ route('photo-issues') }}" :active="request()->routeIs('photo-issues')">
+                        {{ __('Issues') }}
+                        @if($openIssues > 0)
+                            <span class="ms-1.5 inline-flex items-center justify-center rounded-full bg-rose-600 px-1.5 min-w-5 h-5 text-xs font-semibold text-white">{{ $openIssues }}</span>
+                        @endif
                     </x-nav-link>
                     <x-nav-link href="{{ route('graveyard') }}" :active="request()->routeIs('graveyard')">
                         {{ __('Graveyard') }}
                     </x-nav-link>
-                    <x-nav-link href="{{ route('photo-issues') }}" :active="request()->routeIs('photo-issues')">
-                        {{ __('Issues') }}
+                    <x-nav-link href="{{ route('settings') }}" :active="request()->routeIs('settings', 'storage-profiles')">
+                        {{ __('Settings') }}
                     </x-nav-link>
                 </div>
             </div>
@@ -159,8 +158,17 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
-                {{ __('Dashboard') }}
+            <x-responsive-nav-link href="{{ route('home') }}" :active="request()->routeIs('home')">
+                {{ __('Home') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link href="{{ route('photo-issues') }}" :active="request()->routeIs('photo-issues')">
+                {{ __('Issues') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link href="{{ route('graveyard') }}" :active="request()->routeIs('graveyard')">
+                {{ __('Graveyard') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link href="{{ route('settings') }}" :active="request()->routeIs('settings', 'storage-profiles')">
+                {{ __('Settings') }}
             </x-responsive-nav-link>
         </div>
 

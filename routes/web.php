@@ -5,7 +5,6 @@ use App\Livewire\ConfigComponent;
 use App\Livewire\GraveyardComponent;
 use App\Livewire\HomeComponent;
 use App\Livewire\PhotoIssuesComponent;
-use App\Livewire\ServerConnectionComponent;
 use App\Livewire\ShowViewComponent;
 use App\Livewire\StorageProfilesComponent;
 use Illuminate\Http\Request;
@@ -46,11 +45,6 @@ Route::middleware([
 
     Route::get('/settings', ConfigComponent::class)->name('settings');
     Route::get('/settings/storage-profiles', StorageProfilesComponent::class)->name('storage-profiles');
-    Route::get('/config/server', ServerConnectionComponent::class)->name('server-connection');
-
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
 
     // Route to serve temporary thumbnail previews
     Route::get('/temp/thumbnail-preview/{filename}', function ($filename) {

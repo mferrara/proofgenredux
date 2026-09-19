@@ -38,7 +38,7 @@ when the original is `.jpeg`. Default suffixes are `_thm`, `_std`, `_web`, and
 expectations before changing suffixes.
 
 Upload controls live on show/class pages; configuration is in Settings → Legacy
-SFTP and `/config/server`. Explicit combined class uploads send proofs, then web,
+SFTP, tested from Settings → Website Connector. Explicit combined class uploads send proofs, then web,
 then highres. Automatic generation can trigger delivery as each kind completes,
 and it uses the same chain as the explicit actions: `DeliverClassOutputs` runs
 `EnsureFerraraphotoShow` → `UploadDerivedFiles` → `PushPhotoMetadata` for the

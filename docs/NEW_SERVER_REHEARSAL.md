@@ -75,7 +75,7 @@ Confirm the SSH host key against the new server and keep host-key checking on.
    and writable for this rsync rehearsal. Legacy targets are shared by existing
    shows, so operate only on `REMOTEDEMO26` during this test.
 4. Verify SSH authentication, destination rsync, and access to all three roots.
-   `/config/server` only tests the proofs listing; it is not the API handshake.
+   Settings → Website Connector only tests the proofs listing; it is not the API handshake.
 5. Use `FerraraphotoApiClient::readShow('proofgen-rehearsal-26')` for the first
    authenticated read. Before creation, `null` from an authenticated 404 is normal;
    a 401, HTML page, transport error, or unexpected existing show needs resolution.

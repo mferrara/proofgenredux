@@ -82,6 +82,11 @@
                         {{ $item['label'] }}
                     </button>
                 @endforeach
+                {{-- A page of its own rather than a section here. --}}
+                <a href="{{ route('storage-profiles') }}"
+                   class="px-3 py-1.5 rounded-full font-medium transition-colors text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800">
+                    Storage Profiles →
+                </a>
             </div>
         </nav>
 
@@ -384,8 +389,7 @@
                 <div>
                     <flux:heading size="lg" level="2">Website Connector</flux:heading>
                     <flux:text class="!text-sm mt-1 max-w-2xl">
-                        Live health check for the ferraraphoto integration — uses the SFTP credentials configured above. See
-                        <flux:link href="{{ route('server-connection') }}">/config/server</flux:link> for the standalone version.
+                        Live health check for the ferraraphoto integration — uses the SFTP credentials configured above.
                     </flux:text>
                 </div>
                 <flux:badge color="{{ config('proofgen.sftp.driver', 'sftp') === 'local' ? 'amber' : 'sky' }}" size="sm" icon="signal">

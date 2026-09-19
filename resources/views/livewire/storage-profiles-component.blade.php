@@ -1,6 +1,7 @@
 <div class="px-6 lg:px-10 py-6 max-w-7xl mx-auto">
     <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
+            <a href="{{ route('settings') }}" class="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">← Settings</a>
             <flux:heading size="xl" level="1" class="!text-3xl !font-semibold tracking-tight">Storage Profiles</flux:heading>
             <flux:text class="mt-1 max-w-2xl">
                 Manage where new shows write derived files and which existing shows remain pinned to legacy storage.
