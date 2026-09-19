@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Photo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -122,6 +124,103 @@ class GraveyardService
             'deleted_count' => $deleted,
             'freed_bytes' => $freed,
         ];
+    }
+
+    private const REDUNDANT_CACHE_KEY = 'graveyard.redundant-import-copies';
+
+    /**
+     * Camera files buried after a successful import, on the working disk, whose
+     * photo is provably held elsewhere: the imported original is on disk at the
+     * same size under the same content hash, and with Backups on the archive
+     * copy was recorded too. These are a second full-size copy of every photo
+     * of a show, on the disk that fills up first.
+     *
+     * Cached because the status bar asks every few seconds.
+     *
+     * @return array{count:int, bytes:int}
+     */
+    public function redundantImportCopies(): array
+    {
+        return Cache::remember(self::REDUNDANT_CACHE_KEY, 300, function () {
+            $count = 0;
+            $bytes = 0;
+            foreach ($this->redundantEntries() as $entry) {
+                $count++;
+                $bytes += $entry['size'];
+            }
+
+            return ['count' => $count, 'bytes' => $bytes];
+        });
+    }
+
+    /**
+     * Delete the redundant copies. Each imported original is read back and
+     * hashed first; a copy whose original does not match stays in the graveyard.
+     * With purgeOlderThan(), the only place graveyard files are deleted.
+     *
+     * @return array{deleted_count:int, freed_bytes:int, kept_count:int}
+     */
+    public function removeRedundantImportCopies(): array
+    {
+        $storage = Storage::disk('fullsize');
+        $result = ['deleted_count' => 0, 'freed_bytes' => 0, 'kept_count' => 0];
+
+        foreach ($this->redundantEntries() as $entry) {
+            $stream = $storage->readStream($entry['photo']->relative_path);
+            $hash = hash_init('sha1');
+            hash_update_stream($hash, $stream);
+            fclose($stream);
+
+            if (hash_final($hash) !== $entry['sha1']) {
+                Log::warning('Graveyard copy kept: the imported original no longer matches it.', ['graveyard_path' => $entry['graveyard_path'], 'photo' => $entry['photo']->id]);
+                $result['kept_count']++;
+
+                continue;
+            }
+
+            $storage->delete($entry['graveyard_path']);
+            if ($entry['sidecar_path'] !== null) {
+                $storage->delete($entry['sidecar_path']);
+            }
+            $result['deleted_count']++;
+            $result['freed_bytes'] += $entry['size'];
+        }
+
+        Cache::forget(self::REDUNDANT_CACHE_KEY);
+        Log::info('Removed redundant graveyard copies.', $result);
+
+        return $result;
+    }
+
+    /**
+     * @return iterable<int, array{graveyard_path:string, sidecar_path:?string, sha1:string, size:int, photo:Photo}>
+     */
+    private function redundantEntries(): iterable
+    {
+        $storage = Storage::disk('fullsize');
+        $archiveRequired = (bool) config('proofgen.archive_enabled');
+
+        foreach ($this->dataFiles('fullsize') as $entry) {
+            if ($entry['reason'] !== SafeFileMover::REASON_POST_IMPORT_SOURCE || $entry['sha1'] === null) {
+                continue;
+            }
+
+            $photo = Photo::find($entry['context']['photo_id'] ?? null) ?? Photo::where('sha1', $entry['sha1'])->first();
+            if (! $photo || $photo->sha1 !== $entry['sha1']) {
+                continue;
+            }
+
+            if ($archiveRequired && $photo->archive_sha1 !== $entry['sha1']) {
+                continue;
+            }
+
+            $original = $photo->relative_path;
+            if (! $storage->exists($original) || $storage->size($original) !== $entry['size']) {
+                continue;
+            }
+
+            yield ['photo' => $photo] + $entry;
+        }
     }
 
     public function agedDays(): int

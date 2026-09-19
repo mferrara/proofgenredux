@@ -6,6 +6,7 @@ use App\Models\PhotoIssue;
 use App\Services\GraveyardService;
 use App\Services\HorizonService;
 use App\Services\WorkerActivityService;
+use App\Services\WorkingDiskSpace;
 use App\Services\WorkingFolderHealth;
 use Flux\Flux;
 use Illuminate\Support\Facades\Cache;
@@ -182,6 +183,41 @@ class AppStatusBar extends Component
         ];
     }
 
+    /**
+     * Already-imported camera files that can be removed safely, or null when
+     * there is nothing worth mentioning: below the configured size the strip
+     * stays away unless the disk is running low.
+     *
+     * @return array{count:int, bytes:int}|null
+     */
+    public function redundantCopies(): ?array
+    {
+        $redundant = app(GraveyardService::class)->redundantImportCopies();
+        if ($redundant['count'] === 0) {
+            return null;
+        }
+
+        $worthMentioning = $redundant['bytes'] >= config('proofgen.graveyard.redundant_alert_gb', 1) * 1024 ** 3
+            || app(WorkingDiskSpace::class)->level() !== null;
+
+        return $worthMentioning ? $redundant : null;
+    }
+
+    public function removeRedundantCopies(): void
+    {
+        // Every original is read back and hashed before its copy goes; a whole show takes a while.
+        set_time_limit(0);
+        $result = app(GraveyardService::class)->removeRedundantImportCopies();
+
+        Flux::toast(
+            text: $result['deleted_count'].' copies removed, '.WorkingDiskSpace::readable($result['freed_bytes']).' freed.'
+                .($result['kept_count'] ? ' '.$result['kept_count'].' were kept because their imported original did not match; see the Graveyard page.' : ''),
+            heading: 'Space freed',
+            variant: $result['kept_count'] ? 'warning' : 'success',
+            position: 'top right'
+        );
+    }
+
     public function openIssuesCount(): int
     {
         return PhotoIssue::open()->count();
@@ -198,6 +234,9 @@ class AppStatusBar extends Component
             'activity' => app(WorkerActivityService::class)->snapshot(),
             'autoRestartEnabled' => config('proofgen.auto_restart_horizon', false),
             'graveyardAlert' => $this->gravyardAlert(),
+            'redundantCopies' => $this->redundantCopies(),
+            'diskLevel' => app(WorkingDiskSpace::class)->level(),
+            'diskFree' => app(WorkingDiskSpace::class)->freeBytes(),
             'workingFolderProblem' => app(WorkingFolderHealth::class)->problem(),
             'openIssuesCount' => $this->openIssuesCount(),
         ]);

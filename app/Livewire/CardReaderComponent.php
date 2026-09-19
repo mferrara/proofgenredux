@@ -10,6 +10,7 @@ use App\Services\Cards\CardDumper;
 use App\Services\Cards\CardScanner;
 use App\Services\Cards\CardVolume;
 use App\Services\Cards\CardVolumeFinder;
+use App\Services\WorkingDiskSpace;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
@@ -205,6 +206,17 @@ class CardReaderComponent extends Component
 
                 return;
             }
+        }
+
+        // A card that does not fit would stop half-way and leave the disk full.
+        // Importing writes each photo once more, so allow for twice the card plus a margin.
+        $wanted = array_flip(array_merge(...array_values($assignments)));
+        $cardBytes = array_sum(array_column(array_filter($images, fn (array $image) => isset($wanted[$image['path']])), 'size'));
+        $free = app(WorkingDiskSpace::class)->freeBytes();
+        if ($free !== null && $free < $cardBytes * 2 + 2 * 1024 ** 3) {
+            $this->addError('classFolder', 'Not enough room on this Mac: '.WorkingDiskSpace::readable($free).' free, and these photos need about '.WorkingDiskSpace::readable($cardBytes * 2 + 2 * 1024 ** 3).'. Free some space first (the bar at the top of the page can help). Nothing was copied.');
+
+            return;
         }
 
         $this->resetErrorBag();

@@ -24,6 +24,43 @@
         </div>
     @endif
 
+    @if($diskLevel)
+        <div class="w-full border-b {{ $diskLevel === 'critical' ? 'bg-rose-600 text-white border-rose-700' : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-100' }}">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center gap-2 text-sm">
+                <flux:icon name="exclamation-triangle" class="size-4 shrink-0" />
+                <span>
+                    <strong>{{ \App\Services\WorkingDiskSpace::readable($diskFree) }} free</strong> on this Mac's disk.
+                    {{ $diskLevel === 'critical' ? 'Free some space before importing or copying another card: a full disk stops imports and can damage the catalog.' : 'Free some space soon; a show day can use 10 GB or more.' }}
+                </span>
+            </div>
+        </div>
+    @endif
+
+    @if($redundantCopies)
+        <div class="w-full bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-500/30">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
+                <div class="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                    <flux:icon name="document-duplicate" class="size-4 shrink-0" />
+                    <span wire:loading.remove wire:target="removeRedundantCopies">
+                        <strong>{{ \App\Services\WorkingDiskSpace::readable($redundantCopies['bytes']) }}</strong>
+                        of this disk is second copies of {{ number_format($redundantCopies['count']) }} photos that are already imported{{ config('proofgen.archive_enabled') ? ' and backed up' : '' }}.
+                    </span>
+                    <span wire:loading wire:target="removeRedundantCopies">Checking each imported photo, then removing its second copy. This can take a minute…</span>
+                </div>
+                <flux:button
+                    wire:click="removeRedundantCopies"
+                    wire:confirm="Remove the second copies? Each imported photo is checked first; the imported photos themselves{{ config('proofgen.archive_enabled') ? ' and the backup' : '' }} are not touched."
+                    wire:loading.attr="disabled"
+                    wire:target="removeRedundantCopies"
+                    size="xs"
+                    variant="primary"
+                >
+                    Free {{ \App\Services\WorkingDiskSpace::readable($redundantCopies['bytes']) }}
+                </flux:button>
+            </div>
+        </div>
+    @endif
+
     @if($graveyardAlert)
         <div class="w-full bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-500/30">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-x-4 text-sm">

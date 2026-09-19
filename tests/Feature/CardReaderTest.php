@@ -8,9 +8,11 @@ use App\Services\Cards\CardScanner;
 use App\Services\Cards\CardVolume;
 use App\Services\Cards\CardVolumeFinder;
 use App\Services\PhotoArchiveService;
+use App\Services\WorkingDiskSpace;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -203,6 +205,26 @@ it('lists the photos still to copy and drops each one as it is done', function (
         ->assertSee('_Z5A0003.JPG')
         ->assertDontSee('_Z5A0001.JPG')
         ->assertDontSee('_Z5A0002.JPG');
+});
+
+it('refuses to copy a card that will not fit on the disk', function () {
+    Storage::disk('fullsize')->makeDirectory('26AAC/005');
+    Queue::fake();
+    $space = Mockery::mock(WorkingDiskSpace::class)->makePartial();
+    $space->shouldReceive('freeBytes')->andReturn(1024 ** 3, 500 * 1024 ** 3);
+    app()->instance(WorkingDiskSpace::class, $space);
+
+    Livewire::test(CardReaderComponent::class, ['show_id' => '26AAC'])
+        ->call('watchReader')
+        ->set('classFolder', '005')
+        ->call('startDump')
+        ->assertHasErrors('classFolder')
+        ->assertSee('Not enough room')
+        ->assertSet('dumpId', null)
+        ->call('startDump')
+        ->assertHasNoErrors();
+
+    Queue::assertPushed(DumpCard::class, 1);
 });
 
 it('picks up the card in the remembered reader and explains a privacy denial', function () {

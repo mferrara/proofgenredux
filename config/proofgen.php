@@ -55,6 +55,15 @@ return [
     'graveyard' => [
         'path' => getenv('GRAVEYARD_PATH') ?: '_graveyard',
         'aged_days' => (int) (getenv('GRAVEYARD_AGED_DAYS') ?: 90),
+        // Already-imported camera files are offered for removal from the top
+        // bar once they add up to this much (or whenever the disk is low).
+        'redundant_alert_gb' => (float) (getenv('GRAVEYARD_REDUNDANT_ALERT_GB') ?: 1),
+    ],
+
+    // Free space on the working folder's volume: warn, then warn loudly.
+    'low_disk' => [
+        'warn_gb' => (float) (getenv('LOW_DISK_WARN_GB') ?: 10),
+        'critical_gb' => (float) (getenv('LOW_DISK_CRITICAL_GB') ?: 3),
     ],
 
     // Sample images configuration
