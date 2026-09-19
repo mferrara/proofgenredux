@@ -108,6 +108,14 @@ class StatusCommand extends Command
             ], $payload['classes']),
         );
 
+        // Photos need generating but the header shows nothing queued or
+        // running: the pipeline stalled. Point at the sweep that restarts it.
+        $generating = array_filter($payload['classes'], fn (array $r) => str_starts_with((string) $r['next_step'], 'generating'));
+        if ($generating !== [] && $health['jobs_waiting'] === 0 && $health['jobs_running'] === 0) {
+            $this->newLine();
+            $this->line('Nothing is queued or running while photos still need generating. Run: php artisan proofgen:process '.$show->id);
+        }
+
         return self::SUCCESS;
     }
 }

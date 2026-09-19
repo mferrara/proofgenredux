@@ -28,7 +28,7 @@ class GenerateWebImage implements ShouldBeUnique, ShouldQueue
 
     /**
      * Seconds to wait before each retry; the final value repeats for any extra
-     * attempt. This job runs on the thumbnails queue, whose redis connection
+     * attempt. This job runs on the generate-web queue, whose redis connection
      * retry_after (90s) is the ceiling for any job timeout, so no job-level
      * timeout is set here.
      *

@@ -145,6 +145,45 @@ Both transports skip already-stamped kinds; cloud retries preserve existing
 upload stamps and avoid re-copying those files. Metadata is still retried even
 when the preceding attempt completed its file transfers.
 
+### Process (the sweep)
+
+The show page's **Process** button and `php artisan proofgen:process {show}
+{--class=} {--json}` run one idempotent pass over a show via
+`App\Services\ShowSweep` (2026-09-19 operator request; the quadrant buttons
+gate on any queued work for the show, which at a live show is most of the day).
+In stage order, per `ShowWorkSummary::classes()`:
+
+- **Import.** `ImportClassPhotos::dispatch($show->id, $class)->onQueue('imports')`
+  for every valid-named class folder with photos waiting — exactly what the
+  Import button queues. Folders whose name the website would reject go to the
+  report's `skipped_folders` instead. With Backups enabled but the archive root
+  not a directory (same check as `proofgen:status`) the whole stage is skipped
+  with a note; Backups are never toggled.
+- **Generate.** `ShowClass::proofPendingPhotos()` / `webImagePendingPhotos()` /
+  `highresImagePendingPhotos()` — they already honour the web/highres switches
+  and skip photos whose original is off disk, and the jobs are `ShouldBeUnique`
+  per photo, so nothing already queued or running is doubled.
+  `missing_originals` counts pending proofs that could not be queued.
+- **Deliver.** `DeliverClassOutputs::dispatchByPriority($class->id, false, $kinds)`
+  for each class with generated-not-uploaded photos — the same per-kind
+  deliveries as the Upload button (not gated by the automatic-uploads switch) —
+  except for a class that already has a delivery waiting, running or delayed
+  (`QueuedWorkStatus::busyDeliveries()`, which also counts the intentional
+  slow-link highres postpone). The stage is skipped with a note while a changed
+  delivery destination is pending acceptance, when the show does not exist on
+  the website (`WebsiteShows::exists()`, cache-only — never an HTTP call in a
+  sweep), or when the queue itself cannot be read.
+
+The button refuses only when the queue cannot be read at all
+(`QueuedWorkStatus::snapshot()['available'] === false`); it does **not** use the
+show-wide `workIsBusy()` gate, and queued work proceeds even when the workers
+are stopped (the summary says to press Start). What a sweep **cannot repair**:
+a `PushPhotoMetadata` run that exhausted its retries after the files were
+stamped uploaded — the photos look delivered locally while the website's
+metadata is stale; `queue:retry` or the show page's upload check is the fix.
+Run the sweep again any time; it reports instead of throwing and never doubles
+work. See docs/OPERATING.md for the operator-facing procedure.
+
 ---
 
 ## 3. Entry points
@@ -157,6 +196,7 @@ A photo enters the pipeline through one of these:
 | **Manual import button** | UI click | `ClassViewComponent::importPendingImages` | Same path as polled |
 | **Show-level import** | UI click | `app/Models/Show.php::importPendingImages` | Walks all classes |
 | **CLI / dev manual** | Direct call | `app/Proofgen/ShowClass.php::processImage($path)` | Routes through `PhotoService::processPhoto` |
+| **Show-level Process (sweep)** | UI click / CLI | `app/Livewire/ShowViewComponent.php::processAllPending`, `app/Console/Commands/ProcessPendingCommand.php` → `App\Services\ShowSweep` | Queues everything pending: imports, generation, then deliveries (see §2 "Process (the sweep)") |
 | **Resolution: Re-import quarantined** | UI click in Issues panel | `app/Livewire/PhotoIssuesComponent.php::reimportQuarantinedSource` | Uses `bypassResolver: true` |
 | **Resolution: Replace existing** | UI click + confirm | `PhotoIssuesComponent::replaceExistingWithIncoming` | Buries existing first, then bypass-imports |
 | **Audit/repair** | `php artisan proofgen:audit --repair` | `app/Console/Commands/AuditPhotoArchivesCommand.php` | Doesn't move files unless repairing |
@@ -444,7 +484,11 @@ Tests: `tests/Feature/PhotoMoveServiceTest.php`, `ArchiveBackupTest::test_class_
 
 `_graveyard/` is the **only place** in the app where source-of-truth files exit normal lifecycle. Nothing else deletes them.
 
-`SafeFileMover` is the only writer. The only deleter is `GraveyardService::purgeOlderThan()` (`app/Services/GraveyardService.php`), which is called only from the operator-facing UI:
+`SafeFileMover` is the only writer. There are two deleters, both in `GraveyardService` (`app/Services/GraveyardService.php`) and both only reachable from the operator-facing UI:
+
+**`removeRedundantImportCopies()`** — the "second copies" strip in the top bar (`AppStatusBar`). After every import the camera file is buried (`post_import_source`), so without this each photo of a show sits on the working disk twice. An entry counts as redundant only when its sidecar hash matches a photo row, that photo's original is on disk at the same size, and (Backups on) the photo has a recorded archive hash. On removal each original is read back and hashed; a mismatch keeps the graveyard copy. Entries buried for any other reason (`photo_deleted`, `displaced_original`, conflicts) are never touched. The strip shows only while such copies exist, and only once they reach `proofgen.graveyard.redundant_alert_gb` (default 1) or the disk is low (`WorkingDiskSpace`, `proofgen.low_disk.*`).
+
+**`purgeOlderThan()`**, called from:
 - `/graveyard` page (`app/Livewire/GraveyardComponent.php`) shows per-disk summary + paginated entries + a "Purge older than 90 days" button.
 - `app/Livewire/AppStatusBar.php::gravyardAlert()` surfaces an amber banner when aged files exist; "Snooze 24h" caches a snooze key.
 
@@ -520,7 +564,7 @@ Pre-existing. EXIF + size info, FK on `photo_id`.
 
 > If you change anything in the import pipeline, check these still hold.
 
-1. **Never delete source-of-truth files.** Originals, archive copies, ingest sources never go through `unlink()` or `Storage::delete()`. They go through `SafeFileMover::bury()` or `quarantineImport()`. The one exception is `GraveyardService::purgeOlderThan()`, which deletes from the graveyard itself. Derived files (proofs / web / highres) are exempt — they regenerate.
+1. **Never delete source-of-truth files.** Originals, archive copies, ingest sources never go through `unlink()` or `Storage::delete()`. They go through `SafeFileMover::bury()` or `quarantineImport()`. The exceptions are `GraveyardService::purgeOlderThan()` and `removeRedundantImportCopies()`, which delete from the graveyard itself (the second only after re-hashing the imported original). Derived files (proofs / web / highres) are exempt — they regenerate.
 2. **Write order in `Image::processImage` is locked.** hash → archive (verified) → original (verified) → DB row → bury source. Source removal is always last.
 3. **Don't allocate proof numbers before the resolver.** Dispatchers must dispatch `ImportPhoto::dispatch($path)` with no proof number. The resolver inside the job decides whether to allocate.
 4. **`bypassResolver` requires an explicit proof number.** It exists for operator-driven resolution actions where the resolver would re-flag the same conflict that produced the issue. Never use it for normal imports.
@@ -568,6 +612,7 @@ Alphabetical reference. File paths are absolute from repo root.
 | `App\Services\PhotoService` | `app/Services/PhotoService.php` | The orchestrator — every import call lands here. `bypassResolver: true` skips classification for operator-driven re-imports |
 | `App\Services\ClassRenameService` | `app/Services/ClassRenameService.php` | Rename whole class folder; bulk directory moves |
 | `App\Services\SafeFileMover` | `app/Services/SafeFileMover.php` | The single legitimate "delete" path. `bury()` + `quarantineImport()` + `buryAbsolute()` |
+| `App\Services\ShowSweep` | `app/Services/ShowSweep.php` | One idempotent Process pass over a show (imports → generation → deliveries) plus the plain-English report; behind the Process button and `proofgen:process` |
 | `App\Services\FinderRevealService` | `app/Services/FinderRevealService.php` | macOS-only — shells out to `open -R` for "Reveal in Finder" buttons. Validates path is under a known disk root |
 | `App\Services\StorageUsageService` | `app/Services/StorageUsageService.php` | Walks image trees to report bytes + file counts at class/show scope plus `_graveyard/sample_images/backups`. Show/class snapshots retained; stale after 10 min, manually refreshed |
 | `App\Services\Transport\RsyncCommandBuilder` | `app/Services/Transport/RsyncCommandBuilder.php` | Builds rsync argv/shell string (local or SFTP driver); SSH key/port quoting for rsync's `-e` parser; `-ii --out-format=%i %n` so transferred **and unchanged** files are reported; SSH `ConnectTimeout=15` + `BatchMode=yes` (host-key verification untouched) |
@@ -675,7 +720,7 @@ Current constraints and dated resolutions from the resolver/audit/upload work ar
   upload actions use the shared delivery job, including proof-only uploads.
   `UploadDerivedFiles` stays the profile-aware transfer step.
 
-*Last updated: 2026-09-15. If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
+*Last updated: 2026-09-19 (Process sweep, generation retries). If this doc drifts from the code, the code wins — but please update this doc when you change the pipeline so the next agent doesn't have to reverse-engineer it again.*
 
 ## Generation priority (v2.5.1)
 

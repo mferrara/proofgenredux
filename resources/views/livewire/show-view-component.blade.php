@@ -45,6 +45,9 @@
                 </a>
             @endif
             <livewire:card-reader-component :show_id="$show_id" :key="'card-reader-'.$show_id" />
+            <flux:button size="sm" variant="primary" icon="bolt" wire:click="processAllPending"
+                         wire:loading.attr="disabled" wire:target="processAllPending"
+                         tooltip="Import, generate and upload everything that is waiting">Process</flux:button>
             <flux:button
                 size="sm"
                 variant="ghost"

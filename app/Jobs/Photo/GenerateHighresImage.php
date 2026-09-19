@@ -21,6 +21,26 @@ class GenerateHighresImage implements ShouldBeUnique, ShouldQueue
     public string $highres_destination_path;
 
     /**
+     * A highres render failure is usually transient at a show (the Core Image
+     * daemon busy, a mounted drive that blinks), so retry a couple of times
+     * instead of dropping the photo on the floor after one bad attempt.
+     */
+    public int $tries = 3;
+
+    /**
+     * Seconds to wait before each retry; the final value repeats for any extra
+     * attempt. This job runs on the generate-highres queue, whose redis
+     * connection retry_after (90s) is the ceiling for any job timeout, so no
+     * job-level timeout is set here.
+     *
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return [60, 300];
+    }
+
+    /**
      * Create a new job instance.
      */
     public function __construct(string $photo_id, string $highres_destination_path)

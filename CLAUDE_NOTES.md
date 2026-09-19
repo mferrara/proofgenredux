@@ -159,6 +159,17 @@ order, and three workers make only proofs ([photo pipeline, "Generation
 priority"](docs/photo-pipeline.md)). Found by the operator watching a 125-photo
 import: uploads were proofs-first but generation was neck and neck.
 
+**After v2.5.3: one Process button (flower brief 3868).** `App\Services\ShowSweep`
+is one idempotent pass over a show — imports, generation, deliveries — reported in
+plain sentences; the show page has a **Process** button that works while other work
+is queued (it refuses only when the queue cannot be read), and `proofgen:process
+{show} {--class=} {--json}` is its command-line twin and the first thing
+docs/OPERATING.md runs for "handle all the pending classes". Proof and highres
+generation jobs now carry `tries = 3` with `[60, 300]` backoff (proofgen-feedback
+#11; job-level `$tries` beats the supervisors' `tries = 1` in Laravel's worker),
+and `proofgen:status` suggests `proofgen:process` when the header shows nothing
+queued or running while generation is pending (#12).
+
 ## Stack and local paths
 
 Laravel 13 · Livewire 4 · Flux 2 · Tailwind 4 · Intervention Image 4 · Pest 4.

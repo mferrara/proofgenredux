@@ -3,6 +3,7 @@
 use App\Jobs\Ferraraphoto\EnsureFerraraphotoShow;
 use App\Jobs\Photo\GenerateThumbnails;
 use App\Jobs\Photo\ImportPhoto;
+use App\Jobs\ShowClass\DeliverClassOutputs;
 use App\Jobs\ShowClass\ImportClassPhotos;
 use App\Jobs\ShowClass\UploadDerivedFiles;
 use App\Livewire\ClassViewComponent;
@@ -10,8 +11,10 @@ use App\Livewire\ShowViewComponent;
 use App\Models\Photo;
 use App\Models\Show;
 use App\Models\ShowClass;
+use App\Services\HorizonService;
 use App\Services\QueuedWorkStatus;
 use App\Services\StorageUsageService;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -46,6 +49,15 @@ function fakeQueuedWork(array $payloads): QueuedWorkStatus
     return $service;
 }
 
+/** A real queue payload also names the job class; busyDeliveries reads it. */
+function queuedWorkPayloadWithClass(object $job, string $uuid = ''): string
+{
+    return json_encode([
+        'uuid' => $uuid ?: uniqid(),
+        'data' => ['commandName' => $job::class, 'command' => serialize($job)],
+    ]);
+}
+
 it('tracks pending imports, active derivatives and delayed retries by exact class identity', function () {
     $status = fakeQueuedWork([
         ['waiting', queuedWorkPayload(new ImportPhoto('DAD_SHOW/001_A/camera.jpg'))],
@@ -68,6 +80,25 @@ it('keeps chained uploads busy before their class job reaches the upload queue',
     $status = fakeQueuedWork([['waiting', $payload], ['active', $payload]]);
     expect($status->snapshot('DAD_SHOW', '001_A'))->toMatchArray(['busy' => true, 'waiting' => 1, 'active' => 0]);
     expect($status->snapshot('DAD_SHOW', '002')['busy'])->toBeFalse();
+});
+
+it('finds queued deliveries for the right class and ignores other work for it', function () {
+    $status = fakeQueuedWork([
+        ['waiting', queuedWorkPayloadWithClass(new DeliverClassOutputs('DAD_SHOW_002'))],
+        ['delayed', queuedWorkPayloadWithClass(new DeliverClassOutputs('DAD_SHOW_001_A', kinds: ['proofs']))],
+        // Generation for the same class is not a delivery.
+        ['waiting', queuedWorkPayloadWithClass(new GenerateThumbnails($this->photo->id, 'proofs/DAD_SHOW/001_A'))],
+    ]);
+
+    expect($status->busyDeliveries('DAD_SHOW'))->toBe(['002' => true, '001_A' => true]);
+});
+
+it('does not count generation work as a busy delivery', function () {
+    $status = fakeQueuedWork([
+        ['active', queuedWorkPayloadWithClass(new GenerateThumbnails($this->photo->id, 'proofs/DAD_SHOW/001_A'))],
+    ]);
+
+    expect($status->busyDeliveries('DAD_SHOW'))->toBe([]);
 });
 
 it('reports queue failures as unavailable instead of idle', function () {
@@ -121,6 +152,52 @@ it('re-enables class actions on the next poll when the queue drains', function (
     app()->instance(QueuedWorkStatus::class, $service);
     Livewire::test(ClassViewComponent::class, ['show' => 'DAD_SHOW', 'class' => '001_A'])
         ->assertSee('Work in progress:')->call('$refresh')->assertDontSee('Work in progress:');
+});
+
+it('offers a Process button that runs even while the show is busy', function () {
+    Bus::fake();
+    fakeQueuedWork([['active', queuedWorkPayload(new ImportClassPhotos('DAD_SHOW', '001_A'))]]);
+    Storage::disk('fullsize')->put('DAD_SHOW/001_A/camera.jpg', 'x');
+    $horizon = Mockery::mock(HorizonService::class);
+    $horizon->shouldReceive('isRunning')->andReturn(true);
+    app()->instance(HorizonService::class, $horizon);
+
+    Livewire::test(ShowViewComponent::class, ['show_id' => 'DAD_SHOW'])
+        ->assertSee('Process')
+        ->assertSeeHtml('wire:click="processAllPending"')
+        ->call('processAllPending')
+        ->assertSet('flash_message', 'Work queued.');
+
+    Bus::assertDispatched(ImportClassPhotos::class, fn ($job) => $job->class === '001_A' && $job->queue === 'imports');
+});
+
+it('refuses to process when the queue cannot be read', function () {
+    Bus::fake();
+    $service = Mockery::mock(QueuedWorkStatus::class)->makePartial()->shouldAllowMockingProtectedMethods();
+    $service->shouldReceive('queuedPayloads')->andThrow(new RuntimeException('Redis unavailable'));
+    app()->instance(QueuedWorkStatus::class, $service);
+    Storage::disk('fullsize')->put('DAD_SHOW/001_A/camera.jpg', 'x');
+
+    Livewire::test(ShowViewComponent::class, ['show_id' => 'DAD_SHOW'])
+        ->call('processAllPending')
+        ->assertSet('flash_message', 'Queue status is unavailable. Check services before queuing more work.');
+
+    Bus::assertNothingDispatched();
+});
+
+it('queues work anyway and says so when the background workers are stopped', function () {
+    Bus::fake();
+    fakeQueuedWork([]);
+    $horizon = Mockery::mock(HorizonService::class);
+    $horizon->shouldReceive('isRunning')->andReturn(false);
+    app()->instance(HorizonService::class, $horizon);
+    Storage::disk('fullsize')->put('DAD_SHOW/001_A/camera.jpg', 'x');
+
+    Livewire::test(ShowViewComponent::class, ['show_id' => 'DAD_SHOW'])
+        ->call('processAllPending')
+        ->assertSet('flash_message', 'Work queued; see the message.');
+
+    Bus::assertDispatched(ImportClassPhotos::class);
 });
 
 it('displays retained stale storage on a new page and refreshes it only on request', function (string $componentClass, array $params, string $scope) {

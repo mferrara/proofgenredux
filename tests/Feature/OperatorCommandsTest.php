@@ -6,6 +6,8 @@ use App\Models\Photo;
 use App\Models\Show;
 use App\Models\ShowClass;
 use App\Services\ShowWorkSummary;
+use App\Services\WorkerActivityService;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 
@@ -74,4 +76,54 @@ it('refuses to guess which classes are meant', function () {
     $this->artisan('proofgen:import', ['show' => '26AAC'])->assertFailed();
     $this->artisan('proofgen:upload', ['show' => '26AAC'])->assertFailed();
     $this->artisan('proofgen:status', ['show' => 'NOPE'])->assertFailed();
+    $this->artisan('proofgen:process', ['show' => 'NOPE'])->assertFailed();
+});
+
+it('sweeps everything pending with one process command', function () {
+    Bus::fake();
+
+    $this->artisan('proofgen:process', ['show' => '26AAC'])
+        ->expectsOutputToContain('010: 2 photos queued for import')
+        ->expectsOutputToContain('005: queued proofs for upload')
+        ->expectsOutputToContain("Skipped 'Halter_':")
+        ->assertSuccessful();
+
+    Bus::assertDispatched(ImportClassPhotos::class, fn ($job) => $job->class === '010' && $job->queue === 'imports');
+    Bus::assertDispatched(DeliverClassOutputs::class, fn ($job) => $job->classId === '26AAC_005' && $job->kinds === ['proofs']);
+    Bus::assertNotDispatched(ImportClassPhotos::class, fn ($job) => $job->class === 'Halter_');
+});
+
+it('prints a valid json report with --json', function () {
+    Bus::fake();
+
+    Artisan::call('proofgen:process', ['show' => '26AAC', '--json' => true]);
+    $report = json_decode(Artisan::output(), true);
+
+    expect(json_last_error())->toBe(JSON_ERROR_NONE)
+        ->and($report['imports_queued'])->toBe(['010' => 2])
+        ->and($report['deliveries_queued'])->toBe(['005' => ['proofs']])
+        ->and($report['skipped_folders'])->toHaveKey('Halter_')
+        ->and($report['generation_queued'])->toBe(['proofs' => 0, 'web' => 0, 'highres' => 0])
+        ->and($report)->toHaveKeys(['open_issues', 'missing_originals', 'failed_jobs', 'notes']);
+});
+
+it('points at proofgen:process when nothing is queued but photos still need generating', function () {
+    $activity = Mockery::mock(WorkerActivityService::class);
+    $activity->shouldReceive('snapshot')->andReturn(['available' => true, 'waiting' => 0, 'active' => 0, 'delayed' => 0]);
+    app()->instance(WorkerActivityService::class, $activity);
+
+    // 005's photos are proofed but web/highres are missing: "generating".
+    $this->artisan('proofgen:status', ['show' => '26AAC'])
+        ->expectsOutputToContain('Run: php artisan proofgen:process 26AAC')
+        ->assertSuccessful();
+});
+
+it('does not suggest proofgen:process while the queue is moving', function () {
+    $activity = Mockery::mock(WorkerActivityService::class);
+    $activity->shouldReceive('snapshot')->andReturn(['available' => true, 'waiting' => 3, 'active' => 1, 'delayed' => 0]);
+    app()->instance(WorkerActivityService::class, $activity);
+
+    $this->artisan('proofgen:status', ['show' => '26AAC'])
+        ->doesntExpectOutputToContain('Run: php artisan proofgen:process 26AAC')
+        ->assertSuccessful();
 });

@@ -46,10 +46,15 @@ camera card ──Card Reader──▶ class folder  ──Import──▶ photo
   web image, a high-res image. Done by the background workers.
 - **Upload**: proofs first for every class, then web, then high-res one at a time.
   With "Uploads: On" in the header it happens by itself as each kind finishes.
+- **Process** (the button on the show page, next to the Card Reader): one press
+  queues everything that is waiting for the show — imports, then generation,
+  then uploads — and tells you in one sentence what it did and what it skipped.
+  It works even while other work is already queued, so it is also the way to
+  restart anything that stopped moving. The background workers do the rest.
 - The **background workers** do all of this. If they are stopped, nothing moves.
   They are started and stopped from the header of any Proofgen page.
 
-## The three commands
+## The commands
 
 Run them from the Proofgen folder. `herd php` makes sure the right PHP is used.
 
@@ -57,15 +62,20 @@ Run them from the Proofgen folder. `herd php` makes sure the right PHP is used.
 herd php artisan proofgen:status                 # is everything running? which shows exist?
 herd php artisan proofgen:status 26AAC           # every class: what is waiting, and the next step
 herd php artisan proofgen:status 26AAC --website # also confirm the show exists on the website
+herd php artisan proofgen:process 26AAC          # queue everything pending, in one go (same as the Process button)
+herd php artisan proofgen:process 26AAC --json   # the same, machine-readable
 herd php artisan proofgen:import 26AAC --all     # queue every class that has photos waiting
 herd php artisan proofgen:import 26AAC 005       # one class
 herd php artisan proofgen:upload 26AAC --all     # queue every class with something to upload
 herd php artisan proofgen:upload 26AAC --all --proofs-only
 ```
 
-`status` is read-only and safe at any time; add `--json` to parse it. `import` and
-`upload` do exactly what the Import and Upload buttons do, are safe to repeat, and
-skip (with an explanation) any class whose folder name the website would reject.
+`status` is read-only and safe at any time; add `--json` to parse it. `process`
+(and the Process button) are safe to repeat and skip, with an explanation, what
+they cannot do: folders whose name the website would reject, imports without
+the archive drive, and uploads to a show that is not on the website yet.
+`import` and `upload` do exactly what those two buttons do when you want to
+touch only one stage or one class.
 
 ## "Handle all the pending classes"
 
@@ -75,19 +85,22 @@ skip (with an explanation) any class whose folder name the website would reject.
    - "ON BUT DRIVE MISSING" → the archive drive is unplugged; imports will fail.
      Ask him to plug it in. Do not turn Backups off for him.
    - A working-folder warning about iCloud → tell him; do not move folders.
-2. For each class, do what **Next step** says:
-   - `import` → `proofgen:import <show> --all`
-   - `generating` → nothing to do; check again in a minute. Thousands of photos
-     take a while. If the numbers do not move for several minutes while workers
-     run, see "Stuck" below.
-   - `upload …` → `proofgen:upload <show> --all`
+2. Then run `herd php artisan proofgen:process <show>`. One pass queues every
+   class that has photos waiting, generation for every imported photo, and
+   uploads for everything generated but not on the website — what the Import,
+   generate and Upload buttons would have done, without waiting for any of it
+   to finish. It prints one sentence about what it queued and what it skipped
+   (the background workers stopped, a folder to rename, uploads without a
+   destination, photos that need review). The Process button on the show page
+   does the same thing.
+3. Handle what only he can do, from the status table:
    - `rename the folder` → tell him the problem and the suggested name from the
      status output. He renames it on the show page (the red class row). Never
      rename folders on disk yourself: a class that already has photos must be
      renamed through the app so the records move with it.
    - `review issues` → the Issues page in the app. Issues are usually a photo that
      is already in another class (same content). Describe them; let him choose.
-3. Run `status` again and tell him, briefly: what is online, what is still going.
+4. Run `status` again and tell him, briefly: what is online, what is still going.
 
 ## Dumping cards
 
@@ -110,11 +123,13 @@ they show up as "to import".
 | What he sees | Check | Usually |
 | --- | --- | --- |
 | Nothing is happening | `status`: workers stopped? | He starts them from the page header |
-| Photos imported but no proofs | `status`: "to generate" not moving | Workers stopped, or the queue is long; wait, then restart workers from the header |
-| Proofs made but not on the website | `status`: "to upload" > 0; is "Uploads" Off in the header? | `proofgen:upload <show> --all`; bad wifi makes it slow, not broken |
+| Nothing is queued or running, but photos still need generating | `status` says so under the table | Run: `proofgen:process <show>` (or press Process on the show page) |
+| Photos imported but no proofs | `status`: "to generate" not moving | Workers stopped, or the queue is long; wait, then restart workers from the header. `proofgen:process <show>` queues whatever generation is still missing |
+| Proofs made but not on the website | `status`: "to upload" > 0; is "Uploads" Off in the header? | `proofgen:process <show>` or `proofgen:upload <show> --all`; bad wifi makes it slow, not broken |
 | Upload fails for one class | the log (below) names the request and field | Folder name the website rejects → rename in the app. "Create it on the website first" → the show does not exist on the website yet |
 | "Destination changed" on the show page | the panel shows old and new | Do **not** accept it for him; ask the developer unless he knows the website moved |
 | Import fails | `status`: archive drive missing? | Plug the drive in, import again. Already-imported photos are skipped, numbers are not wasted |
+| A strip says the disk is low, or "second copies" are using space | the top bar | Pressing **Free … GB** is safe: it removes only camera files whose imported photo (and backup) was checked first. Do not delete anything by hand |
 | Every page errors | `herd php artisan proofgen:status` still works? | Read the last log lines; file a report |
 | A card will not read | Settings → Card access | Herd needs Full Disk Access |
 

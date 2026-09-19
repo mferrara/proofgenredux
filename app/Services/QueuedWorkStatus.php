@@ -2,6 +2,11 @@
 
 namespace App\Services;
 
+use App\Jobs\ShowClass\DeliverClassOutputs;
+use App\Jobs\ShowClass\UploadDerivedFiles;
+use App\Jobs\ShowClass\UploadHighresImages;
+use App\Jobs\ShowClass\UploadProofs;
+use App\Jobs\ShowClass\UploadWebImages;
 use App\Models\Photo;
 use App\Models\ShowClass;
 use Illuminate\Queue\RedisQueue;
@@ -12,7 +17,16 @@ use Throwable;
 /** Reads actual queue contents so paused workers and delayed retries stay busy. */
 class QueuedWorkStatus
 {
-    public const ACTION_TARGETS = 'importPendingImages,processPendingClassImages,processImage,proofPendingPhotos,webImagePendingPhotos,highresImagePendingPhotos,proofPhoto,generateWebImage,generateHighresImage,regenerateProofs,regenerateWebImages,regenerateHighresImages,resetPhotos,uploadPendingProofs,uploadPendingProofsAndWebImages,checkProofAndWebImageUploads';
+    public const ACTION_TARGETS = 'importPendingImages,processPendingClassImages,processAllPending,processImage,proofPendingPhotos,webImagePendingPhotos,highresImagePendingPhotos,proofPhoto,generateWebImage,generateHighresImage,regenerateProofs,regenerateWebImages,regenerateHighresImages,resetPhotos,uploadPendingProofs,uploadPendingProofsAndWebImages,checkProofAndWebImageUploads';
+
+    /** Delivery jobs whose presence on a queue means that class is already uploading. */
+    private const DELIVERY_JOB_CLASSES = [
+        DeliverClassOutputs::class,
+        UploadDerivedFiles::class,
+        UploadProofs::class,
+        UploadWebImages::class,
+        UploadHighresImages::class,
+    ];
 
     public function snapshot(string $showId, ?string $className = null): array
     {
@@ -46,6 +60,33 @@ class QueuedWorkStatus
         }
 
         return $status;
+    }
+
+    /**
+     * Classes of one show that already have a delivery job waiting, running or
+     * delayed, keyed by class name. Delayed counts on purpose: the slow-link
+     * highres postpone is intentional waiting, not stuck work. Throws when the
+     * queue cannot be read; the caller decides what "queue unavailable" means.
+     *
+     * @return array<string, true>
+     */
+    public function busyDeliveries(string $showId): array
+    {
+        $classes = ShowClass::where('show_id', $showId)->pluck('name', 'id')->all();
+        $busy = [];
+        foreach ($this->queuedPayloads() as [$state, $payload]) {
+            $decoded = json_decode($payload, true);
+            if (! in_array($decoded['data']['commandName'] ?? null, self::DELIVERY_JOB_CLASSES, true)) {
+                continue;
+            }
+            foreach ($this->commandScopes($decoded['data']['command'] ?? '', $showId, $classes, []) as $scope) {
+                if (in_array($scope, $classes, true)) {
+                    $busy[$scope] = true;
+                }
+            }
+        }
+
+        return $busy;
     }
 
     protected function queuedPayloads(): iterable

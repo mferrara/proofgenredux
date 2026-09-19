@@ -16,12 +16,14 @@ use App\Services\ClassRenameService;
 use App\Services\Delivery\DeliveryTargetResolver;
 use App\Services\Ferraraphoto\WebsiteShows;
 use App\Services\FerraraphotoTargetVerifier;
+use App\Services\HorizonService;
 use App\Services\Migration\CopyShowToCloud;
 use App\Services\Migration\MigrationInventoryService;
 use App\Services\Migration\ShowMigrationCutover;
 use App\Services\Migration\VerifyMigrationCopies;
 use App\Services\PathResolver;
 use App\Services\QueuedWorkStatus;
+use App\Services\ShowSweep;
 use App\Services\Storage\StorageProfileHealthCheck;
 use App\Services\StorageUsageService;
 use Flux\Flux;
@@ -433,6 +435,43 @@ class ShowViewComponent extends Component
 
         $queued = $this->show->importPendingImages();
         $this->setFlashMessage($queued.' Images queued for import.');
+    }
+
+    /**
+     * The Process button: one sweep that carries everything pending through
+     * the pipeline. Unlike the per-stage actions it does not refuse while
+     * other work is queued — the sweep relies on unique jobs and its
+     * busy-delivery check for that — it refuses only when the queue cannot be
+     * read at all.
+     */
+    public function processAllPending(): void
+    {
+        $status = app(QueuedWorkStatus::class)->snapshot($this->show->id);
+        if (! $status['available']) {
+            $this->setFlashMessage('Queue status is unavailable. Check services before queuing more work.');
+
+            return;
+        }
+
+        $sweep = app(ShowSweep::class);
+        $report = $sweep->sweep($this->show);
+        if (! app(HorizonService::class)->isRunning()) {
+            $report['notes'][] = 'The background workers are stopped: press Start in the header and this work begins.';
+        }
+
+        $this->setFlashMessage($sweep->shortMessage($report));
+
+        $trouble = $report['skipped_folders'] !== [] || $report['notes'] !== []
+            || $report['open_issues'] > 0 || $report['failed_jobs'] > 0;
+
+        Flux::toast(
+            text: $sweep->message($report),
+            heading: 'Process',
+            // Several sentences: leave time to read them, longer when something needs him.
+            duration: $trouble ? 20000 : 8000,
+            variant: $trouble ? 'warning' : 'success',
+            position: 'top right',
+        );
     }
 
     public function checkProofAndWebImageUploads(): void
